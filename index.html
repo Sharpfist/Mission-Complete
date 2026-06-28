@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Mission Récompenses</title>
+<style>
+  :root{
+    --ink:#23214A;
+    --ink-soft:#6A6790;
+    --cream:#FBF6EC;
+    --card:#FFFFFF;
+    --gold:#FFC53D;
+    --gold-deep:#E89B0C;
+    --c1:#FF6B6B;  /* enfant 1 */
+    --c2:#1FB6A6;  /* enfant 2 */
+    --c3:#8B7FF5;  /* enfant 3 */
+    --good:#2BB673;
+    --wait:#F2A33C;
+    --line:#ECE6DA;
+    --shadow:0 10px 30px rgba(35,33,74,.10);
+    --radius:22px;
+    font-family: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--cream);color:var(--ink);}
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(1200px 600px at 110% -10%, rgba(255,197,61,.18), transparent 60%),
+      radial-gradient(900px 500px at -10% 10%, rgba(139,127,245,.16), transparent 55%),
+      var(--cream);
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .wrap{max-width:880px;margin:0 auto;padding:18px 16px 120px;}
+  h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.02em;}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-weight:800;}
+  .coin{
+    display:inline-flex;align-items:center;gap:7px;
+    background:linear-gradient(180deg,#FFE08A,var(--gold));
+    color:#6b4a00;border-radius:999px;padding:6px 14px;font-weight:900;
+    box-shadow: inset 0 -2px 0 rgba(0,0,0,.08);
+  }
+  .coin .dot{width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff6cf,var(--gold-deep));box-shadow:inset 0 0 0 2px rgba(255,255,255,.6);}
+
+  /* ---------- LOCK / CHOOSE ---------- */
+  .brand{display:flex;align-items:center;justify-content:center;gap:10px;margin:6px 0 4px;}
+  .brand .logo{font-size:30px}
+  .brand h1{font-size:26px}
+  .tagline{text-align:center;color:var(--ink-soft);font-weight:600;margin:0 0 22px;font-size:15px}
+  .who-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+  @media(max-width:640px){.who-grid{grid-template-columns:1fr 1fr;}}
+  .who{
+    background:var(--card);border-radius:var(--radius);padding:22px 14px;text-align:center;
+    box-shadow:var(--shadow);border:3px solid transparent;transition:transform .12s ease;
+  }
+  .who:active{transform:scale(.97)}
+  .who .face{font-size:46px;line-height:1}
+  .who .nm{font-weight:800;margin-top:10px;font-size:18px}
+  .who .pts{margin-top:8px}
+  .parent-btn{
+    margin:22px auto 0;display:flex;align-items:center;justify-content:center;gap:10px;
+    background:var(--ink);color:#fff;border-radius:16px;padding:15px 22px;font-weight:800;font-size:16px;
+    box-shadow:var(--shadow);width:100%;max-width:340px;
+  }
+  .parent-btn:active{transform:scale(.98)}
+
+  /* ---------- HEADER (child / parent) ---------- */
+  .top{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
+  .back{background:#fff;border-radius:14px;width:46px;height:46px;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:var(--shadow);flex:none;}
+  .top .who-name{font-size:22px;font-weight:900;}
+  .top .spacer{flex:1}
+
+  .hero{
+    border-radius:26px;padding:20px 22px;color:#fff;margin-bottom:18px;
+    box-shadow:var(--shadow);position:relative;overflow:hidden;
+  }
+  .hero .emoji{position:absolute;right:-6px;bottom:-18px;font-size:120px;opacity:.22;transform:rotate(-8deg)}
+  .hero .label{font-weight:700;opacity:.9;font-size:14px}
+  .hero .big{font-size:46px;font-weight:900;line-height:1.05;margin-top:2px;display:flex;align-items:center;gap:12px}
+  .hero .big .c{width:38px;height:38px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff7d6,#ffd34d);box-shadow:inset 0 0 0 3px rgba(255,255,255,.55)}
+  .hero .sub{margin-top:8px;font-weight:700;opacity:.92;font-size:14px}
+
+  /* ---------- SECTIONS ---------- */
+  .section-h{display:flex;align-items:center;gap:10px;margin:22px 4px 12px;}
+  .section-h h3{font-size:16px;color:var(--ink)}
+  .section-h .tag{font-size:12px;font-weight:800;color:var(--ink-soft);background:#fff;border:1px solid var(--line);padding:3px 9px;border-radius:999px}
+
+  .task{
+    background:var(--card);border-radius:18px;padding:14px 14px 14px 16px;margin-bottom:10px;
+    display:flex;align-items:center;gap:14px;box-shadow:var(--shadow);
+  }
+  .task .meta{flex:1;min-width:0}
+  .task .t{font-weight:800;font-size:16px}
+  .task .f{font-size:13px;color:var(--ink-soft);font-weight:600;margin-top:2px}
+  .task .pts-badge{background:#FFF4D6;color:#a06d00;font-weight:900;border-radius:12px;padding:6px 11px;font-size:14px;white-space:nowrap}
+  .do{
+    background:var(--good);color:#fff;font-weight:900;border-radius:14px;padding:12px 16px;font-size:15px;white-space:nowrap;
+    box-shadow:inset 0 -3px 0 rgba(0,0,0,.12);
+  }
+  .do:active{transform:translateY(1px)}
+  .waiting{background:#FFF1DE;color:#b86a00;font-weight:900;border-radius:14px;padding:12px 16px;font-size:14px;white-space:nowrap}
+  .done-chip{background:#E6F7EE;color:#1d8a55;font-weight:900;border-radius:14px;padding:12px 16px;font-size:14px;white-space:nowrap}
+
+  .empty{
+    background:#fff;border:2px dashed var(--line);border-radius:18px;padding:26px 18px;text-align:center;
+    color:var(--ink-soft);font-weight:700;
+  }
+  .empty .em{font-size:34px;display:block;margin-bottom:6px}
+
+  /* ---------- STORE ---------- */
+  .reward{
+    background:var(--card);border-radius:18px;padding:16px;box-shadow:var(--shadow);
+    display:flex;flex-direction:column;gap:10px;
+  }
+  .store-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:560px){.store-grid{grid-template-columns:1fr}}
+  .reward .r-top{display:flex;align-items:center;gap:10px}
+  .reward .r-emoji{font-size:30px}
+  .reward .r-name{font-weight:800;font-size:16px;flex:1}
+  .buy{background:var(--gold);color:#6b4a00;font-weight:900;border-radius:14px;padding:12px;font-size:15px;box-shadow:inset 0 -3px 0 rgba(0,0,0,.10)}
+  .buy.locked{background:#EFEADF;color:#9a937f}
+  .buy:active{transform:translateY(1px)}
+
+  /* ---------- PARENT NAV ---------- */
+  .tabs{display:flex;gap:8px;background:#fff;padding:6px;border-radius:18px;box-shadow:var(--shadow);margin-bottom:18px;overflow:auto}
+  .tab{flex:1;white-space:nowrap;text-align:center;padding:11px 10px;border-radius:13px;font-weight:800;color:var(--ink-soft);font-size:14px}
+  .tab.active{background:var(--ink);color:#fff}
+  .badge-n{display:inline-block;min-width:20px;padding:0 6px;height:20px;line-height:20px;background:var(--c1);color:#fff;border-radius:999px;font-size:12px;font-weight:900;margin-left:6px}
+
+  /* ---------- PARENT CARDS ---------- */
+  .card{background:#fff;border-radius:18px;padding:16px;box-shadow:var(--shadow);margin-bottom:12px}
+  .row{display:flex;align-items:center;gap:12px}
+  .row .grow{flex:1;min-width:0}
+  .muted{color:var(--ink-soft);font-weight:600;font-size:13px}
+  .who-chip{display:inline-flex;align-items:center;gap:6px;font-weight:800;font-size:13px;padding:4px 10px;border-radius:999px;color:#fff}
+
+  .approve-card .who-line{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .btn-line{display:flex;gap:8px;margin-top:12px}
+  .btn{flex:1;text-align:center;border-radius:13px;padding:12px;font-weight:900;font-size:15px}
+  .btn-yes{background:var(--good);color:#fff}
+  .btn-no{background:#FCE9E9;color:#c0392b}
+  .btn-ghost{background:#F3EFE6;color:var(--ink)}
+
+  .add-btn{
+    width:100%;background:var(--ink);color:#fff;border-radius:16px;padding:15px;font-weight:900;font-size:16px;
+    box-shadow:var(--shadow);margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:9px;
+  }
+  .add-btn:active{transform:scale(.99)}
+
+  .tpl-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+  .tpl{background:#fff;border:1px solid var(--line);border-radius:999px;padding:9px 13px;font-weight:800;font-size:14px;box-shadow:0 4px 12px rgba(35,33,74,.05)}
+  .tpl b{color:var(--gold-deep)}
+  .tpl:active{transform:scale(.97)}
+
+  .mini{display:flex;gap:6px;flex-wrap:wrap}
+  .mini button{background:#F3EFE6;border-radius:10px;padding:8px 12px;font-weight:800;font-size:14px}
+  .mini button:active{transform:scale(.96)}
+
+  .item-actions{display:flex;gap:6px}
+  .icon-btn{width:40px;height:40px;border-radius:12px;background:#F3EFE6;display:flex;align-items:center;justify-content:center;font-size:18px}
+  .icon-btn:active{transform:scale(.95)}
+
+  /* ---------- MODAL ---------- */
+  .modal-bg{position:fixed;inset:0;background:rgba(35,33,74,.45);display:flex;align-items:flex-end;justify-content:center;z-index:50;backdrop-filter:blur(2px)}
+  @media(min-width:560px){.modal-bg{align-items:center}}
+  .modal{
+    background:#fff;border-radius:26px 26px 0 0;width:100%;max-width:520px;padding:22px 20px 26px;
+    box-shadow:0 -10px 40px rgba(0,0,0,.2);max-height:92vh;overflow:auto;
+  }
+  @media(min-width:560px){.modal{border-radius:26px}}
+  .modal h3{font-size:20px;margin-bottom:16px}
+  label.fld{display:block;font-weight:800;font-size:13px;color:var(--ink-soft);margin:12px 2px 6px}
+  input.in,select.in{
+    width:100%;border:2px solid var(--line);border-radius:14px;padding:14px;font-size:16px;font-weight:700;
+    color:var(--ink);background:#fff;font-family:inherit;
+  }
+  input.in:focus,select.in:focus{outline:none;border-color:var(--ink)}
+  .seg{display:flex;gap:8px;flex-wrap:wrap}
+  .seg .opt{flex:1;min-width:120px;text-align:center;border:2px solid var(--line);border-radius:14px;padding:12px;font-weight:800;font-size:14px}
+  .seg .opt.on{border-color:var(--ink);background:var(--ink);color:#fff}
+  .kid-pick{display:flex;gap:8px;flex-wrap:wrap}
+  .kid-pick .opt{flex:1;min-width:90px;text-align:center;border:3px solid var(--line);border-radius:14px;padding:12px 8px;font-weight:800;font-size:14px}
+  .kid-pick .opt.on{border-color:currentColor}
+  .modal-actions{display:flex;gap:10px;margin-top:22px}
+  .toast{
+    position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;font-weight:800;padding:13px 20px;border-radius:14px;z-index:80;
+    box-shadow:var(--shadow);transition:all .25s ease;pointer-events:none;font-size:15px;text-align:center;max-width:90%;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .hist-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .hist-row:last-child{border-bottom:none}
+  .hist-row .h-pts{font-weight:900;white-space:nowrap}
+  .footer-note{text-align:center;color:var(--ink-soft);font-size:12px;font-weight:600;margin-top:26px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div id="modal-root"></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="restore-input" accept="application/json,.json" style="display:none">
+
+<script>
+"use strict";
+
+/* ============ Stockage (fonctionne hors-ligne sur l'iPad) ============ */
+const KEY = "missions_recompenses_v1";
+let _mem = null;
+function load(){
+  try { const r = localStorage.getItem(KEY); if(r) return JSON.parse(r); } catch(e){}
+  if(_mem) return _mem;
+  return null;
+}
+function save(){
+  _mem = state;
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){}
+}
+
+/* ============ Données par défaut ============ */
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function defaults(){
+  return {
+    version:1,
+    parentPin:"",
+    children:[
+      {id:"c1", name:"Enfant 1", emoji:"🦊", color:"#FF6B6B", points:0},
+      {id:"c2", name:"Enfant 2", emoji:"🐸", color:"#1FB6A6", points:0},
+      {id:"c3", name:"Enfant 3", emoji:"🦄", color:"#8B7FF5", points:0},
+    ],
+    tasks:[],
+    rewards:[
+      {id:uid(), title:"30 min d'écran", cost:20, emoji:"📱"},
+      {id:uid(), title:"Choisir le film en famille", cost:30, emoji:"🎬"},
+      {id:uid(), title:"Collation spéciale", cost:15, emoji:"🍪"},
+      {id:uid(), title:"Sortie au parc", cost:40, emoji:"🛝"},
+      {id:uid(), title:"Petit jouet surprise", cost:60, emoji:"🎁"},
+      {id:uid(), title:"Se coucher 30 min plus tard", cost:50, emoji:"🌙"},
+    ],
+    templates:[
+      {title:"Faire son lit", points:5},
+      {title:"Ranger sa chambre", points:10},
+      {title:"Vider le lave-vaisselle", points:10},
+      {title:"Mettre la table", points:5},
+      {title:"Desservir la table", points:5},
+      {title:"Sortir les poubelles", points:10},
+      {title:"Passer le balai", points:10},
+      {title:"Faire ses devoirs", points:15},
+      {title:"Se brosser les dents", points:5},
+      {title:"Nourrir l'animal", points:5},
+      {title:"Plier le linge", points:10},
+      {title:"Aider à préparer le souper", points:10},
+      {title:"Ranger ses jouets", points:5},
+      {title:"Passer l'aspirateur", points:15},
+    ],
+    completions:[],   // {id, taskId, childId, periodKey, status:'pending'|'approved', createdAt, approvedAt}
+    purchases:[],     // {id, rewardId, childId, childName, title, cost, createdAt}
+    lastBackupAt:null,
+  };
+}
+
+let state = load() || defaults();
+
+/* ============ Outils de période (jour / semaine / mois) ============ */
+function pad(n){ return String(n).padStart(2,"0"); }
+function isoWeek(d){
+  const x = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = x.getUTCDay() || 7;
+  x.setUTCDate(x.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(x.getUTCFullYear(),0,1));
+  const wk = Math.ceil((((x - yearStart)/86400000)+1)/7);
+  return x.getUTCFullYear() + "-W" + pad(wk);
+}
+function periodKey(freq, d){
+  d = d || new Date();
+  if(freq==="once")    return "once";
+  if(freq==="daily")   return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+  if(freq==="weekly")  return isoWeek(d);
+  if(freq==="monthly") return d.getFullYear()+"-"+pad(d.getMonth()+1);
+  return "once";
+}
+const FREQ_LABEL = { daily:"Chaque jour", weekly:"Chaque semaine", monthly:"Chaque mois", once:"Une seule fois" };
+const FREQ_SHORT = { daily:"Quotidienne", weekly:"Hebdo", monthly:"Mensuelle", once:"Ponctuelle" };
+
+/* ============ Logique ============ */
+function child(id){ return state.children.find(c=>c.id===id); }
+function reward(id){ return state.rewards.find(r=>r.id===id); }
+function task(id){ return state.tasks.find(t=>t.id===id); }
+
+// statut d'une tâche pour la période courante: 'open' | 'pending' | 'done'
+function taskStatus(t){
+  const pk = periodKey(t.freq);
+  const c = state.completions.find(x=>x.taskId===t.id && x.childId===t.childId && x.periodKey===pk);
+  if(!c) return "open";
+  return c.status==="approved" ? "done" : "pending";
+}
+function pendingCount(){
+  return state.completions.filter(c=>c.status==="pending").length;
+}
+
+function markDone(taskId){
+  const t = task(taskId); if(!t) return;
+  const pk = periodKey(t.freq);
+  const exists = state.completions.find(c=>c.taskId===t.id && c.childId===t.childId && c.periodKey===pk);
+  if(exists) return;
+  state.completions.push({id:uid(), taskId:t.id, childId:t.childId, periodKey:pk, status:"pending", createdAt:Date.now()});
+  save();
+}
+function approve(compId){
+  const c = state.completions.find(x=>x.id===compId); if(!c) return;
+  const t = task(c.taskId);
+  c.status = "approved"; c.approvedAt = Date.now();
+  if(t){ const k = child(c.childId); if(k){ k.points += t.points; } }
+  save();
+}
+function reject(compId){
+  state.completions = state.completions.filter(x=>x.id!==compId);
+  save();
+}
+function buy(rewardId, childId){
+  const r = reward(rewardId); const k = child(childId);
+  if(!r||!k) return false;
+  if(k.points < r.cost) return false;
+  k.points -= r.cost;
+  state.purchases.unshift({id:uid(), rewardId:r.id, childId:k.id, childName:k.name, title:r.title, cost:r.cost, createdAt:Date.now()});
+  save();
+  return true;
+}
+function adjustPoints(childId, delta){
+  const k = child(childId); if(!k) return;
+  k.points = Math.max(0, k.points + delta);
+  save();
+}
+
+/* ============ Routeur de vue ============ */
+let view = { name:"lock", childId:null, tab:"approbations" };
+
+function go(name, opts){ view = Object.assign({name}, opts||{}); render(); }
+
+/* ============ Rendu ============ */
+const app = () => document.getElementById("app");
+function esc(s){ return String(s).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m])); }
+function coinPill(n){ return `<span class="coin"><span class="dot"></span>${n}</span>`; }
+
+function render(){
+  if(view.name==="lock") return renderLock();
+  if(view.name==="child") return renderChild();
+  if(view.name==="store") return renderStore();
+  if(view.name==="parent") return renderParent();
+}
+
+/* ----- Écran d'accueil ----- */
+function renderLock(){
+  app().innerHTML = `
+    <div class="brand"><span class="logo">⭐️</span><h1>Mission Récompenses</h1></div>
+    <p class="tagline">Choisis qui tu es pour voir tes missions</p>
+    <div class="who-grid">
+      ${state.children.map(c=>`
+        <button class="who" data-action="open-child" data-id="${c.id}" style="border-color:${c.color}">
+          <div class="face">${esc(c.emoji)}</div>
+          <div class="nm" style="color:${c.color}">${esc(c.name)}</div>
+          <div class="pts">${coinPill(c.points)}</div>
+        </button>`).join("")}
+    </div>
+    <button class="parent-btn" data-action="open-parent">🔐 Espace parent</button>
+    <p class="footer-note">Astuce : ajoute cette page à l'écran d'accueil de l'iPad<br>(bouton Partager ▸ « Sur l'écran d'accueil ») pour l'ouvrir comme une vraie app.</p>
+  `;
+}
+
+/* ----- Écran enfant : ses missions ----- */
+function renderChild(){
+  const c = child(view.childId);
+  const myTasks = state.tasks.filter(t=>t.childId===c.id);
+  const groups = ["daily","weekly","monthly","once"];
+  const groupTitle = { daily:"Aujourd'hui", weekly:"Cette semaine", monthly:"Ce mois-ci", once:"Missions spéciales" };
+
+  let sections = "";
+  let anyTask = false;
+  groups.forEach(g=>{
+    let list = myTasks.filter(t=>t.freq===g);
+    if(g==="once") list = list.filter(t=>taskStatus(t)!=="done"); // les ponctuelles terminées disparaissent
+    if(list.length===0) return;
+    anyTask = true;
+    sections += `<div class="section-h"><h3>${groupTitle[g]}</h3><span class="tag">${FREQ_SHORT[g]}</span></div>`;
+    list.forEach(t=>{
+      const st = taskStatus(t);
+      let action = `<button class="do" data-action="do-task" data-id="${t.id}">J'ai fait ✓</button>`;
+      if(st==="pending") action = `<span class="waiting">⏳ En attente</span>`;
+      if(st==="done")    action = `<span class="done-chip">✅ Bravo !</span>`;
+      sections += `
+        <div class="task">
+          <span class="pts-badge">+${t.points}</span>
+          <div class="meta"><div class="t">${esc(t.title)}</div></div>
+          ${action}
+        </div>`;
+    });
+  });
+
+  if(!anyTask){
+    sections = `<div class="empty"><span class="em">🗒️</span>Aucune mission pour l'instant.<br>Un parent peut en ajouter dans l'espace parent.</div>`;
+  }
+
+  app().innerHTML = `
+    <div class="top">
+      <button class="back" data-action="lock">‹</button>
+      <div class="who-name" style="color:${c.color}">${esc(c.emoji)} ${esc(c.name)}</div>
+      <div class="spacer"></div>
+    </div>
+    <div class="hero" style="background:linear-gradient(135deg, ${c.color}, ${shade(c.color,-18)})">
+      <span class="emoji">${esc(c.emoji)}</span>
+      <div class="label">Mes points</div>
+      <div class="big"><span class="c"></span>${c.points}</div>
+      <div class="sub">Termine tes missions pour en gagner plus !</div>
+    </div>
+    <button class="add-btn" data-action="open-store" data-id="${c.id}">🛒 Boutique des récompenses</button>
+    ${sections}
+  `;
+}
+
+/* ----- Boutique (côté enfant) ----- */
+function renderStore(){
+  const c = child(view.childId);
+  app().innerHTML = `
+    <div class="top">
+      <button class="back" data-action="open-child" data-id="${c.id}">‹</button>
+      <div class="who-name" style="color:${c.color}">🛒 Boutique</div>
+      <div class="spacer"></div>
+      ${coinPill(c.points)}
+    </div>
+    ${state.rewards.length===0 ? `<div class="empty"><span class="em">🎁</span>Aucune récompense pour l'instant.</div>` : `
+    <div class="store-grid">
+      ${state.rewards.map(r=>{
+        const can = c.points >= r.cost;
+        return `
+          <div class="reward">
+            <div class="r-top"><span class="r-emoji">${esc(r.emoji||"🎁")}</span><span class="r-name">${esc(r.title)}</span></div>
+            <button class="buy ${can?"":"locked"}" data-action="buy" data-id="${r.id}" data-child="${c.id}">
+              ${can ? `Acheter — ${r.cost} pts` : `🔒 ${r.cost} pts`}
+            </button>
+          </div>`;
+      }).join("")}
+    </div>`}
+    <p class="footer-note">Quand tu achètes, tes points baissent.<br>Va voir un parent pour recevoir ta surprise 😊</p>
+  `;
+}
+
+/* ----- Espace parent ----- */
+function renderParent(){
+  const tabs = [
+    {id:"approbations", label:"À valider"},
+    {id:"taches", label:"Missions"},
+    {id:"boutique", label:"Boutique"},
+    {id:"enfants", label:"Enfants"},
+    {id:"reglages", label:"Réglages"},
+  ];
+  const pc = pendingCount();
+  let body = "";
+  if(view.tab==="approbations") body = parentApprovals();
+  if(view.tab==="taches")       body = parentTasks();
+  if(view.tab==="boutique")     body = parentRewards();
+  if(view.tab==="enfants")      body = parentChildren();
+  if(view.tab==="reglages")     body = parentSettings();
+
+  app().innerHTML = `
+    <div class="top">
+      <button class="back" data-action="lock">‹</button>
+      <div class="who-name">🔐 Espace parent</div>
+    </div>
+    <div class="tabs">
+      ${tabs.map(t=>`<button class="tab ${view.tab===t.id?"active":""}" data-action="ptab" data-tab="${t.id}">
+        ${t.label}${t.id==="approbations"&&pc>0?`<span class="badge-n">${pc}</span>`:""}
+      </button>`).join("")}
+    </div>
+    ${body}
+  `;
+}
+
+function parentApprovals(){
+  const pend = state.completions.filter(c=>c.status==="pending").sort((a,b)=>a.createdAt-b.createdAt);
+  if(pend.length===0){
+    return `<div class="empty"><span class="em">✅</span>Rien à valider pour le moment.<br>Quand un enfant coche « J'ai fait », ça apparaît ici.</div>`;
+  }
+  return pend.map(c=>{
+    const t = task(c.taskId); const k = child(c.childId);
+    if(!t||!k) return "";
+    return `
+      <div class="card approve-card">
+        <div class="who-line">
+          <span class="who-chip" style="background:${k.color}">${esc(k.emoji)} ${esc(k.name)}</span>
+          <span class="muted">${FREQ_SHORT[t.freq]}</span>
+        </div>
+        <div class="row">
+          <div class="grow"><div class="t" style="font-weight:800;font-size:17px">${esc(t.title)}</div></div>
+          <span class="pts-badge">+${t.points}</span>
+        </div>
+        <div class="btn-line">
+          <button class="btn btn-yes" data-action="approve" data-id="${c.id}">✓ Valider (+${t.points})</button>
+          <button class="btn btn-no" data-action="reject" data-id="${c.id}">✗ Refuser</button>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function parentTasks(){
+  let tpl = state.templates.map(t=>`
+    <button class="tpl" data-action="tpl" data-title="${esc(t.title)}" data-points="${t.points}">${esc(t.title)} <b>+${t.points}</b></button>
+  `).join("");
+
+  let byChild = state.children.map(k=>{
+    const list = state.tasks.filter(t=>t.childId===k.id);
+    const items = list.length===0
+      ? `<div class="muted" style="padding:8px 2px">Aucune mission assignée.</div>`
+      : list.map(t=>`
+        <div class="row" style="padding:11px 0;border-bottom:1px solid var(--line)">
+          <div class="grow">
+            <div style="font-weight:800">${esc(t.title)}</div>
+            <div class="muted">${FREQ_LABEL[t.freq]} · +${t.points} pts</div>
+          </div>
+          <div class="item-actions">
+            <button class="icon-btn" data-action="edit-task" data-id="${t.id}">✏️</button>
+            <button class="icon-btn" data-action="del-task" data-id="${t.id}">🗑️</button>
+          </div>
+        </div>`).join("");
+    return `
+      <div class="card">
+        <div class="row" style="margin-bottom:6px">
+          <span class="who-chip" style="background:${k.color}">${esc(k.emoji)} ${esc(k.name)}</span>
+        </div>
+        ${items}
+      </div>`;
+  }).join("");
+
+  return `
+    <button class="add-btn" data-action="new-task">＋ Nouvelle mission</button>
+    <div class="card">
+      <div class="row" style="margin-bottom:10px"><h3 style="font-size:15px">⚡ Modèles rapides</h3></div>
+      <div class="muted" style="margin-bottom:10px">Touche un modèle pour créer la mission en 2 secondes.</div>
+      <div class="tpl-wrap">${tpl}</div>
+    </div>
+    ${byChild}
+  `;
+}
+
+function parentRewards(){
+  const list = state.rewards.length===0
+    ? `<div class="empty"><span class="em">🎁</span>Aucune récompense.</div>`
+    : state.rewards.map(r=>`
+      <div class="card">
+        <div class="row">
+          <span style="font-size:26px">${esc(r.emoji||"🎁")}</span>
+          <div class="grow"><div style="font-weight:800">${esc(r.title)}</div><div class="muted">${r.cost} points</div></div>
+          <div class="item-actions">
+            <button class="icon-btn" data-action="edit-reward" data-id="${r.id}">✏️</button>
+            <button class="icon-btn" data-action="del-reward" data-id="${r.id}">🗑️</button>
+          </div>
+        </div>
+      </div>`).join("");
+
+  const hist = state.purchases.slice(0,15);
+  const histHtml = hist.length===0 ? "" : `
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:8px">🧾 Derniers achats</h3>
+      ${hist.map(p=>`
+        <div class="hist-row">
+          <span class="who-chip" style="background:${(child(p.childId)||{}).color||'#999'}">${esc((child(p.childId)||{}).emoji||"")} ${esc(p.childName)}</span>
+          <div class="grow">${esc(p.title)}</div>
+          <span class="h-pts" style="color:#c0392b">−${p.cost}</span>
+        </div>`).join("")}
+    </div>`;
+
+  return `
+    <button class="add-btn" data-action="new-reward">＋ Nouvelle récompense</button>
+    ${list}
+    ${histHtml}
+  `;
+}
+
+function parentChildren(){
+  return state.children.map(k=>`
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <span style="font-size:30px">${esc(k.emoji)}</span>
+        <div class="grow"><div style="font-weight:800;font-size:17px;color:${k.color}">${esc(k.name)}</div><div class="muted">${k.points} points</div></div>
+        <button class="icon-btn" data-action="edit-child" data-id="${k.id}">✏️</button>
+      </div>
+      <div class="muted" style="margin-bottom:6px">Ajuster les points à la main :</div>
+      <div class="mini">
+        <button data-action="pts" data-id="${k.id}" data-d="1">+1</button>
+        <button data-action="pts" data-id="${k.id}" data-d="5">+5</button>
+        <button data-action="pts" data-id="${k.id}" data-d="10">+10</button>
+        <button data-action="pts" data-id="${k.id}" data-d="-1">−1</button>
+        <button data-action="pts" data-id="${k.id}" data-d="-5">−5</button>
+        <button data-action="pts" data-id="${k.id}" data-d="-10">−10</button>
+        <button data-action="pts-custom" data-id="${k.id}">Autre…</button>
+      </div>
+    </div>`).join("");
+}
+
+function fmtDate(ts){
+  if(!ts) return null;
+  const d = new Date(ts);
+  const jours=["dim.","lun.","mar.","mer.","jeu.","ven.","sam."];
+  return jours[d.getDay()]+" "+pad(d.getDate())+"/"+pad(d.getMonth()+1)+" à "+pad(d.getHours())+":"+pad(d.getMinutes());
+}
+function parentSettings(){
+  const lastBackup = fmtDate(state.lastBackupAt);
+  return `
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:8px">💾 Sauvegarde</h3>
+      <div class="muted" style="margin-bottom:12px">
+        ${lastBackup ? `Dernière sauvegarde : <b style="color:var(--ink)">${lastBackup}</b>` : "Aucune sauvegarde téléchargée encore."}<br>
+        Si tu effaces l'historique de Safari, tout est perdu — télécharge une sauvegarde de temps en temps et garde-la dans iCloud Drive ou par courriel.
+      </div>
+      <div class="btn-line">
+        <button class="btn btn-yes" data-action="export-backup">⬇️ Télécharger une sauvegarde</button>
+        <button class="btn btn-ghost" data-action="trigger-import">⬆️ Restaurer</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:8px">🔢 Code parent</h3>
+      <div class="muted" style="margin-bottom:12px">
+        ${state.parentPin ? "Un code à 4 chiffres protège l'espace parent." : "Aucun code pour l'instant : tout le monde peut ouvrir l'espace parent."}
+      </div>
+      <div class="btn-line">
+        <button class="btn btn-ghost" data-action="set-pin">${state.parentPin?"Changer le code":"Créer un code"}</button>
+        ${state.parentPin?`<button class="btn btn-no" data-action="clear-pin">Retirer le code</button>`:""}
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:8px">💾 Données</h3>
+      <div class="muted" style="margin-bottom:12px">Tout est gardé sur cet iPad uniquement. Pense à ne pas effacer l'historique de Safari pour ce site.</div>
+      <div class="btn-line">
+        <button class="btn btn-no" data-action="reset-all">Tout réinitialiser</button>
+      </div>
+    </div>
+    <p class="footer-note">Mission Récompenses · fonctionne hors-ligne · aucune donnée envoyée sur internet</p>
+  `;
+}
+
+/* ============ Couleur : assombrir un hex ============ */
+function shade(hex, percent){
+  const n = parseInt(hex.slice(1),16);
+  let r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+  r=Math.max(0,Math.min(255,Math.round(r+(r*percent/100))));
+  g=Math.max(0,Math.min(255,Math.round(g+(g*percent/100))));
+  b=Math.max(0,Math.min(255,Math.round(b+(b*percent/100))));
+  return "#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+
+/* ============ Toast ============ */
+let toastTimer=null;
+function toast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove("show"),1800);
+}
+
+/* ============ Modale ============ */
+function closeModal(){ document.getElementById("modal-root").innerHTML=""; }
+function openModal(html){
+  document.getElementById("modal-root").innerHTML = `<div class="modal-bg" data-action="modal-bg"><div class="modal">${html}</div></div>`;
+}
+
+let formState = {};
+function taskForm(existing){
+  formState = existing
+    ? {id:existing.id, title:existing.title, points:existing.points, freq:existing.freq, childId:existing.childId}
+    : {id:null, title:"", points:5, freq:"daily", childId:state.children[0].id};
+  drawTaskForm();
+}
+function drawTaskForm(){
+  const f = formState;
+  openModal(`
+    <h3>${f.id?"Modifier la mission":"Nouvelle mission"}</h3>
+    <label class="fld">Nom de la mission</label>
+    <input class="in" id="f-title" value="${esc(f.title)}" placeholder="Ex. Ranger sa chambre">
+    <label class="fld">Points gagnés</label>
+    <input class="in" id="f-points" type="number" inputmode="numeric" min="1" value="${f.points}">
+    <label class="fld">Pour quel enfant ?</label>
+    <div class="kid-pick" id="f-kid">
+      ${state.children.map(k=>`<button class="opt ${f.childId===k.id?"on":""}" style="color:${k.color}" data-action="pick-kid" data-id="${k.id}">${esc(k.emoji)}<br>${esc(k.name)}</button>`).join("")}
+    </div>
+    <label class="fld">À quelle fréquence ?</label>
+    <div class="seg" id="f-freq">
+      ${Object.keys(FREQ_LABEL).map(fr=>`<button class="opt ${f.freq===fr?"on":""}" data-action="pick-freq" data-f="${fr}">${FREQ_LABEL[fr]}</button>`).join("")}
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-action="modal-cancel">Annuler</button>
+      <button class="btn btn-yes" data-action="save-task">Enregistrer</button>
+    </div>
+  `);
+}
+
+function rewardForm(existing){
+  formState = existing
+    ? {id:existing.id, title:existing.title, cost:existing.cost, emoji:existing.emoji||"🎁"}
+    : {id:null, title:"", cost:20, emoji:"🎁"};
+  const f=formState;
+  openModal(`
+    <h3>${f.id?"Modifier la récompense":"Nouvelle récompense"}</h3>
+    <label class="fld">Émoji</label>
+    <input class="in" id="r-emoji" value="${esc(f.emoji)}" maxlength="4" style="width:90px;text-align:center;font-size:24px">
+    <label class="fld">Nom de la récompense</label>
+    <input class="in" id="r-title" value="${esc(f.title)}" placeholder="Ex. 30 min d'écran">
+    <label class="fld">Coût en points</label>
+    <input class="in" id="r-cost" type="number" inputmode="numeric" min="1" value="${f.cost}">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-action="modal-cancel">Annuler</button>
+      <button class="btn btn-yes" data-action="save-reward">Enregistrer</button>
+    </div>
+  `);
+}
+
+function childForm(existing){
+  formState = {id:existing.id, name:existing.name, emoji:existing.emoji, color:existing.color};
+  const f=formState;
+  const palette=["#FF6B6B","#1FB6A6","#8B7FF5","#F2A33C","#3DA5FF","#E85FB0","#5BC15B","#7A6FF0"];
+  openModal(`
+    <h3>Modifier l'enfant</h3>
+    <label class="fld">Émoji / avatar</label>
+    <input class="in" id="k-emoji" value="${esc(f.emoji)}" maxlength="4" style="width:90px;text-align:center;font-size:24px">
+    <label class="fld">Prénom</label>
+    <input class="in" id="k-name" value="${esc(f.name)}">
+    <label class="fld">Couleur</label>
+    <div class="seg" id="k-color">
+      ${palette.map(col=>`<button class="opt ${f.color.toLowerCase()===col.toLowerCase()?"on":""}" data-action="pick-color" data-c="${col}" style="background:${col};color:#fff;min-width:54px">${f.color.toLowerCase()===col.toLowerCase()?"✓":"&nbsp;"}</button>`).join("")}
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-action="modal-cancel">Annuler</button>
+      <button class="btn btn-yes" data-action="save-child">Enregistrer</button>
+    </div>
+  `);
+}
+
+function pinPrompt(purpose){
+  // purpose: 'enter' | 'set'
+  openModal(`
+    <h3>${purpose==="set"?"Choisir un code à 4 chiffres":"Code parent"}</h3>
+    <label class="fld">${purpose==="set"?"Nouveau code":"Entre le code"}</label>
+    <input class="in" id="pin-in" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="text-align:center;letter-spacing:8px;font-size:24px">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-action="modal-cancel">Annuler</button>
+      <button class="btn btn-yes" data-action="${purpose==="set"?"save-pin":"check-pin"}">OK</button>
+    </div>
+  `);
+  setTimeout(()=>{ const el=document.getElementById("pin-in"); if(el) el.focus(); },50);
+}
+
+/* ============ Sauvegarde / Restauration ============ */
+function exportBackup(){
+  state.lastBackupAt = Date.now();
+  save();
+  const d = new Date();
+  const filename = "missions-sauvegarde-"+d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+".json";
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  toast("Sauvegarde téléchargée 💾");
+  render();
+}
+function handleRestoreFile(ev){
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = "";
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    let data;
+    try{ data = JSON.parse(e.target.result); }
+    catch(err){ toast("Ce fichier n'est pas une sauvegarde valide"); return; }
+    if(!data || !Array.isArray(data.children) || !Array.isArray(data.tasks) || !Array.isArray(data.rewards)){
+      toast("Ce fichier n'est pas une sauvegarde valide"); return;
+    }
+    if(confirm("Remplacer toutes les données actuelles par cette sauvegarde ? Cette action est irréversible.")){
+      state = data;
+      save();
+      go("lock");
+      toast("Sauvegarde restaurée ✓");
+    }
+  };
+  reader.readAsText(file);
+}
+document.getElementById("restore-input").addEventListener("change", handleRestoreFile);
+
+/* ============ Gestion des clics ============ */
+document.addEventListener("click", (e)=>{
+  const el = e.target.closest("[data-action]");
+  if(!el) return;
+  const a = el.dataset.action;
+  const id = el.dataset.id;
+
+  switch(a){
+    /* navigation accueil */
+    case "open-child": go("child",{childId:id}); break;
+    case "open-store": case "open-store2": go("store",{childId:id}); break;
+    case "lock": go("lock"); break;
+
+    /* enfant */
+    case "do-task":
+      markDone(id);
+      toast("Envoyé ! Un parent va valider 👍");
+      render();
+      break;
+    case "buy": {
+      const r = reward(id); const k = child(el.dataset.child);
+      if(k.points < r.cost){ toast("Pas assez de points 🙈"); break; }
+      if(confirm(`Acheter « ${r.title} » pour ${r.cost} points ?`)){
+        buy(id, el.dataset.child);
+        toast("Acheté ! Va voir un parent 🎉");
+        render();
+      }
+      break;
+    }
+
+    /* espace parent (avec code) */
+    case "open-parent":
+      if(state.parentPin){ pinPrompt("enter"); }
+      else { go("parent",{tab:"approbations"}); }
+      break;
+    case "check-pin": {
+      const v=(document.getElementById("pin-in")||{}).value||"";
+      if(v===state.parentPin){ closeModal(); go("parent",{tab:"approbations"}); }
+      else { toast("Code incorrect"); }
+      break;
+    }
+    case "ptab": go("parent",{tab:el.dataset.tab}); break;
+
+    /* validations */
+    case "approve": approve(id); toast("Points accordés ✅"); render(); break;
+    case "reject":  reject(id);  toast("Refusé — la mission reste à faire"); render(); break;
+
+    /* missions */
+    case "new-task": taskForm(null); break;
+    case "edit-task": taskForm(task(id)); break;
+    case "del-task":
+      if(confirm("Supprimer cette mission ?")){
+        state.tasks = state.tasks.filter(t=>t.id!==id);
+        state.completions = state.completions.filter(c=>c.taskId!==id);
+        save(); render();
+      }
+      break;
+    case "tpl":
+      formState = {id:null, title:el.dataset.title, points:parseInt(el.dataset.points,10), freq:"daily", childId:state.children[0].id};
+      drawTaskForm();
+      break;
+    case "pick-kid":  formState.childId=id; drawTaskForm(); break;
+    case "pick-freq": formState.freq=el.dataset.f; drawTaskForm(); break;
+    case "save-task": {
+      const title=(document.getElementById("f-title").value||"").trim();
+      const points=Math.max(1, parseInt(document.getElementById("f-points").value,10)||1);
+      if(!title){ toast("Donne un nom à la mission"); break; }
+      if(formState.id){
+        const t=task(formState.id); t.title=title; t.points=points; t.freq=formState.freq; t.childId=formState.childId;
+      } else {
+        state.tasks.push({id:uid(), title, points, freq:formState.freq, childId:formState.childId, createdAt:Date.now()});
+      }
+      save(); closeModal(); render(); toast("Mission enregistrée ✓");
+      break;
+    }
+
+    /* récompenses */
+    case "new-reward": rewardForm(null); break;
+    case "edit-reward": rewardForm(reward(id)); break;
+    case "del-reward":
+      if(confirm("Supprimer cette récompense ?")){
+        state.rewards = state.rewards.filter(r=>r.id!==id); save(); render();
+      }
+      break;
+    case "save-reward": {
+      const title=(document.getElementById("r-title").value||"").trim();
+      const cost=Math.max(1, parseInt(document.getElementById("r-cost").value,10)||1);
+      const emoji=(document.getElementById("r-emoji").value||"🎁").trim()||"🎁";
+      if(!title){ toast("Donne un nom à la récompense"); break; }
+      if(formState.id){
+        const r=reward(formState.id); r.title=title; r.cost=cost; r.emoji=emoji;
+      } else {
+        state.rewards.push({id:uid(), title, cost, emoji});
+      }
+      save(); closeModal(); render(); toast("Récompense enregistrée ✓");
+      break;
+    }
+
+    /* enfants */
+    case "edit-child": childForm(child(id)); break;
+    case "pick-color": formState.color=el.dataset.c; childForm({id:formState.id,name:(document.getElementById("k-name")||{}).value||formState.name,emoji:(document.getElementById("k-emoji")||{}).value||formState.emoji,color:el.dataset.c}); break;
+    case "save-child": {
+      const k=child(formState.id);
+      k.name=((document.getElementById("k-name").value||"").trim())||k.name;
+      k.emoji=((document.getElementById("k-emoji").value||"").trim())||k.emoji;
+      k.color=formState.color;
+      save(); closeModal(); render(); toast("Enregistré ✓");
+      break;
+    }
+    case "pts": adjustPoints(id, parseInt(el.dataset.d,10)); render(); break;
+    case "pts-custom": {
+      const v=prompt("Combien de points ajouter ? (un nombre négatif pour en retirer)");
+      if(v!==null){ const n=parseInt(v,10); if(!isNaN(n)){ adjustPoints(id,n); render(); } }
+      break;
+    }
+
+    /* réglages */
+    case "export-backup": exportBackup(); break;
+    case "trigger-import": document.getElementById("restore-input").click(); break;
+    case "set-pin": pinPrompt("set"); break;
+    case "save-pin": {
+      const v=(document.getElementById("pin-in").value||"").trim();
+      if(!/^\d{4}$/.test(v)){ toast("Il faut 4 chiffres"); break; }
+      state.parentPin=v; save(); closeModal(); render(); toast("Code enregistré 🔒");
+      break;
+    }
+    case "clear-pin":
+      if(confirm("Retirer le code parent ?")){ state.parentPin=""; save(); render(); }
+      break;
+    case "reset-all":
+      if(confirm("Tout effacer et recommencer à zéro ? (missions, récompenses, points)")){
+        state = defaults(); save(); go("lock"); toast("Réinitialisé");
+      }
+      break;
+
+    /* modale */
+    case "modal-cancel": closeModal(); break;
+    case "modal-bg": if(e.target.classList.contains("modal-bg")) closeModal(); break;
+  }
+});
+
+render();
+</script>
+</body>
+</html>
