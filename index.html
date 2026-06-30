@@ -245,6 +245,12 @@
     100%{font-size:170px;opacity:0}
   }
   @keyframes ev-flash{0%{opacity:0.6}100%{opacity:0}}
+  @keyframes ev-pts-up-side{
+    0%{opacity:0;transform:translateY(-50%)}
+    12%{opacity:1;transform:translateY(-50%)}
+    70%{opacity:1;transform:translateY(calc(-50% - 38px))}
+    100%{opacity:0;transform:translateY(calc(-50% - 58px))}
+  }
   @keyframes ev-hero-pulse{
     0%{transform:scale(1)}40%{transform:scale(1.06)}70%{transform:scale(0.97)}100%{transform:scale(1)}
   }
@@ -678,6 +684,31 @@ function renderChild(){
   const c = child(view.childId);
   const myTasks = state.tasks.filter(tsk => tsk.childId === c.id);
 
+  /* --- notification lifecycle --- */
+  const nowMs = Date.now();
+  const THIRTY_MIN = 30 * 60 * 1000;
+  const beforeLen = (state.notifications||[]).length;
+  // remove expired (viewed > 30 min ago)
+  state.notifications = (state.notifications||[]).filter(n =>
+    n.childId !== c.id || !n.viewedAt || (nowMs - n.viewedAt) < THIRTY_MIN
+  );
+  const myNotifs   = (state.notifications||[]).filter(n => n.childId === c.id);
+  const newlyViewed = myNotifs.filter(n => !n.viewedAt);
+  newlyViewed.forEach(n => { n.viewedAt = nowMs; });
+  if(newlyViewed.length > 0 || state.notifications.length !== beforeLen) save();
+
+  /* events panel between hero and boutique */
+  const evPanel = myNotifs.length === 0 ? "" : `
+    <div style="margin:0 0 10px;background:#fff;border-radius:18px;padding:14px 18px;box-shadow:var(--shadow)">
+      <div style="font-size:11px;font-weight:800;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">${state.lang==="fr"?"Événements":"Events"}</div>
+      ${myNotifs.map((n,i)=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 0${i<myNotifs.length-1?";border-bottom:1px solid var(--line)":""}">
+          <span style="font-size:18px">${n.type==="powerup"?"⚡":"💣"}</span>
+          <div style="flex:1;font-weight:700;font-size:15px">${esc(n.title)}</div>
+          <span style="font-weight:900;font-size:16px;color:${n.type==="powerup"?"#2BB673":"#E74C3C"}">${n.type==="powerup"?"+":"-"}${n.points}</span>
+        </div>`).join("")}
+    </div>`;
+
   const now = new Date();
   const nowStr = pad(now.getHours()) + ":" + pad(now.getMinutes());
 
@@ -807,22 +838,18 @@ function renderChild(){
       <div class="big"><span class="c"></span>${c.points}</div>
       <div class="sub">${t("heroSub")}</div>
     </div>
+    ${evPanel}
     <button class="add-btn" data-action="open-store" data-id="${c.id}">${t("shopBtn")}</button>
     ${sections}
   `;
 
-  /* check for pending event notifications */
-  const myNotifs = (state.notifications||[]).filter(n=>n.childId===c.id);
-  if(myNotifs.length > 0){
-    state.notifications = (state.notifications||[]).filter(n=>n.childId!==c.id);
-    save();
-    myNotifs.forEach((notif,i)=>{
-      setTimeout(()=>{
-        if(notif.type==="powerup"){ showPowerUpAnim(c.color, notif.points); playPowerUpSound(); }
-        else { showBombAnim(notif.points); playBombSound(); }
-      }, 350 + i*2900);
-    });
-  }
+  /* play animation for newly-viewed notifications (after DOM is ready) */
+  newlyViewed.forEach((notif, i) => {
+    setTimeout(() => {
+      if(notif.type==="powerup"){ showPowerUpAnim(c.color, notif.points); playPowerUpSound(); }
+      else { showBombAnim(notif.points); playBombSound(); }
+    }, 400 + i * 2900);
+  });
 }
 
 /* ----- Boutique (côté enfant) ----- */
@@ -1329,7 +1356,11 @@ function showPowerUpAnim(color, pts){
   if(hero){ hero.style.animation="ev-hero-pulse 0.6s ease 0.1s"; setTimeout(()=>{ hero.style.animation=""; },900); }
   const badge=document.createElement("div");
   badge.textContent=`+${pts}`;
-  badge.style.cssText="position:absolute;left:50%;top:46%;font-size:54px;font-weight:900;color:#FFD700;text-shadow:0 3px 14px rgba(0,0,0,.35);animation:ev-pts-float 1.8s ease-out 0.15s forwards;opacity:0";
+  const bigEl=document.querySelector(".big");
+  const br=bigEl?bigEl.getBoundingClientRect():null;
+  badge.style.cssText=`position:absolute;left:${br?br.right+10+"px":"50%"};top:${br?br.top+br.height/2+"px":"46%"};
+    font-size:34px;font-weight:900;color:#FFD700;text-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;
+    animation:ev-pts-up-side 1.8s ease-out 0.15s forwards;opacity:0`;
   ov.appendChild(badge);
   document.body.appendChild(ov);
   setTimeout(()=>ov.remove(), 2600);
@@ -1350,7 +1381,11 @@ function showBombAnim(pts){
   ov.appendChild(flash);
   const badge=document.createElement("div");
   badge.textContent=`-${pts}`;
-  badge.style.cssText="position:absolute;left:50%;top:46%;font-size:54px;font-weight:900;color:#FF3333;text-shadow:0 3px 14px rgba(0,0,0,.35);animation:ev-pts-float 1.8s ease-out 1.15s forwards;opacity:0";
+  const bigEl2=document.querySelector(".big");
+  const br2=bigEl2?bigEl2.getBoundingClientRect():null;
+  badge.style.cssText=`position:absolute;left:${br2?br2.right+10+"px":"50%"};top:${br2?br2.top+br2.height/2+"px":"46%"};
+    font-size:34px;font-weight:900;color:#FF3333;text-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;
+    animation:ev-pts-up-side 1.8s ease-out 1.15s forwards;opacity:0`;
   ov.appendChild(badge);
   document.body.appendChild(ov);
   setTimeout(()=>ov.remove(), 3100);
