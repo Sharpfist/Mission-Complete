@@ -1041,13 +1041,14 @@ function drawTaskForm(){
       <button class="opt ${!f.carryOn?"on":""}" data-action="pick-carry-on" data-v="false">${t("noLabel")}</button>
     </div>
 
-    ${f.carryOn ? `
-    <label class="fld">${t("fldCarryOnPenalty")}</label>
-    <div style="display:flex;align-items:center;gap:8px">
-      <span style="font-weight:900;font-size:20px;color:#c0392b">−</span>
-      <input class="in" id="f-carry-penalty" type="number" inputmode="numeric" min="0" value="${f.carryOnPenalty}" style="flex:1">
-      <span style="font-weight:700;color:var(--ink-soft);white-space:nowrap">pts</span>
-    </div>` : ""}
+    <div id="carry-penalty-section" style="overflow:hidden;max-height:${f.carryOn?"150px":"0"};opacity:${f.carryOn?"1":"0"};transition:max-height .25s ease,opacity .25s ease">
+      <label class="fld">${t("fldCarryOnPenalty")}</label>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-weight:900;font-size:20px;color:#c0392b">−</span>
+        <input class="in" id="f-carry-penalty" type="number" inputmode="numeric" min="0" value="${f.carryOnPenalty}" style="flex:1">
+        <span style="font-weight:700;color:var(--ink-soft);white-space:nowrap">pts</span>
+      </div>
+    </div>
 
     <label class="fld">${t("fldIncompletePenalty")}</label>
     <div style="display:flex;align-items:center;gap:8px">
@@ -1295,7 +1296,20 @@ document.addEventListener("click", (e)=>{
       formState.childIds=arr; drawTaskForm(); break;
     }
     case "pick-freq": formState.freq=el.dataset.f; drawTaskForm(); break;
-    case "pick-carry-on": formState.carryOn=el.dataset.v==="true"; drawTaskForm(); break;
+    case "pick-carry-on": {
+      const newVal = el.dataset.v === "true";
+      formState.carryOn = newVal;
+      document.querySelectorAll("[data-action='pick-carry-on']").forEach(btn => {
+        btn.classList.toggle("on", btn.dataset.v === String(newVal));
+      });
+      const sec = document.getElementById("carry-penalty-section");
+      if(sec) {
+        sec.style.transition = "max-height .25s ease, opacity .25s ease";
+        sec.style.maxHeight = newVal ? "150px" : "0";
+        sec.style.opacity = newVal ? "1" : "0";
+      }
+      break;
+    }
     case "save-task": {
       const title=(document.getElementById("f-title").value||"").trim();
       const points=Math.max(1, parseInt(document.getElementById("f-points").value,10)||1);
