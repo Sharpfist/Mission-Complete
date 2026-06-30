@@ -313,6 +313,8 @@ const TRANSLATIONS = {
     fldCarryOnPenalty:"Réduction de points si reportée (appliquée une seule fois)",
     fldIncompletePenalty:"Points retirés si non complétée",
     editChildNote:"(enfant non modifiable en édition)",
+    periodPast:"terminée",periodCurrent:"active",periodUpcoming:"à venir",
+    carriedOver:"reportée de la période précédente",
   },
   en: {
     appTitle:"Mission Rewards",
@@ -396,6 +398,8 @@ const TRANSLATIONS = {
     fldCarryOnPenalty:"Point reduction if carried (applied once)",
     fldIncompletePenalty:"Points removed if not completed",
     editChildNote:"(child cannot be changed when editing)",
+    periodPast:"ended",periodCurrent:"active",periodUpcoming:"upcoming",
+    carriedOver:"carried over from previous period",
   }
 };
 
@@ -608,34 +612,122 @@ function renderLock(){
 /* ----- Écran enfant ----- */
 function renderChild(){
   const c = child(view.childId);
-  const myTasks = state.tasks.filter(t=>t.childId===c.id);
-  const groups = ["daily","weekly","monthly","once"];
-  const groupTitle = { daily:t("groupToday"), weekly:t("groupWeek"), monthly:t("groupMonth"), once:t("groupSpecial") };
-  const fs = freqShort();
+  const myTasks = state.tasks.filter(tsk => tsk.childId === c.id);
 
+  const now = new Date();
+  const nowStr = pad(now.getHours()) + ":" + pad(now.getMinutes());
+
+  /* period status: past / current / upcoming */
+  function pStatus(p){
+    if(!p || p.isAllDay) return "current";
+    if(nowStr < p.startTime) return "upcoming";
+    if(nowStr > p.endTime)   return "past";
+    return "current";
+  }
+
+  /* sorted display periods */
+  const allPeriods  = state.periods || [];
+  const alldayP     = allPeriods.find(p => p.isAllDay);
+  const otherPs     = allPeriods
+    .filter(p => !p.isAllDay && p.active)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const displayPeriods = [alldayP, ...otherPs].filter(Boolean);
+
+  /* for carry-over: find period covering nowStr, else allday */
+  function carryTargetId(){
+    const hit = otherPs.find(p => nowStr >= p.startTime && nowStr <= p.endTime);
+    return hit ? hit.id : (alldayP ? alldayP.id : null);
+  }
+
+  /* build display map: periodId → [{tsk, carried, greyed}] */
+  const displayMap = {};
+  displayPeriods.forEach(p => { displayMap[p.id] = []; });
+
+  function addToMap(pid, entry){
+    if(pid && displayMap[pid] !== undefined) displayMap[pid].push(entry);
+    else if(alldayP) displayMap[alldayP.id].push(entry);
+  }
+
+  myTasks.forEach(tsk => {
+    const st  = taskStatus(tsk);
+    if(tsk.freq === "once" && st === "done") return;
+
+    const pid = tsk.periodId || (alldayP ? alldayP.id : null);
+    const p   = allPeriods.find(x => x.id === pid);
+    const status = pStatus(p);
+
+    if(status !== "past" || !p || p.isAllDay){
+      addToMap(pid, {tsk, carried:false, greyed:false});
+    } else if(tsk.carryOn && st === "open"){
+      /* carry to period covering current time */
+      addToMap(carryTargetId(), {tsk, carried:true, greyed:false});
+    } else {
+      /* stay in past period — greyed */
+      addToMap(pid, {tsk, carried:false, greyed:true});
+    }
+  });
+
+  /* render */
   let sections = "";
-  let anyTask = false;
-  groups.forEach(g=>{
-    let list = myTasks.filter(tsk=>tsk.freq===g);
-    if(g==="once") list = list.filter(tsk=>taskStatus(tsk)!=="done");
-    if(list.length===0) return;
-    anyTask = true;
-    sections += `<div class="section-h"><h3>${groupTitle[g]}</h3><span class="tag">${fs[g]}</span></div>`;
-    list.forEach(tsk=>{
+  let anyVisible = false;
+
+  displayPeriods.forEach(p => {
+    const items = displayMap[p.id] || [];
+    if(items.length === 0) return;
+    anyVisible = true;
+
+    const status   = pStatus(p);
+    const isPast   = status === "past";
+    const isCurrent= status === "current";
+    const pName    = p.isAllDay ? t("allDayLabel") : p.name;
+    const timeLabel= p.isAllDay ? t("allDayTime") : `${p.startTime} – ${p.endTime}`;
+
+    const hdrMargin= isPast ? "margin:14px 4px 8px" : "margin:22px 4px 12px";
+    const h3Style  = isPast ? "font-size:13px;color:var(--ink-soft)" : "font-size:16px;color:var(--ink)";
+    const tagStyle = isPast ? "opacity:.5;font-size:11px" : "";
+    const badge    = isPast
+      ? `<span class="tag" style="background:var(--line);color:var(--ink-soft);font-size:11px">✓ ${t("periodPast")}</span>`
+      : isCurrent
+        ? `<span class="tag" style="background:#E6F7EE;color:#1d8a55;font-size:11px">● ${t("periodCurrent")}</span>`
+        : `<span class="tag" style="background:#FFF4D6;color:#a06d00;font-size:11px">⏰ ${t("periodUpcoming")}</span>`;
+
+    sections += `
+      <div class="section-h" style="${hdrMargin}">
+        <span style="font-size:${isPast?"18px":"22px"};line-height:1">${esc(p.emoji||"")}</span>
+        <h3 style="${h3Style}">${esc(pName)}</h3>
+        <span class="tag" style="${tagStyle}">${timeLabel}</span>
+        ${badge}
+      </div>`;
+
+    items.forEach(({tsk, carried, greyed}) => {
       const st = taskStatus(tsk);
-      let action = `<button class="do" data-action="do-task" data-id="${tsk.id}">${t("btnDone")}</button>`;
-      if(st==="pending") action = `<span class="waiting">${t("statusPending")}</span>`;
-      if(st==="done")    action = `<span class="done-chip">${t("statusDone")}</span>`;
+      let action;
+      if(greyed && st === "open"){
+        action = `<span style="font-size:12px;font-weight:700;color:var(--ink-soft);padding:6px 10px;background:var(--line);border-radius:10px">—</span>`;
+      } else {
+        action = `<button class="do" data-action="do-task" data-id="${tsk.id}">${t("btnDone")}</button>`;
+        if(st === "pending") action = `<span class="waiting">${t("statusPending")}</span>`;
+        if(st === "done")    action = `<span class="done-chip">${t("statusDone")}</span>`;
+      }
+
+      const wrapStyle = [
+        greyed  ? "opacity:.4" : "",
+        carried ? "border-left:3px solid var(--wait);padding-left:13px" : "",
+      ].filter(Boolean).join(";");
+
       sections += `
-        <div class="task">
-          <span class="pts-badge">+${tsk.points}</span>
-          <div class="meta"><div class="t">${esc(tsk.title)}</div></div>
+        <div class="task" style="${wrapStyle}">
+          <span class="pts-badge" style="font-size:${greyed?"12px":"14px"}">${greyed?"":"+"}${tsk.points}</span>
+          <div class="meta">
+            <div class="t" style="${greyed?"font-size:14px":""}">${esc(tsk.title)}</div>
+            ${carried ? `<div class="f" style="color:var(--wait);font-size:12px">↩ ${t("carriedOver")}</div>` : ""}
+          </div>
           ${action}
         </div>`;
     });
   });
 
-  if(!anyTask){
+  if(!anyVisible){
     sections = `<div class="empty"><span class="em">🗒️</span>${t("noTasks")}</div>`;
   }
 
