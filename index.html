@@ -835,7 +835,7 @@ function renderChild(){
     <div class="hero" style="background:linear-gradient(135deg, ${c.color}, ${shade(c.color,-18)})">
       <span class="emoji">${esc(c.emoji)}</span>
       <div class="label">${t("myPoints")}</div>
-      <div class="big"><span class="c"></span>${c.points}</div>
+      <div class="big"><span class="c"></span><span id="pts-val">${c.points}</span></div>
       <div class="sub">${t("heroSub")}</div>
     </div>
     ${evPanel}
@@ -1216,7 +1216,7 @@ function parentSettings(){
       </div>
     </div>
     <p class="footer-note">${t("footerNote")}</p>
-    <p class="footer-note" style="margin-top:6px;opacity:.45">Version 0.1</p>
+    <p class="footer-note" style="margin-top:6px;opacity:.45">Version 0.3</p>
   `;
 }
 
@@ -1356,10 +1356,10 @@ function showPowerUpAnim(color, pts){
   if(hero){ hero.style.animation="ev-hero-pulse 0.6s ease 0.1s"; setTimeout(()=>{ hero.style.animation=""; },900); }
   const badge=document.createElement("div");
   badge.textContent=`+${pts}`;
-  const bigEl=document.querySelector(".big");
-  const br=bigEl?bigEl.getBoundingClientRect():null;
-  badge.style.cssText=`position:absolute;left:${br?br.right+10+"px":"50%"};top:${br?br.top+br.height/2+"px":"46%"};
-    font-size:34px;font-weight:900;color:#FFD700;text-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;
+  const pv=document.getElementById("pts-val");
+  const br=pv?pv.getBoundingClientRect():null;
+  badge.style.cssText=`position:absolute;left:${br?br.right+6+"px":"50%"};top:${br?br.top+br.height/2+"px":"46%"};
+    font-size:30px;font-weight:900;color:#FFD700;text-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;
     animation:ev-pts-up-side 1.8s ease-out 0.15s forwards;opacity:0`;
   ov.appendChild(badge);
   document.body.appendChild(ov);
@@ -1381,10 +1381,10 @@ function showBombAnim(pts){
   ov.appendChild(flash);
   const badge=document.createElement("div");
   badge.textContent=`-${pts}`;
-  const bigEl2=document.querySelector(".big");
-  const br2=bigEl2?bigEl2.getBoundingClientRect():null;
-  badge.style.cssText=`position:absolute;left:${br2?br2.right+10+"px":"50%"};top:${br2?br2.top+br2.height/2+"px":"46%"};
-    font-size:34px;font-weight:900;color:#FF3333;text-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;
+  const pv2=document.getElementById("pts-val");
+  const br2=pv2?pv2.getBoundingClientRect():null;
+  badge.style.cssText=`position:absolute;left:${br2?br2.right+6+"px":"50%"};top:${br2?br2.top+br2.height/2+"px":"46%"};
+    font-size:30px;font-weight:900;color:#FF3333;text-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;
     animation:ev-pts-up-side 1.8s ease-out 1.15s forwards;opacity:0`;
   ov.appendChild(badge);
   document.body.appendChild(ov);
