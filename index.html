@@ -197,6 +197,27 @@
   .hist-row:last-child{border-bottom:none}
   .hist-row .h-pts{font-weight:900;white-space:nowrap}
   .footer-note{text-align:center;color:var(--ink-soft);font-size:12px;font-weight:600;margin-top:26px;line-height:1.5}
+
+  /* ---------- TOGGLE SWITCH ---------- */
+  .toggle-sw{
+    width:50px;height:28px;border-radius:14px;background:#DDD;position:relative;
+    transition:background .2s;flex:none;cursor:pointer;border:none;padding:0;
+  }
+  .toggle-sw.on{background:var(--good);}
+  .toggle-sw::after{
+    content:"";width:24px;height:24px;border-radius:12px;background:#fff;
+    position:absolute;top:2px;left:2px;transition:transform .2s;
+    box-shadow:0 1px 4px rgba(0,0,0,.25);pointer-events:none;
+  }
+  .toggle-sw.on::after{transform:translateX(22px);}
+  .toggle-sw:active{opacity:.85}
+
+  /* ---------- PERIOD BADGES ---------- */
+  .period-badge{font-weight:800;font-size:12px;padding:4px 10px;border-radius:999px;white-space:nowrap}
+  .period-active{background:#E6F7EE;color:#1d8a55;}
+  .period-inactive{background:#F3EFE6;color:var(--ink-soft);}
+  .period-allday{background:#FFF4D6;color:#a06d00;}
+  .danger-zone{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
 </style>
 </head>
 <body>
@@ -272,6 +293,19 @@ const TRANSLATIONS = {
     confirmReset:"Tout effacer et recommencer à zéro ? (missions, récompenses, points)",
     confirmRestore:"Remplacer toutes les données actuelles par cette sauvegarde ? Cette action est irréversible.",
     promptCustomPts:"Combien de points ajouter ? (un nombre négatif pour en retirer)",
+    tabPeriods:"Périodes",
+    addPeriod:"＋ Ajouter une période",
+    allDayLabel:"Toute la journée",
+    allDayTime:"00:00 – 23:59",
+    periodActive:"Actif",periodInactive:"Inactif",
+    formNewPeriod:"Nouvelle période",formEditPeriod:"Modifier la période",
+    fldPeriodEmoji:"Icône",fldPeriodName:"Nom de la période",fldPeriodNamePh:"Ex. Matin",
+    fldPeriodStart:"Heure de début",fldPeriodEnd:"Heure de fin",fldPeriodStatus:"Statut",
+    btnDeletePeriod:"🗑️ Supprimer cette période",
+    confirmDelPeriod:"Supprimer la période « {name} » ?",
+    toastPeriodSaved:"Période enregistrée ✓",toastPeriodDeleted:"Période supprimée",
+    toastNeedPeriodName:"Donne un nom à la période",
+    noPeriods:"Aucune période. Utilise ＋ pour en créer.",
   },
   en: {
     appTitle:"Mission Rewards",
@@ -335,6 +369,19 @@ const TRANSLATIONS = {
     confirmReset:"Erase everything and start over? (missions, rewards, points)",
     confirmRestore:"Replace all current data with this backup? This cannot be undone.",
     promptCustomPts:"How many points to add? (negative number to remove)",
+    tabPeriods:"Periods",
+    addPeriod:"＋ Add a period",
+    allDayLabel:"All day",
+    allDayTime:"00:00 – 23:59",
+    periodActive:"Active",periodInactive:"Inactive",
+    formNewPeriod:"New period",formEditPeriod:"Edit period",
+    fldPeriodEmoji:"Icon",fldPeriodName:"Period name",fldPeriodNamePh:"e.g. Morning",
+    fldPeriodStart:"Start time",fldPeriodEnd:"End time",fldPeriodStatus:"Status",
+    btnDeletePeriod:"🗑️ Delete this period",
+    confirmDelPeriod:"Delete period « {name} »?",
+    toastPeriodSaved:"Period saved ✓",toastPeriodDeleted:"Period deleted",
+    toastNeedPeriodName:"Give the period a name",
+    noPeriods:"No periods yet. Tap ＋ to create one.",
   }
 };
 
@@ -399,6 +446,12 @@ function defaults(){
       {title:"Ranger ses jouets", points:5},
       {title:"Passer l'aspirateur", points:15},
     ],
+    periods:[
+      {id:"allday", name:"Toute la journée", emoji:"🌞", active:true, isAllDay:true},
+      {id:uid(), name:"Matin",               emoji:"🌤️", startTime:"07:00", endTime:"12:00", active:true,  isAllDay:false},
+      {id:uid(), name:"Revenant de l'école", emoji:"🎒", startTime:"15:00", endTime:"17:00", active:true,  isAllDay:false},
+      {id:uid(), name:"Soir",                emoji:"🌙", startTime:"17:00", endTime:"21:00", active:true,  isAllDay:false},
+    ],
     completions:[],
     purchases:[],
     lastBackupAt:null,
@@ -408,6 +461,15 @@ function defaults(){
 
 let state = load() || defaults();
 if(!state.lang) state.lang = "fr";
+if(!state.periods) {
+  state.periods = [
+    {id:"allday", name:"Toute la journée", emoji:"🌞", active:true, isAllDay:true},
+    {id:uid(), name:"Matin",               emoji:"🌤️", startTime:"07:00", endTime:"12:00", active:true,  isAllDay:false},
+    {id:uid(), name:"Revenant de l'école", emoji:"🎒", startTime:"15:00", endTime:"17:00", active:true,  isAllDay:false},
+    {id:uid(), name:"Soir",                emoji:"🌙", startTime:"17:00", endTime:"21:00", active:true,  isAllDay:false},
+  ];
+  save();
+}
 
 /* ============ Outils de période ============ */
 function pad(n){ return String(n).padStart(2,"0"); }
@@ -433,6 +495,7 @@ function periodKey(freq, d){
 function child(id){ return state.children.find(c=>c.id===id); }
 function reward(id){ return state.rewards.find(r=>r.id===id); }
 function task(id){ return state.tasks.find(t=>t.id===id); }
+function period(id){ return (state.periods||[]).find(p=>p.id===id); }
 
 function taskStatus(t){
   const pk = periodKey(t.freq);
@@ -606,6 +669,7 @@ function renderParent(){
   const tabs = [
     {id:"approbations", label:t("tabApprove")},
     {id:"taches",       label:t("tabTasks")},
+    {id:"periodes",     label:t("tabPeriods")},
     {id:"boutique",     label:t("tabStore")},
     {id:"enfants",      label:t("tabChildren")},
     {id:"reglages",     label:t("tabSettings")},
@@ -614,6 +678,7 @@ function renderParent(){
   let body = "";
   if(view.tab==="approbations") body = parentApprovals();
   if(view.tab==="taches")       body = parentTasks();
+  if(view.tab==="periodes")     body = parentPeriods();
   if(view.tab==="boutique")     body = parentRewards();
   if(view.tab==="enfants")      body = parentChildren();
   if(view.tab==="reglages")     body = parentSettings();
@@ -700,6 +765,44 @@ function parentTasks(){
       <div class="tpl-wrap">${tpl}</div>
     </div>
     ${byChild}
+  `;
+}
+
+function parentPeriods(){
+  const allDay = (state.periods||[]).find(p=>p.isAllDay);
+  const others = (state.periods||[]).filter(p=>!p.isAllDay).sort((a,b)=>a.startTime.localeCompare(b.startTime));
+
+  const alldayCard = allDay ? `
+    <div class="card">
+      <div class="row">
+        <span style="font-size:28px">${esc(allDay.emoji)}</span>
+        <div class="grow">
+          <div style="font-weight:800">${esc(allDay.name)}</div>
+          <div class="muted">${t("allDayTime")}</div>
+        </div>
+        <button class="toggle-sw ${allDay.active?"on":""}" data-action="toggle-period" data-id="${allDay.id}" title="${allDay.active?t("periodActive"):t("periodInactive")}"></button>
+        <button class="icon-btn" style="margin-left:8px" data-action="edit-period" data-id="${allDay.id}">✏️</button>
+      </div>
+    </div>` : "";
+
+  const otherCards = others.length===0
+    ? `<div class="empty"><span class="em">🕐</span>${t("noPeriods")}</div>`
+    : others.map(p=>`
+      <div class="card" style="cursor:pointer" data-action="edit-period" data-id="${p.id}">
+        <div class="row">
+          <span style="font-size:28px">${esc(p.emoji)}</span>
+          <div class="grow">
+            <div style="font-weight:800">${esc(p.name)}</div>
+            <div class="muted">${p.startTime} – ${p.endTime}</div>
+          </div>
+          <span class="period-badge ${p.active?"period-active":"period-inactive"}">${p.active?t("periodActive"):t("periodInactive")}</span>
+        </div>
+      </div>`).join("");
+
+  return `
+    <button class="add-btn" data-action="new-period">${t("addPeriod")}</button>
+    ${alldayCard}
+    ${otherCards}
   `;
 }
 
@@ -939,6 +1042,49 @@ function pinPrompt(purpose){
   setTimeout(()=>{ const el=document.getElementById("pin-in"); if(el) el.focus(); },50);
 }
 
+/* ============ Formulaire Périodes ============ */
+let periodFormState = {};
+function periodForm(existing){
+  periodFormState = existing
+    ? {id:existing.id, name:existing.name, emoji:existing.emoji, startTime:existing.startTime||"08:00", endTime:existing.endTime||"12:00", active:!!existing.active, isAllDay:!!existing.isAllDay}
+    : {id:null, name:"", emoji:"⏰", startTime:"08:00", endTime:"12:00", active:true, isAllDay:false};
+  drawPeriodForm();
+}
+function drawPeriodForm(){
+  const f = periodFormState;
+  openModal(`
+    <h3>${f.id ? t("formEditPeriod") : t("formNewPeriod")}</h3>
+    <label class="fld">${t("fldPeriodEmoji")}</label>
+    <input class="in" id="pf-emoji" value="${esc(f.emoji)}" maxlength="4" style="width:90px;text-align:center;font-size:24px">
+    <label class="fld">${t("fldPeriodName")}</label>
+    <input class="in" id="pf-name" value="${esc(f.name)}" placeholder="${t("fldPeriodNamePh")}">
+    ${!f.isAllDay ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <label class="fld">${t("fldPeriodStart")}</label>
+        <input class="in" id="pf-start" type="time" value="${f.startTime}">
+      </div>
+      <div>
+        <label class="fld">${t("fldPeriodEnd")}</label>
+        <input class="in" id="pf-end" type="time" value="${f.endTime}">
+      </div>
+    </div>` : ""}
+    <label class="fld">${t("fldPeriodStatus")}</label>
+    <div class="seg">
+      <button class="opt ${f.active?"on":""}" data-action="pick-period-active" data-v="true">${t("periodActive")}</button>
+      <button class="opt ${!f.active?"on":""}" data-action="pick-period-active" data-v="false">${t("periodInactive")}</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
+      <button class="btn btn-yes" data-action="save-period">${t("btnSave")}</button>
+    </div>
+    ${f.id && !f.isAllDay ? `
+    <div class="danger-zone">
+      <button class="btn btn-no" style="width:100%" data-action="del-period" data-id="${f.id}">${t("btnDeletePeriod")}</button>
+    </div>` : ""}
+  `);
+}
+
 /* ============ Sauvegarde / Restauration ============ */
 function exportBackup(){
   state.lastBackupAt = Date.now();
@@ -1112,6 +1258,44 @@ document.addEventListener("click", (e)=>{
     case "pts-custom": {
       const v=prompt(t("promptCustomPts"));
       if(v!==null){ const n=parseInt(v,10); if(!isNaN(n)){ adjustPoints(id,n); render(); } }
+      break;
+    }
+
+    /* périodes */
+    case "new-period": periodForm(null); break;
+    case "edit-period": periodForm(period(id)); break;
+    case "toggle-period": {
+      const p = period(id); if(!p) break;
+      p.active = !p.active; save(); render(); break;
+    }
+    case "pick-period-active":
+      periodFormState.active = el.dataset.v==="true"; drawPeriodForm(); break;
+    case "save-period": {
+      const name=(document.getElementById("pf-name").value||"").trim();
+      const emoji=(document.getElementById("pf-emoji").value||"⏰").trim()||"⏰";
+      if(!name){ toast(t("toastNeedPeriodName")); break; }
+      if(periodFormState.id){
+        const p=period(periodFormState.id);
+        p.name=name; p.emoji=emoji; p.active=periodFormState.active;
+        if(!p.isAllDay){
+          p.startTime=(document.getElementById("pf-start")||{}).value||p.startTime;
+          p.endTime=(document.getElementById("pf-end")||{}).value||p.endTime;
+        }
+      } else {
+        state.periods.push({
+          id:uid(), name, emoji, active:periodFormState.active, isAllDay:false,
+          startTime:(document.getElementById("pf-start")||{}).value||"08:00",
+          endTime:(document.getElementById("pf-end")||{}).value||"12:00",
+        });
+      }
+      save(); closeModal(); render(); toast(t("toastPeriodSaved")); break;
+    }
+    case "del-period": {
+      const p=period(id); if(!p||p.isAllDay) break;
+      if(confirm(t("confirmDelPeriod",{name:p.name}))){
+        state.periods=state.periods.filter(x=>x.id!==id);
+        save(); closeModal(); render(); toast(t("toastPeriodDeleted"));
+      }
       break;
     }
 
