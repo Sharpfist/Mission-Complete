@@ -306,6 +306,13 @@ const TRANSLATIONS = {
     toastPeriodSaved:"Période enregistrée ✓",toastPeriodDeleted:"Période supprimée",
     toastNeedPeriodName:"Donne un nom à la période",
     noPeriods:"Aucune période. Utilise ＋ pour en créer.",
+    fldType:"Type de mission",typeMission:"Mission",typeExtreme:"Mission Extrême",
+    fldPeriod:"Période",
+    fldCarryOn:"Reporter à la période suivante si non complétée",
+    yesLabel:"Oui",noLabel:"Non",
+    fldCarryOnPenalty:"Réduction de points si reportée (appliquée une seule fois)",
+    fldIncompletePenalty:"Points retirés si non complétée",
+    editChildNote:"(enfant non modifiable en édition)",
   },
   en: {
     appTitle:"Mission Rewards",
@@ -382,6 +389,13 @@ const TRANSLATIONS = {
     toastPeriodSaved:"Period saved ✓",toastPeriodDeleted:"Period deleted",
     toastNeedPeriodName:"Give the period a name",
     noPeriods:"No periods yet. Tap ＋ to create one.",
+    fldType:"Mission type",typeMission:"Mission",typeExtreme:"Extreme Mission",
+    fldPeriod:"Period",
+    fldCarryOn:"Carry on to next period if not completed",
+    yesLabel:"Yes",noLabel:"No",
+    fldCarryOnPenalty:"Point reduction if carried (applied once)",
+    fldIncompletePenalty:"Points removed if not completed",
+    editChildNote:"(child cannot be changed when editing)",
   }
 };
 
@@ -496,6 +510,11 @@ function child(id){ return state.children.find(c=>c.id===id); }
 function reward(id){ return state.rewards.find(r=>r.id===id); }
 function task(id){ return state.tasks.find(t=>t.id===id); }
 function period(id){ return (state.periods||[]).find(p=>p.id===id); }
+function taskPeriodName(tsk){
+  if(!tsk.periodId || tsk.periodId==="allday") return t("allDayLabel");
+  const p = period(tsk.periodId);
+  return p ? p.name : t("allDayLabel");
+}
 
 function taskStatus(t){
   const pk = periodKey(t.freq);
@@ -741,7 +760,7 @@ function parentTasks(){
         <div class="row" style="padding:11px 0;border-bottom:1px solid var(--line)">
           <div class="grow">
             <div style="font-weight:800">${esc(tsk.title)}</div>
-            <div class="muted">${fl[tsk.freq]} · +${tsk.points} pts</div>
+            <div class="muted">${fl[tsk.freq]} · ${taskPeriodName(tsk)} · +${tsk.points} pts${tsk.carryOn?" · ↩️":""}${tsk.incompletePenalty>0?" · −"+tsk.incompletePenalty:""}</div>
           </div>
           <div class="item-actions">
             <button class="icon-btn" data-action="edit-task" data-id="${tsk.id}">✏️</button>
@@ -958,27 +977,85 @@ function openBackupReminderModal(){
 let formState = {};
 function taskForm(existing){
   formState = existing
-    ? {id:existing.id, title:existing.title, points:existing.points, freq:existing.freq, childId:existing.childId}
-    : {id:null, title:"", points:5, freq:"daily", childId:state.children[0]?state.children[0].id:null};
+    ? {
+        id:existing.id, type:existing.type||"mission",
+        title:existing.title, points:existing.points, freq:existing.freq,
+        childIds:[existing.childId],
+        periodId:existing.periodId||"allday",
+        carryOn:!!existing.carryOn,
+        carryOnPenalty:existing.carryOnPenalty||0,
+        incompletePenalty:existing.incompletePenalty||0,
+      }
+    : {
+        id:null, type:"mission", title:"", points:5, freq:"daily",
+        childIds:state.children[0]?[state.children[0].id]:[],
+        periodId:"allday", carryOn:false, carryOnPenalty:0, incompletePenalty:0,
+      };
   drawTaskForm();
 }
 function drawTaskForm(){
   const f = formState;
   const fl = freqLabel();
+  const periods = (state.periods||[]);
+
+  const childPicker = f.id
+    ? `<label class="fld">${t("fldWhichChild")} <span style="font-weight:600;font-size:12px;color:var(--ink-soft)">${t("editChildNote")}</span></label>
+       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+         ${state.children.filter(k=>(f.childIds||[]).includes(k.id)).map(k=>`<span class="who-chip" style="background:${k.color}">${esc(k.emoji)} ${esc(k.name)}</span>`).join("")}
+       </div>`
+    : `<label class="fld">${t("fldWhichChild")}</label>
+       <div class="kid-pick">
+         ${state.children.map(k=>`<button class="opt ${(f.childIds||[]).includes(k.id)?"on":""}" style="color:${k.color}" data-action="pick-kid" data-id="${k.id}">${esc(k.emoji)}<br>${esc(k.name)}</button>`).join("")}
+       </div>`;
+
   openModal(`
     <h3>${f.id ? t("formEditTask") : t("formNewTask")}</h3>
+
+    <label class="fld">${t("fldType")}</label>
+    <div class="seg">
+      <button class="opt ${f.type==="mission"?"on":""}" data-action="pick-task-type" data-type="mission">${t("typeMission")}</button>
+      <button class="opt ${f.type==="extreme"?"on":""}" data-action="pick-task-type" data-type="extreme">${t("typeExtreme")}</button>
+    </div>
+
     <label class="fld">${t("fldTaskName")}</label>
     <input class="in" id="f-title" value="${esc(f.title)}" placeholder="${t("fldTaskNamePh")}">
+
     <label class="fld">${t("fldPoints")}</label>
     <input class="in" id="f-points" type="number" inputmode="numeric" min="1" value="${f.points}">
-    <label class="fld">${t("fldWhichChild")}</label>
-    <div class="kid-pick" id="f-kid">
-      ${state.children.map(k=>`<button class="opt ${f.childId===k.id?"on":""}" style="color:${k.color}" data-action="pick-kid" data-id="${k.id}">${esc(k.emoji)}<br>${esc(k.name)}</button>`).join("")}
-    </div>
+
+    ${childPicker}
+
     <label class="fld">${t("fldFreq")}</label>
-    <div class="seg" id="f-freq">
+    <div class="seg">
       ${Object.keys(fl).map(fr=>`<button class="opt ${f.freq===fr?"on":""}" data-action="pick-freq" data-f="${fr}">${fl[fr]}</button>`).join("")}
     </div>
+
+    <label class="fld">${t("fldPeriod")}</label>
+    <select class="in" id="f-period">
+      ${periods.map(p=>`<option value="${p.id}" ${f.periodId===p.id?"selected":""}>${p.isAllDay?t("allDayLabel"):esc(p.name)}</option>`).join("")}
+    </select>
+
+    <label class="fld">${t("fldCarryOn")}</label>
+    <div class="seg">
+      <button class="opt ${f.carryOn?"on":""}" data-action="pick-carry-on" data-v="true">${t("yesLabel")}</button>
+      <button class="opt ${!f.carryOn?"on":""}" data-action="pick-carry-on" data-v="false">${t("noLabel")}</button>
+    </div>
+
+    ${f.carryOn ? `
+    <label class="fld">${t("fldCarryOnPenalty")}</label>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-weight:900;font-size:20px;color:#c0392b">−</span>
+      <input class="in" id="f-carry-penalty" type="number" inputmode="numeric" min="0" value="${f.carryOnPenalty}" style="flex:1">
+      <span style="font-weight:700;color:var(--ink-soft);white-space:nowrap">pts</span>
+    </div>` : ""}
+
+    <label class="fld">${t("fldIncompletePenalty")}</label>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-weight:900;font-size:20px;color:#c0392b">−</span>
+      <input class="in" id="f-incomplete-penalty" type="number" inputmode="numeric" min="0" value="${f.incompletePenalty}" style="flex:1">
+      <span style="font-weight:700;color:var(--ink-soft);white-space:nowrap">pts</span>
+    </div>
+
     <div class="modal-actions">
       <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
       <button class="btn btn-yes" data-action="save-task">${t("btnSave")}</button>
@@ -1202,22 +1279,44 @@ document.addEventListener("click", (e)=>{
       }
       break;
     case "tpl":
-      formState = {id:null, title:el.dataset.title, points:parseInt(el.dataset.points,10), freq:"daily", childId:state.children[0]?state.children[0].id:null};
+      formState = {
+        id:null, type:"mission", title:el.dataset.title, points:parseInt(el.dataset.points,10), freq:"daily",
+        childIds:state.children[0]?[state.children[0].id]:[],
+        periodId:"allday", carryOn:false, carryOnPenalty:0, incompletePenalty:0,
+      };
       drawTaskForm();
       break;
-    case "pick-kid":  formState.childId=id; drawTaskForm(); break;
+    case "pick-task-type": formState.type=el.dataset.type; drawTaskForm(); break;
+    case "pick-kid": {
+      if(formState.id) break;
+      const arr=[...(formState.childIds||[])];
+      const idx=arr.indexOf(id);
+      if(idx===-1){ arr.push(id); } else if(arr.length>1){ arr.splice(idx,1); }
+      formState.childIds=arr; drawTaskForm(); break;
+    }
     case "pick-freq": formState.freq=el.dataset.f; drawTaskForm(); break;
+    case "pick-carry-on": formState.carryOn=el.dataset.v==="true"; drawTaskForm(); break;
     case "save-task": {
       const title=(document.getElementById("f-title").value||"").trim();
       const points=Math.max(1, parseInt(document.getElementById("f-points").value,10)||1);
       if(!title){ toast(t("toastNeedTaskName")); break; }
+      const periodId=(document.getElementById("f-period")||{}).value||"allday";
+      const carryOn=formState.carryOn;
+      const carryOnPenalty=carryOn?(parseInt(((document.getElementById("f-carry-penalty")||{}).value||"0"),10)||0):0;
+      const incompletePenalty=parseInt(((document.getElementById("f-incomplete-penalty")||{}).value||"0"),10)||0;
       if(formState.id){
-        const tsk=task(formState.id); tsk.title=title; tsk.points=points; tsk.freq=formState.freq; tsk.childId=formState.childId;
+        const tsk=task(formState.id);
+        tsk.title=title; tsk.points=points; tsk.freq=formState.freq; tsk.type=formState.type;
+        tsk.periodId=periodId; tsk.carryOn=carryOn; tsk.carryOnPenalty=carryOnPenalty; tsk.incompletePenalty=incompletePenalty;
       } else {
-        state.tasks.push({id:uid(), title, points, freq:formState.freq, childId:formState.childId, createdAt:Date.now()});
+        (formState.childIds||[]).forEach(cid=>{
+          state.tasks.push({
+            id:uid(), type:formState.type, title, points, freq:formState.freq, childId:cid,
+            periodId, carryOn, carryOnPenalty, incompletePenalty, createdAt:Date.now(),
+          });
+        });
       }
-      save(); closeModal(); render(); toast(t("toastTaskSaved"));
-      break;
+      save(); closeModal(); render(); toast(t("toastTaskSaved")); break;
     }
 
     /* récompenses */
