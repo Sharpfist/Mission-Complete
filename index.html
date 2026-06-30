@@ -53,10 +53,15 @@
   .tagline{text-align:center;color:var(--ink-soft);font-weight:600;margin:0 0 22px;font-size:15px}
   .who-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;}
   .who{
-    background:var(--card);border-radius:var(--radius);padding:22px 14px;text-align:center;
+    position:relative;background:var(--card);border-radius:var(--radius);padding:22px 14px;text-align:center;
     box-shadow:var(--shadow);border:3px solid transparent;transition:transform .12s ease;
   }
   .who:active{transform:scale(.97)}
+  .ev-q{position:absolute;top:7px;right:8px;width:24px;height:24px;border-radius:50%;
+    background:#FF6B00;color:#fff;font-size:14px;font-weight:900;
+    display:flex;align-items:center;justify-content:center;
+    animation:shake-q .65s ease-in-out infinite}
+  @keyframes shake-q{0%,100%{transform:translateX(0)}22%{transform:translateX(-4px)}44%{transform:translateX(4px)}66%{transform:translateX(-3px)}88%{transform:translateX(3px)}}
   .who .face{font-size:46px;line-height:1}
   .who .nm{font-weight:800;margin-top:10px;font-size:18px}
   .who .pts{margin-top:8px}
@@ -656,6 +661,16 @@ const app = () => document.getElementById("app");
 function esc(s){ return String(s).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m])); }
 function coinPill(n){ return `<span class="coin"><span class="dot"></span>${n}</span>`; }
 
+/* delta signé d'une notification (rétrocompat si delta absent) */
+function notifDelta(n){ return n.delta !== undefined ? n.delta : (n.type==="powerup" ? n.points : -n.points); }
+
+/* points à afficher sur l'écran d'accueil avant que l'enfant ait vu l'animation */
+function lockDisplayPts(c){
+  const unviewed = (state.notifications||[]).filter(n => n.childId === c.id && !n.viewedAt);
+  const pending  = unviewed.reduce((s, n) => s + notifDelta(n), 0);
+  return Math.max(0, c.points - pending);
+}
+
 function render(){
   document.documentElement.lang = state.lang || "fr";
   if(view.name==="lock")   return renderLock();
@@ -673,12 +688,16 @@ function renderLock(){
     <div class="brand"><span class="logo">⭐️</span><h1>${t("appTitle")}</h1></div>
     <p class="tagline">${t("lockTagline")}</p>
     <div class="who-grid">
-      ${state.children.map(c=>`
+      ${state.children.map(c=>{
+        const hasPending = (state.notifications||[]).some(n => n.childId===c.id && !n.viewedAt);
+        return `
         <button class="who" data-action="open-child" data-id="${c.id}" style="border-color:${c.color}">
+          ${hasPending ? `<div class="ev-q">?</div>` : ""}
           <div class="face">${esc(c.emoji)}</div>
           <div class="nm" style="color:${c.color}">${esc(c.name)}</div>
-          <div class="pts">${coinPill(c.points)}</div>
-        </button>`).join("")}
+          <div class="pts">${coinPill(lockDisplayPts(c))}</div>
+        </button>`;
+      }).join("")}
     </div>
     <button class="parent-btn" data-action="open-parent">${t("parentBtn")}</button>
     <p class="footer-note">${t("lockTip")}</p>
@@ -702,10 +721,8 @@ function renderChild(){
   newlyViewed.forEach(n => { n.viewedAt = nowMs; });
   if(newlyViewed.length > 0 || state.notifications.length !== beforeLen) save();
 
-  /* compute "before" points for newly-arriving notifications */
-  function notifDelta(n){ return n.delta !== undefined ? n.delta : (n.type==="powerup" ? n.points : -n.points); }
-  const pendingSum = newlyViewed.reduce((s, n) => s + notifDelta(n), 0);
-  const displayPts = c.points - pendingSum; /* what child sees BEFORE animation */
+  /* what child sees BEFORE animation plays (uses global lockDisplayPts) */
+  const displayPts = lockDisplayPts(c);
 
   /* events panel between hero and boutique */
   const evPanel = myNotifs.length === 0 ? "" : `
