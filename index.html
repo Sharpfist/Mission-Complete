@@ -221,6 +221,36 @@
   .period-inactive{background:#F3EFE6;color:var(--ink-soft);}
   .period-allday{background:#FFF4D6;color:#a06d00;}
   .danger-zone{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+
+  /* ---------- EVENT ANIMATIONS ---------- */
+  @keyframes ev-star-out{
+    0%{transform:translate(-50%,-50%) scale(0.3);opacity:1}
+    100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1);opacity:0}
+  }
+  @keyframes ev-pts-float{
+    0%{opacity:0;transform:translate(-50%,-50%)}
+    15%{opacity:1;transform:translate(-50%,-65%)}
+    72%{opacity:1;transform:translate(-50%,-95%)}
+    100%{opacity:0;transform:translate(-50%,-120%)}
+  }
+  @keyframes ev-bomb-fall{
+    0%{transform:translate(-50%,-300%) rotate(-15deg) scale(0.3);opacity:0}
+    65%{transform:translate(-50%,-50%) rotate(5deg) scale(1.15);opacity:1}
+    82%{transform:translate(-50%,-50%) rotate(-3deg) scale(0.92);opacity:1}
+    100%{transform:translate(-50%,-50%) scale(0);opacity:0}
+  }
+  @keyframes ev-explode{
+    0%{font-size:0;opacity:0}
+    25%{font-size:110px;opacity:1}
+    100%{font-size:170px;opacity:0}
+  }
+  @keyframes ev-flash{0%{opacity:0.6}100%{opacity:0}}
+  @keyframes ev-hero-pulse{
+    0%{transform:scale(1)}40%{transform:scale(1.06)}70%{transform:scale(0.97)}100%{transform:scale(1)}
+  }
+  .ev-tpl-card{border-left:4px solid #ddd}
+  .ev-tpl-card.powerup{border-left-color:#2BB673}
+  .ev-tpl-card.bomb{border-left-color:#E74C3C}
 </style>
 </head>
 <body>
@@ -296,7 +326,14 @@ const TRANSLATIONS = {
     confirmReset:"Tout effacer et recommencer à zéro ? (missions, récompenses, points)",
     confirmRestore:"Remplacer toutes les données actuelles par cette sauvegarde ? Cette action est irréversible.",
     promptCustomPts:"Combien de points ajouter ? (un nombre négatif pour en retirer)",
-    tabPeriods:"Périodes",
+    tabPeriods:"Périodes",tabEvents:"Événements",
+    newEvent:"Ajouter un événement",quickTemplates:"Modèles rapides",
+    noEventTpls:"Aucun modèle. Créez un événement et cochez Sauvegarder.",
+    evType:"Type",evPointsLabel:"Points",evAffects:"Affecte",affectsAll:"Tout le monde",
+    saveTpl:"Sauvegarder comme modèle",applyEvent:"Appliquer",
+    powerupLabel:"⚡ Power-Up",bombLabel:"💣 Bombe",
+    toastPowerUpApplied:"⚡ Power-Up appliqué !",toastBombApplied:"💣 Bombe appliquée !",
+    confirmDelTpl:"Supprimer ce modèle ?",
     addPeriod:"＋ Ajouter une période",
     allDayLabel:"Toute la journée",
     allDayTime:"00:00 – 23:59",
@@ -381,7 +418,14 @@ const TRANSLATIONS = {
     confirmReset:"Erase everything and start over? (missions, rewards, points)",
     confirmRestore:"Replace all current data with this backup? This cannot be undone.",
     promptCustomPts:"How many points to add? (negative number to remove)",
-    tabPeriods:"Periods",
+    tabPeriods:"Periods",tabEvents:"Events",
+    newEvent:"Add an event",quickTemplates:"Quick templates",
+    noEventTpls:"No templates yet. Create an event and check Save.",
+    evType:"Type",evPointsLabel:"Points",evAffects:"Affects",affectsAll:"Everyone",
+    saveTpl:"Save as template",applyEvent:"Apply",
+    powerupLabel:"⚡ Power-Up",bombLabel:"💣 Bomb",
+    toastPowerUpApplied:"⚡ Power-Up applied!",toastBombApplied:"💣 Bomb applied!",
+    confirmDelTpl:"Delete this template?",
     addPeriod:"＋ Add a period",
     allDayLabel:"All day",
     allDayTime:"00:00 – 23:59",
@@ -475,6 +519,13 @@ function defaults(){
     ],
     completions:[],
     purchases:[],
+    eventTemplates:[
+      {id:"etpl-1", type:"powerup", title:"Bon comportement au resto",        points:5, childIds:[]},
+      {id:"etpl-2", type:"bomb",    title:"Pas avoir flushé la toilette",      points:5, childIds:[]},
+      {id:"etpl-3", type:"powerup", title:"A aidé sans qu'on le demande",      points:10, childIds:[]},
+      {id:"etpl-4", type:"bomb",    title:"A été impoli(e)",                   points:5, childIds:[]},
+    ],
+    notifications:[],
     lastBackupAt:null,
     lastMondayReminderDate:null,
   };
@@ -488,6 +539,16 @@ if(!state.periods) {
     {id:uid(), name:"Matin",               emoji:"🌤️", startTime:"07:00", endTime:"12:00", active:true,  isAllDay:false},
     {id:uid(), name:"Revenant de l'école", emoji:"🎒", startTime:"15:00", endTime:"17:00", active:true,  isAllDay:false},
     {id:uid(), name:"Soir",                emoji:"🌙", startTime:"17:00", endTime:"21:00", active:true,  isAllDay:false},
+  ];
+  save();
+}
+if(!state.notifications) { state.notifications = []; save(); }
+if(!state.eventTemplates){
+  state.eventTemplates = [
+    {id:"etpl-1", type:"powerup", title:"Bon comportement au resto",   points:5,  childIds:[]},
+    {id:"etpl-2", type:"bomb",    title:"Pas avoir flushé la toilette", points:5,  childIds:[]},
+    {id:"etpl-3", type:"powerup", title:"A aidé sans qu'on le demande", points:10, childIds:[]},
+    {id:"etpl-4", type:"bomb",    title:"A été impoli(e)",              points:5,  childIds:[]},
   ];
   save();
 }
@@ -749,6 +810,19 @@ function renderChild(){
     <button class="add-btn" data-action="open-store" data-id="${c.id}">${t("shopBtn")}</button>
     ${sections}
   `;
+
+  /* check for pending event notifications */
+  const myNotifs = (state.notifications||[]).filter(n=>n.childId===c.id);
+  if(myNotifs.length > 0){
+    state.notifications = (state.notifications||[]).filter(n=>n.childId!==c.id);
+    save();
+    myNotifs.forEach((notif,i)=>{
+      setTimeout(()=>{
+        if(notif.type==="powerup"){ showPowerUpAnim(c.color, notif.points); playPowerUpSound(); }
+        else { showBombAnim(notif.points); playBombSound(); }
+      }, 350 + i*2900);
+    });
+  }
 }
 
 /* ----- Boutique (côté enfant) ----- */
@@ -783,6 +857,7 @@ function renderParent(){
   const tabs = [
     {id:"approbations", label:t("tabApprove")},
     {id:"taches",       label:t("tabTasks")},
+    {id:"evenements",   label:t("tabEvents")},
     {id:"periodes",     label:t("tabPeriods")},
     {id:"boutique",     label:t("tabStore")},
     {id:"enfants",      label:t("tabChildren")},
@@ -792,6 +867,7 @@ function renderParent(){
   let body = "";
   if(view.tab==="approbations") body = parentApprovals();
   if(view.tab==="taches")       body = parentTasks();
+  if(view.tab==="evenements")   body = parentEvents();
   if(view.tab==="periodes")     body = parentPeriods();
   if(view.tab==="boutique")     body = parentRewards();
   if(view.tab==="enfants")      body = parentChildren();
@@ -1115,6 +1191,169 @@ function parentSettings(){
     <p class="footer-note">${t("footerNote")}</p>
     <p class="footer-note" style="margin-top:6px;opacity:.45">Version 0.1</p>
   `;
+}
+
+/* ============ Événements (Power-Up / Bombe) ============ */
+function parentEvents(){
+  const etpls = state.eventTemplates || [];
+  const tplCards = etpls.length === 0
+    ? `<div class="empty"><span class="em">📋</span>${t("noEventTpls")}</div>`
+    : etpls.map(tpl => `
+      <div class="card ev-tpl-card ${tpl.type}">
+        <div class="row">
+          <span style="font-size:26px">${tpl.type==="powerup"?"⚡":"💣"}</span>
+          <div class="grow">
+            <div style="font-weight:800">${esc(tpl.title)}</div>
+            <div class="muted">${tpl.type==="powerup"?"+":"-"}${tpl.points} pts · ${tpl.childIds.length===0?t("affectsAll"):tpl.childIds.map(cid=>{ const k=child(cid); return k?`${k.emoji} ${k.name}`:""; }).join(", ")}</div>
+          </div>
+          <button class="btn btn-yes" style="font-size:13px;padding:9px 14px;flex-shrink:0" data-action="apply-event-tpl" data-id="${tpl.id}">${tpl.type==="powerup"?"⚡":"💣"} ${t("applyEvent")}</button>
+          <button class="icon-btn" style="background:#FCE9E9;font-size:15px;flex-shrink:0" data-action="del-event-tpl" data-id="${tpl.id}">✕</button>
+        </div>
+      </div>`).join("");
+
+  return `
+    <button class="add-btn" data-action="new-event">+ ${t("newEvent")}</button>
+    <div class="section-h" style="margin:22px 4px 12px">
+      <h3>${t("quickTemplates")}</h3>
+    </div>
+    ${tplCards}
+  `;
+}
+
+let eventFormState = {};
+function newEventForm(){
+  eventFormState = {type:"powerup", title:"", points:5, childIds:[], saveAsTemplate:false};
+  drawEventForm();
+}
+function drawEventForm(){
+  const f = eventFormState;
+  const isPowerup = f.type==="powerup";
+  openModal(`
+    <h3>${isPowerup ? t("powerupLabel") : t("bombLabel")}</h3>
+    <label class="fld">${t("evType")}</label>
+    <div class="seg" style="margin-bottom:16px">
+      <button class="opt ${isPowerup?"on":""}" data-action="pick-ev-type" data-v="powerup">${t("powerupLabel")}</button>
+      <button class="opt ${!isPowerup?"on":""}" data-action="pick-ev-type" data-v="bomb">${t("bombLabel")}</button>
+    </div>
+    <label class="fld">${state.lang==="en"?"Title":"Titre"}</label>
+    <input class="in" id="ev-title" value="${esc(f.title)}" placeholder="${isPowerup?"Ex: Bonne action...":"Ex: A oublié..."}">
+    <label class="fld">${t("evPointsLabel")}</label>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <span style="font-size:26px;font-weight:900;color:${isPowerup?"#2BB673":"#E74C3C"};min-width:22px">${isPowerup?"+":"−"}</span>
+      <input class="in" id="ev-points" type="number" inputmode="numeric" min="1" value="${f.points}" style="flex:1;margin-bottom:0">
+      <span class="muted">pts</span>
+    </div>
+    <label class="fld">${t("evAffects")}</label>
+    <div class="seg" id="ev-kids" style="margin-bottom:16px">
+      <button class="opt ${f.childIds.length===0?"on":""}" data-action="pick-ev-kid" data-id="all">${t("affectsAll")}</button>
+      ${state.children.map(k=>`<button class="opt ${f.childIds.includes(k.id)?"on":""}" data-action="pick-ev-kid" data-id="${k.id}" style="${f.childIds.includes(k.id)?"":"color:"+k.color}">${esc(k.emoji)} ${esc(k.name)}</button>`).join("")}
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding:12px 0;border-top:1px solid var(--line)">
+      <span style="font-weight:700;font-size:14px">${t("saveTpl")}</span>
+      <button class="toggle-sw ${f.saveAsTemplate?"on":""}" id="ev-save-tpl" data-action="pick-ev-save-tpl"></button>
+    </div>
+    <button class="btn btn-yes" style="width:100%;font-size:17px;padding:16px" data-action="apply-event">
+      ${isPowerup?"⚡":"💣"} ${t("applyEvent")} ${isPowerup?t("powerupLabel"):t("bombLabel")}
+    </button>
+    <div style="margin-top:8px">
+      <button class="btn btn-ghost" style="width:100%" data-action="modal-cancel">${t("btnCancel")}</button>
+    </div>
+  `);
+}
+
+function applyEvent(type, title, points, childIds){
+  if(!state.notifications) state.notifications = [];
+  const targets = childIds.length===0 ? state.children
+    : state.children.filter(c=>childIds.includes(c.id));
+  const delta = type==="powerup" ? Math.abs(points) : -Math.abs(points);
+  targets.forEach(c=>{
+    c.points = Math.max(0, c.points + delta);
+    state.notifications.push({id:uid(), childId:c.id, type, points:Math.abs(points), title, createdAt:Date.now()});
+  });
+  save();
+}
+
+/* ---- Sons Web Audio ---- */
+function playPowerUpSound(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    [[659,0],[784,.12],[1319,.24],[1047,.36],[1175,.48],[1568,.60]].forEach(([f,dt])=>{
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.type="square"; o.frequency.value=f;
+      g.gain.setValueAtTime(0.12, ctx.currentTime+dt);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+dt+0.1);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(ctx.currentTime+dt); o.stop(ctx.currentTime+dt+0.13);
+    });
+  }catch(e){}
+}
+function playBombSound(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type="sine";
+    o.frequency.setValueAtTime(1400, ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(80, ctx.currentTime+0.75);
+    g.gain.setValueAtTime(0.18, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.75);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(ctx.currentTime); o.stop(ctx.currentTime+0.75);
+    const buf=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*0.4),ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/(ctx.sampleRate*0.08));
+    const src=ctx.createBufferSource(); src.buffer=buf;
+    const eg=ctx.createGain();
+    eg.gain.setValueAtTime(0.5, ctx.currentTime+0.72);
+    eg.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+1.1);
+    src.connect(eg); eg.connect(ctx.destination);
+    src.start(ctx.currentTime+0.72); src.stop(ctx.currentTime+1.1);
+  }catch(e){}
+}
+
+/* ---- Animations visuelles ---- */
+function showPowerUpAnim(color, pts){
+  const ov=document.createElement("div");
+  ov.style.cssText="position:fixed;inset:0;z-index:500;pointer-events:none;overflow:hidden";
+  const emojis=["⭐","✨","🌟","💫"];
+  for(let i=0;i<14;i++){
+    const s=document.createElement("span");
+    const ang=(i/14)*360+Math.random()*22;
+    const dist=90+Math.random()*90;
+    s.textContent=emojis[i%4];
+    s.style.cssText=`position:absolute;left:50%;top:46%;font-size:${18+Math.random()*16}px;
+      --dx:${Math.cos(ang*Math.PI/180)*dist}px;--dy:${Math.sin(ang*Math.PI/180)*dist}px;
+      animation:ev-star-out ${0.8+Math.random()*0.5}s ease-out ${Math.random()*0.3}s forwards`;
+    ov.appendChild(s);
+  }
+  const hero=document.querySelector(".hero");
+  if(hero){ hero.style.animation="ev-hero-pulse 0.6s ease 0.1s"; setTimeout(()=>{ hero.style.animation=""; },900); }
+  const badge=document.createElement("div");
+  badge.textContent=`+${pts}`;
+  badge.style.cssText="position:absolute;left:50%;top:46%;font-size:54px;font-weight:900;color:#FFD700;text-shadow:0 3px 14px rgba(0,0,0,.35);animation:ev-pts-float 1.8s ease-out 0.15s forwards;opacity:0";
+  ov.appendChild(badge);
+  document.body.appendChild(ov);
+  setTimeout(()=>ov.remove(), 2600);
+}
+function showBombAnim(pts){
+  const ov=document.createElement("div");
+  ov.style.cssText="position:fixed;inset:0;z-index:500;pointer-events:none;overflow:hidden";
+  const bomb=document.createElement("div");
+  bomb.textContent="💣";
+  bomb.style.cssText="position:absolute;left:50%;top:46%;font-size:72px;animation:ev-bomb-fall 0.95s ease-in forwards";
+  ov.appendChild(bomb);
+  const expl=document.createElement("div");
+  expl.textContent="💥";
+  expl.style.cssText="position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);font-size:0;opacity:0;animation:ev-explode 0.7s ease-out 0.88s forwards";
+  ov.appendChild(expl);
+  const flash=document.createElement("div");
+  flash.style.cssText="position:absolute;inset:0;background:#FF2222;opacity:0;animation:ev-flash 0.35s ease-out 0.88s forwards";
+  ov.appendChild(flash);
+  const badge=document.createElement("div");
+  badge.textContent=`-${pts}`;
+  badge.style.cssText="position:absolute;left:50%;top:46%;font-size:54px;font-weight:900;color:#FF3333;text-shadow:0 3px 14px rgba(0,0,0,.35);animation:ev-pts-float 1.8s ease-out 1.15s forwards;opacity:0";
+  ov.appendChild(badge);
+  document.body.appendChild(ov);
+  setTimeout(()=>ov.remove(), 3100);
 }
 
 /* ============ Couleur : assombrir un hex ============ */
@@ -1459,6 +1698,7 @@ document.addEventListener("click", (e)=>{
       let body = "";
       if(newTab==="approbations") body = parentApprovals();
       if(newTab==="taches")       body = parentTasks();
+      if(newTab==="evenements")   body = parentEvents();
       if(newTab==="periodes")     body = parentPeriods();
       if(newTab==="boutique")     body = parentRewards();
       if(newTab==="enfants")      body = parentChildren();
@@ -1556,6 +1796,65 @@ document.addEventListener("click", (e)=>{
         state.rewards.push({id:uid(), title, cost, emoji});
       }
       save(); closeModal(); render(); toast(t("toastRewardSaved"));
+      break;
+    }
+
+    /* événements */
+    case "new-event": newEventForm(); break;
+    case "pick-ev-type": {
+      const ti=document.getElementById("ev-title"), pi=document.getElementById("ev-points");
+      if(ti) eventFormState.title=ti.value;
+      if(pi) eventFormState.points=Math.max(1,Math.abs(parseInt(pi.value)||5));
+      eventFormState.type=el.dataset.v;
+      drawEventForm(); break;
+    }
+    case "pick-ev-kid": {
+      const kid=el.dataset.id;
+      if(kid==="all"){ eventFormState.childIds=[]; }
+      else {
+        const idx=eventFormState.childIds.indexOf(kid);
+        if(idx>=0) eventFormState.childIds.splice(idx,1);
+        else eventFormState.childIds.push(kid);
+        if(eventFormState.childIds.length===state.children.length) eventFormState.childIds=[];
+      }
+      document.querySelectorAll("[data-action='pick-ev-kid']").forEach(btn=>{
+        const isAll=btn.dataset.id==="all";
+        btn.classList.toggle("on", isAll ? eventFormState.childIds.length===0 : eventFormState.childIds.includes(btn.dataset.id));
+      });
+      break;
+    }
+    case "pick-ev-save-tpl": {
+      eventFormState.saveAsTemplate=!eventFormState.saveAsTemplate;
+      el.classList.toggle("on", eventFormState.saveAsTemplate);
+      break;
+    }
+    case "apply-event": {
+      const title=(document.getElementById("ev-title").value||"").trim();
+      const points=Math.max(1,Math.abs(parseInt((document.getElementById("ev-points")||{}).value)||0));
+      if(!title){ toast(t("toastNeedTaskName")); break; }
+      if(eventFormState.saveAsTemplate){
+        if(!state.eventTemplates) state.eventTemplates=[];
+        state.eventTemplates.push({id:uid(), type:eventFormState.type, title, points, childIds:[...eventFormState.childIds]});
+      }
+      applyEvent(eventFormState.type, title, points, eventFormState.childIds);
+      closeModal();
+      const pb=document.getElementById("parent-body");
+      if(pb) pb.innerHTML=parentEvents();
+      toast(t(eventFormState.type==="powerup"?"toastPowerUpApplied":"toastBombApplied"));
+      break;
+    }
+    case "apply-event-tpl": {
+      const tpl=(state.eventTemplates||[]).find(x=>x.id===id); if(!tpl) break;
+      applyEvent(tpl.type, tpl.title, tpl.points, tpl.childIds);
+      toast(t(tpl.type==="powerup"?"toastPowerUpApplied":"toastBombApplied"));
+      break;
+    }
+    case "del-event-tpl": {
+      if(confirm(t("confirmDelTpl"))){
+        state.eventTemplates=(state.eventTemplates||[]).filter(x=>x.id!==id); save();
+        const pb=document.getElementById("parent-body");
+        if(pb) pb.innerHTML=parentEvents();
+      }
       break;
     }
 
