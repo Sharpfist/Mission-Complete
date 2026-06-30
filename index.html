@@ -251,6 +251,12 @@
     70%{opacity:1;transform:translateY(calc(-50% - 38px))}
     100%{opacity:0;transform:translateY(calc(-50% - 58px))}
   }
+  @keyframes ev-pts-down-side{
+    0%{opacity:0;transform:translateY(-50%)}
+    12%{opacity:1;transform:translateY(-50%)}
+    70%{opacity:1;transform:translateY(calc(-50% + 38px))}
+    100%{opacity:0;transform:translateY(calc(-50% + 58px))}
+  }
   @keyframes ev-hero-pulse{
     0%{transform:scale(1)}40%{transform:scale(1.06)}70%{transform:scale(0.97)}100%{transform:scale(1)}
   }
@@ -852,7 +858,7 @@ function renderChild(){
   newlyViewed.forEach((notif, i) => {
     const startAt  = 400 + i * 2900;
     /* powerup badge: delay 0.15s + 1.8s = ~2s; bomb badge: delay 1.15s + 1.8s = ~3s */
-    const updateAt = startAt + (notif.type==="powerup" ? 2050 : 3050);
+    const updateAt = startAt + (notif.type==="powerup" ? 1550 : 2550);
 
     setTimeout(() => {
       if(notif.type==="powerup"){ showPowerUpAnim(c.color, notif.points); playPowerUpSound(); }
@@ -1407,7 +1413,7 @@ function showBombAnim(pts){
   const br2=pv2?pv2.getBoundingClientRect():null;
   badge.style.cssText=`position:absolute;left:${br2?br2.right+6+"px":"50%"};top:${br2?br2.top+br2.height/2+"px":"46%"};
     font-size:30px;font-weight:900;color:#FF3333;text-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;
-    animation:ev-pts-up-side 1.8s ease-out 1.15s forwards;opacity:0`;
+    animation:ev-pts-down-side 1.8s ease-out 1.15s forwards;opacity:0`;
   ov.appendChild(badge);
   document.body.appendChild(ov);
   setTimeout(()=>ov.remove(), 3100);
