@@ -14,9 +14,9 @@
     --card:#FFFFFF;
     --gold:#FFC53D;
     --gold-deep:#E89B0C;
-    --c1:#FF6B6B;  /* enfant 1 */
-    --c2:#1FB6A6;  /* enfant 2 */
-    --c3:#8B7FF5;  /* enfant 3 */
+    --c1:#FF6B6B;
+    --c2:#1FB6A6;
+    --c3:#8B7FF5;
     --good:#2BB673;
     --wait:#F2A33C;
     --line:#ECE6DA;
@@ -66,6 +66,8 @@
     box-shadow:var(--shadow);width:100%;max-width:340px;
   }
   .parent-btn:active{transform:scale(.98)}
+  .lang-btn{background:#fff;border-radius:10px;padding:6px 14px;font-weight:900;font-size:13px;box-shadow:var(--shadow);color:var(--ink-soft);}
+  .lang-btn:active{transform:scale(.96)}
 
   /* ---------- HEADER (child / parent) ---------- */
   .top{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
@@ -206,7 +208,148 @@
 <script>
 "use strict";
 
-/* ============ Stockage (fonctionne hors-ligne sur l'iPad) ============ */
+/* ============ Translations ============ */
+const TRANSLATIONS = {
+  fr: {
+    appTitle:"Mission Récompenses",
+    lockTagline:"Choisis qui tu es pour voir tes missions",
+    parentBtn:"🔐 Espace parent",
+    lockTip:"Astuce : ajoute cette page à l'écran d'accueil de l'iPad<br>(bouton Partager ▸ « Sur l'écran d'accueil ») pour l'ouvrir comme une vraie app.",
+    myPoints:"Mes points",
+    heroSub:"Termine tes missions pour en gagner plus !",
+    shopBtn:"🛒 Boutique des récompenses",
+    groupToday:"Aujourd'hui",groupWeek:"Cette semaine",groupMonth:"Ce mois-ci",groupSpecial:"Missions spéciales",
+    btnDone:"J'ai fait ✓",statusPending:"⏳ En attente",statusDone:"✅ Bravo !",
+    noTasks:"Aucune mission pour l'instant.<br>Un parent peut en ajouter dans l'espace parent.",
+    storeTitle:"🛒 Boutique",buyBtn:"Acheter — {cost} pts",buyLocked:"🔒 {cost} pts",
+    storeNote:"Quand tu achètes, tes points baissent.<br>Va voir un parent pour recevoir ta surprise 😊",
+    noRewards:"Aucune récompense pour l'instant.",
+    tabApprove:"À valider",tabTasks:"Missions",tabStore:"Boutique",tabChildren:"Enfants",tabSettings:"Réglages",
+    noApprovals:"Rien à valider pour le moment.<br>Quand un enfant coche « J'ai fait », ça apparaît ici.",
+    btnApprove:"✓ Valider (+{pts})",btnReject:"✗ Refuser",
+    addTask:"＋ Nouvelle mission",quickTemplates:"⚡ Modèles rapides",
+    quickTemplatesHint:"Touche un modèle pour créer la mission en 2 secondes.",
+    noTasksAssigned:"Aucune mission assignée.",
+    formNewTask:"Nouvelle mission",formEditTask:"Modifier la mission",
+    fldTaskName:"Nom de la mission",fldTaskNamePh:"Ex. Ranger sa chambre",
+    fldPoints:"Points gagnés",fldWhichChild:"Pour quel enfant ?",fldFreq:"À quelle fréquence ?",
+    addReward:"＋ Nouvelle récompense",noRewardsParent:"Aucune récompense.",lastPurchases:"🧾 Derniers achats",
+    formNewReward:"Nouvelle récompense",formEditReward:"Modifier la récompense",
+    fldEmoji:"Émoji",fldRewardName:"Nom de la récompense",fldRewardNamePh:"Ex. 30 min d'écran",fldCost:"Coût en points",
+    addChild:"＋ Ajouter un enfant",adjustPoints:"Ajuster les points à la main :",
+    formNewChild:"Nouvel enfant",formEditChild:"Modifier l'enfant",
+    fldChildEmoji:"Émoji / avatar",fldChildName:"Prénom",fldColor:"Couleur",
+    settingsBackup:"💾 Sauvegarde",lastBackupLabel:"Dernière sauvegarde : ",noBackupYet:"Aucune sauvegarde téléchargée encore.",
+    backupWarning:"Si tu effaces l'historique de Safari, tout est perdu — télécharge une sauvegarde de temps en temps et garde-la dans iCloud Drive ou par courriel.",
+    btnDownloadBackup:"⬇️ Télécharger une sauvegarde",btnRestore:"⬆️ Restaurer",
+    settingsPin:"🔢 Code parent",pinSet:"Un code à 4 chiffres protège l'espace parent.",
+    pinNotSet:"Aucun code pour l'instant : tout le monde peut ouvrir l'espace parent.",
+    btnChangePin:"Changer le code",btnCreatePin:"Créer un code",btnRemovePin:"Retirer le code",
+    settingsData:"💾 Données",dataNote:"Tout est gardé sur cet iPad uniquement. Pense à ne pas effacer l'historique de Safari pour ce site.",
+    btnResetAll:"Tout réinitialiser",
+    footerNote:"Mission Récompenses · fonctionne hors-ligne · aucune donnée envoyée sur internet",
+    settingsLang:"🌐 Langue / Language",
+    modalSetPin:"Choisir un code à 4 chiffres",modalEnterPin:"Code parent",fldNewPin:"Nouveau code",fldEnterPin:"Entre le code",
+    mondayTitle:"💾 Sauvegarde du lundi",
+    mondayText:"C'est lundi ! Pense à télécharger une sauvegarde pour ne rien perdre si Safari efface ses données.",
+    btnLater:"Plus tard",btnCreateBackup:"⬇️ Créer une sauvegarde",
+    freqDaily:"Chaque jour",freqWeekly:"Chaque semaine",freqMonthly:"Chaque mois",freqOnce:"Une seule fois",
+    freqShortDaily:"Quotidienne",freqShortWeekly:"Hebdo",freqShortMonthly:"Mensuelle",freqShortOnce:"Ponctuelle",
+    btnCancel:"Annuler",btnSave:"Enregistrer",btnOK:"OK",btnOther:"Autre…",
+    toastSent:"Envoyé ! Un parent va valider 👍",toastNotEnoughPts:"Pas assez de points 🙈",
+    toastBought:"Acheté ! Va voir un parent 🎉",toastWrongPin:"Code incorrect",
+    toastApproved:"Points accordés ✅",toastRejected:"Refusé — la mission reste à faire",
+    toastTaskSaved:"Mission enregistrée ✓",toastRewardSaved:"Récompense enregistrée ✓",
+    toastChildSaved:"Enregistré ✓",toastChildDeleted:"Enfant supprimé",toastPinSaved:"Code enregistré 🔒",
+    toastReset:"Réinitialisé",toastBackupDone:"Sauvegarde téléchargée 💾",toastRestored:"Sauvegarde restaurée ✓",
+    toastInvalidBackup:"Ce fichier n'est pas une sauvegarde valide",toastNeedTaskName:"Donne un nom à la mission",
+    toastNeedRewardName:"Donne un nom à la récompense",toastNeedChildName:"Donne un prénom à l'enfant",
+    toastNeedPin:"Il faut 4 chiffres",
+    confirmBuy:"Acheter « {title} » pour {cost} points ?",
+    confirmDelTask:"Supprimer cette mission ?",confirmDelReward:"Supprimer cette récompense ?",
+    confirmDelChild:"Supprimer {name} ? Toutes ses missions et son historique seront effacés.",
+    confirmRemovePin:"Retirer le code parent ?",
+    confirmReset:"Tout effacer et recommencer à zéro ? (missions, récompenses, points)",
+    confirmRestore:"Remplacer toutes les données actuelles par cette sauvegarde ? Cette action est irréversible.",
+    promptCustomPts:"Combien de points ajouter ? (un nombre négatif pour en retirer)",
+  },
+  en: {
+    appTitle:"Mission Rewards",
+    lockTagline:"Choose who you are to see your missions",
+    parentBtn:"🔐 Parent area",
+    lockTip:"Tip: add this page to your iPad home screen<br>(Share button ▸ « Add to Home Screen ») to open it like a real app.",
+    myPoints:"My points",
+    heroSub:"Complete your missions to earn more!",
+    shopBtn:"🛒 Rewards store",
+    groupToday:"Today",groupWeek:"This week",groupMonth:"This month",groupSpecial:"Special missions",
+    btnDone:"Done ✓",statusPending:"⏳ Waiting",statusDone:"✅ Great!",
+    noTasks:"No missions yet.<br>A parent can add some in the parent area.",
+    storeTitle:"🛒 Store",buyBtn:"Buy — {cost} pts",buyLocked:"🔒 {cost} pts",
+    storeNote:"When you buy, your points go down.<br>See a parent to get your surprise 😊",
+    noRewards:"No rewards yet.",
+    tabApprove:"To approve",tabTasks:"Missions",tabStore:"Store",tabChildren:"Children",tabSettings:"Settings",
+    noApprovals:"Nothing to approve right now.<br>When a child taps « Done », it appears here.",
+    btnApprove:"✓ Approve (+{pts})",btnReject:"✗ Reject",
+    addTask:"＋ New mission",quickTemplates:"⚡ Quick templates",
+    quickTemplatesHint:"Tap a template to create the mission in 2 seconds.",
+    noTasksAssigned:"No missions assigned.",
+    formNewTask:"New mission",formEditTask:"Edit mission",
+    fldTaskName:"Mission name",fldTaskNamePh:"e.g. Clean your room",
+    fldPoints:"Points earned",fldWhichChild:"Which child?",fldFreq:"How often?",
+    addReward:"＋ New reward",noRewardsParent:"No rewards.",lastPurchases:"🧾 Recent purchases",
+    formNewReward:"New reward",formEditReward:"Edit reward",
+    fldEmoji:"Emoji",fldRewardName:"Reward name",fldRewardNamePh:"e.g. 30 min screen time",fldCost:"Cost in points",
+    addChild:"＋ Add a child",adjustPoints:"Manually adjust points:",
+    formNewChild:"New child",formEditChild:"Edit child",
+    fldChildEmoji:"Emoji / avatar",fldChildName:"First name",fldColor:"Color",
+    settingsBackup:"💾 Backup",lastBackupLabel:"Last backup: ",noBackupYet:"No backup downloaded yet.",
+    backupWarning:"If you clear Safari history, all data is lost — download a backup occasionally and keep it in iCloud Drive or email.",
+    btnDownloadBackup:"⬇️ Download a backup",btnRestore:"⬆️ Restore",
+    settingsPin:"🔢 Parent PIN",pinSet:"A 4-digit PIN protects the parent area.",
+    pinNotSet:"No PIN set: anyone can open the parent area.",
+    btnChangePin:"Change PIN",btnCreatePin:"Create a PIN",btnRemovePin:"Remove PIN",
+    settingsData:"💾 Data",dataNote:"All data is stored on this iPad only. Don't clear Safari history for this site.",
+    btnResetAll:"Reset everything",
+    footerNote:"Mission Rewards · works offline · no data sent to the internet",
+    settingsLang:"🌐 Langue / Language",
+    modalSetPin:"Choose a 4-digit PIN",modalEnterPin:"Parent PIN",fldNewPin:"New PIN",fldEnterPin:"Enter PIN",
+    mondayTitle:"💾 Monday Backup",
+    mondayText:"It's Monday! Remember to download a backup so you don't lose anything if Safari clears its data.",
+    btnLater:"Later",btnCreateBackup:"⬇️ Create a backup",
+    freqDaily:"Every day",freqWeekly:"Every week",freqMonthly:"Every month",freqOnce:"Just once",
+    freqShortDaily:"Daily",freqShortWeekly:"Weekly",freqShortMonthly:"Monthly",freqShortOnce:"One-time",
+    btnCancel:"Cancel",btnSave:"Save",btnOK:"OK",btnOther:"Other…",
+    toastSent:"Sent! A parent will approve 👍",toastNotEnoughPts:"Not enough points 🙈",
+    toastBought:"Bought! Go see a parent 🎉",toastWrongPin:"Wrong PIN",
+    toastApproved:"Points awarded ✅",toastRejected:"Rejected — mission stays to do",
+    toastTaskSaved:"Mission saved ✓",toastRewardSaved:"Reward saved ✓",
+    toastChildSaved:"Saved ✓",toastChildDeleted:"Child removed",toastPinSaved:"PIN saved 🔒",
+    toastReset:"Reset",toastBackupDone:"Backup downloaded 💾",toastRestored:"Backup restored ✓",
+    toastInvalidBackup:"This file is not a valid backup",toastNeedTaskName:"Give the mission a name",
+    toastNeedRewardName:"Give the reward a name",toastNeedChildName:"Give the child a name",
+    toastNeedPin:"Must be 4 digits",
+    confirmBuy:"Buy \"{title}\" for {cost} points?",
+    confirmDelTask:"Delete this mission?",confirmDelReward:"Delete this reward?",
+    confirmDelChild:"Remove {name}? All their missions and history will be deleted.",
+    confirmRemovePin:"Remove the parent PIN?",
+    confirmReset:"Erase everything and start over? (missions, rewards, points)",
+    confirmRestore:"Replace all current data with this backup? This cannot be undone.",
+    promptCustomPts:"How many points to add? (negative number to remove)",
+  }
+};
+
+function t(key, vars){
+  const lang = (state && state.lang) || "fr";
+  let str = (TRANSLATIONS[lang] || TRANSLATIONS.fr)[key];
+  if(str === undefined) str = TRANSLATIONS.fr[key] || key;
+  if(vars) Object.keys(vars).forEach(k=>{ str = str.replace(new RegExp("{"+k+"}","g"), vars[k]); });
+  return str;
+}
+
+function freqLabel(){ return { daily:t("freqDaily"), weekly:t("freqWeekly"), monthly:t("freqMonthly"), once:t("freqOnce") }; }
+function freqShort(){ return { daily:t("freqShortDaily"), weekly:t("freqShortWeekly"), monthly:t("freqShortMonthly"), once:t("freqShortOnce") }; }
+
+/* ============ Stockage ============ */
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -224,6 +367,7 @@ function uid(){ return Math.random().toString(36).slice(2,9); }
 function defaults(){
   return {
     version:1,
+    lang:"fr",
     parentPin:"",
     children:[
       {id:"c1", name:"Enfant 1", emoji:"🦊", color:"#FF6B6B", points:0},
@@ -255,16 +399,17 @@ function defaults(){
       {title:"Ranger ses jouets", points:5},
       {title:"Passer l'aspirateur", points:15},
     ],
-    completions:[],   // {id, taskId, childId, periodKey, status:'pending'|'approved', createdAt, approvedAt}
-    purchases:[],     // {id, rewardId, childId, childName, title, cost, createdAt}
+    completions:[],
+    purchases:[],
     lastBackupAt:null,
     lastMondayReminderDate:null,
   };
 }
 
 let state = load() || defaults();
+if(!state.lang) state.lang = "fr";
 
-/* ============ Outils de période (jour / semaine / mois) ============ */
+/* ============ Outils de période ============ */
 function pad(n){ return String(n).padStart(2,"0"); }
 function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
 function isoWeek(d){
@@ -283,15 +428,12 @@ function periodKey(freq, d){
   if(freq==="monthly") return d.getFullYear()+"-"+pad(d.getMonth()+1);
   return "once";
 }
-const FREQ_LABEL = { daily:"Chaque jour", weekly:"Chaque semaine", monthly:"Chaque mois", once:"Une seule fois" };
-const FREQ_SHORT = { daily:"Quotidienne", weekly:"Hebdo", monthly:"Mensuelle", once:"Ponctuelle" };
 
 /* ============ Logique ============ */
 function child(id){ return state.children.find(c=>c.id===id); }
 function reward(id){ return state.rewards.find(r=>r.id===id); }
 function task(id){ return state.tasks.find(t=>t.id===id); }
 
-// statut d'une tâche pour la période courante: 'open' | 'pending' | 'done'
 function taskStatus(t){
   const pk = periodKey(t.freq);
   const c = state.completions.find(x=>x.taskId===t.id && x.childId===t.childId && x.periodKey===pk);
@@ -345,7 +487,6 @@ function deleteChild(id){
 
 /* ============ Routeur de vue ============ */
 let view = { name:"lock", childId:null, tab:"approbations" };
-
 function go(name, opts){ view = Object.assign({name}, opts||{}); render(); }
 
 /* ============ Rendu ============ */
@@ -354,17 +495,21 @@ function esc(s){ return String(s).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;"
 function coinPill(n){ return `<span class="coin"><span class="dot"></span>${n}</span>`; }
 
 function render(){
-  if(view.name==="lock") return renderLock();
-  if(view.name==="child") return renderChild();
-  if(view.name==="store") return renderStore();
+  document.documentElement.lang = state.lang || "fr";
+  if(view.name==="lock")   return renderLock();
+  if(view.name==="child")  return renderChild();
+  if(view.name==="store")  return renderStore();
   if(view.name==="parent") return renderParent();
 }
 
 /* ----- Écran d'accueil ----- */
 function renderLock(){
   app().innerHTML = `
-    <div class="brand"><span class="logo">⭐️</span><h1>Mission Récompenses</h1></div>
-    <p class="tagline">Choisis qui tu es pour voir tes missions</p>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+      <button class="lang-btn" data-action="toggle-lang">${state.lang==="fr"?"🇬🇧 EN":"🇫🇷 FR"}</button>
+    </div>
+    <div class="brand"><span class="logo">⭐️</span><h1>${t("appTitle")}</h1></div>
+    <p class="tagline">${t("lockTagline")}</p>
     <div class="who-grid">
       ${state.children.map(c=>`
         <button class="who" data-action="open-child" data-id="${c.id}" style="border-color:${c.color}">
@@ -373,31 +518,32 @@ function renderLock(){
           <div class="pts">${coinPill(c.points)}</div>
         </button>`).join("")}
     </div>
-    <button class="parent-btn" data-action="open-parent">🔐 Espace parent</button>
-    <p class="footer-note">Astuce : ajoute cette page à l'écran d'accueil de l'iPad<br>(bouton Partager ▸ « Sur l'écran d'accueil ») pour l'ouvrir comme une vraie app.</p>
+    <button class="parent-btn" data-action="open-parent">${t("parentBtn")}</button>
+    <p class="footer-note">${t("lockTip")}</p>
   `;
 }
 
-/* ----- Écran enfant : ses missions ----- */
+/* ----- Écran enfant ----- */
 function renderChild(){
   const c = child(view.childId);
   const myTasks = state.tasks.filter(t=>t.childId===c.id);
   const groups = ["daily","weekly","monthly","once"];
-  const groupTitle = { daily:"Aujourd'hui", weekly:"Cette semaine", monthly:"Ce mois-ci", once:"Missions spéciales" };
+  const groupTitle = { daily:t("groupToday"), weekly:t("groupWeek"), monthly:t("groupMonth"), once:t("groupSpecial") };
+  const fs = freqShort();
 
   let sections = "";
   let anyTask = false;
   groups.forEach(g=>{
     let list = myTasks.filter(t=>t.freq===g);
-    if(g==="once") list = list.filter(t=>taskStatus(t)!=="done"); // les ponctuelles terminées disparaissent
+    if(g==="once") list = list.filter(t=>taskStatus(t)!=="done");
     if(list.length===0) return;
     anyTask = true;
-    sections += `<div class="section-h"><h3>${groupTitle[g]}</h3><span class="tag">${FREQ_SHORT[g]}</span></div>`;
+    sections += `<div class="section-h"><h3>${groupTitle[g]}</h3><span class="tag">${fs[g]}</span></div>`;
     list.forEach(t=>{
       const st = taskStatus(t);
-      let action = `<button class="do" data-action="do-task" data-id="${t.id}">J'ai fait ✓</button>`;
-      if(st==="pending") action = `<span class="waiting">⏳ En attente</span>`;
-      if(st==="done")    action = `<span class="done-chip">✅ Bravo !</span>`;
+      let action = `<button class="do" data-action="do-task" data-id="${t.id}">${t("btnDone")}</button>`;
+      if(st==="pending") action = `<span class="waiting">${t("statusPending")}</span>`;
+      if(st==="done")    action = `<span class="done-chip">${t("statusDone")}</span>`;
       sections += `
         <div class="task">
           <span class="pts-badge">+${t.points}</span>
@@ -408,7 +554,7 @@ function renderChild(){
   });
 
   if(!anyTask){
-    sections = `<div class="empty"><span class="em">🗒️</span>Aucune mission pour l'instant.<br>Un parent peut en ajouter dans l'espace parent.</div>`;
+    sections = `<div class="empty"><span class="em">🗒️</span>${t("noTasks")}</div>`;
   }
 
   app().innerHTML = `
@@ -419,11 +565,11 @@ function renderChild(){
     </div>
     <div class="hero" style="background:linear-gradient(135deg, ${c.color}, ${shade(c.color,-18)})">
       <span class="emoji">${esc(c.emoji)}</span>
-      <div class="label">Mes points</div>
+      <div class="label">${t("myPoints")}</div>
       <div class="big"><span class="c"></span>${c.points}</div>
-      <div class="sub">Termine tes missions pour en gagner plus !</div>
+      <div class="sub">${t("heroSub")}</div>
     </div>
-    <button class="add-btn" data-action="open-store" data-id="${c.id}">🛒 Boutique des récompenses</button>
+    <button class="add-btn" data-action="open-store" data-id="${c.id}">${t("shopBtn")}</button>
     ${sections}
   `;
 }
@@ -434,11 +580,11 @@ function renderStore(){
   app().innerHTML = `
     <div class="top">
       <button class="back" data-action="open-child" data-id="${c.id}">‹</button>
-      <div class="who-name" style="color:${c.color}">🛒 Boutique</div>
+      <div class="who-name" style="color:${c.color}">${t("storeTitle")}</div>
       <div class="spacer"></div>
       ${coinPill(c.points)}
     </div>
-    ${state.rewards.length===0 ? `<div class="empty"><span class="em">🎁</span>Aucune récompense pour l'instant.</div>` : `
+    ${state.rewards.length===0 ? `<div class="empty"><span class="em">🎁</span>${t("noRewards")}</div>` : `
     <div class="store-grid">
       ${state.rewards.map(r=>{
         const can = c.points >= r.cost;
@@ -446,23 +592,23 @@ function renderStore(){
           <div class="reward">
             <div class="r-top"><span class="r-emoji">${esc(r.emoji||"🎁")}</span><span class="r-name">${esc(r.title)}</span></div>
             <button class="buy ${can?"":"locked"}" data-action="buy" data-id="${r.id}" data-child="${c.id}">
-              ${can ? `Acheter — ${r.cost} pts` : `🔒 ${r.cost} pts`}
+              ${can ? t("buyBtn",{cost:r.cost}) : t("buyLocked",{cost:r.cost})}
             </button>
           </div>`;
       }).join("")}
     </div>`}
-    <p class="footer-note">Quand tu achètes, tes points baissent.<br>Va voir un parent pour recevoir ta surprise 😊</p>
+    <p class="footer-note">${t("storeNote")}</p>
   `;
 }
 
 /* ----- Espace parent ----- */
 function renderParent(){
   const tabs = [
-    {id:"approbations", label:"À valider"},
-    {id:"taches", label:"Missions"},
-    {id:"boutique", label:"Boutique"},
-    {id:"enfants", label:"Enfants"},
-    {id:"reglages", label:"Réglages"},
+    {id:"approbations", label:t("tabApprove")},
+    {id:"taches",       label:t("tabTasks")},
+    {id:"boutique",     label:t("tabStore")},
+    {id:"enfants",      label:t("tabChildren")},
+    {id:"reglages",     label:t("tabSettings")},
   ];
   const pc = pendingCount();
   let body = "";
@@ -475,11 +621,11 @@ function renderParent(){
   app().innerHTML = `
     <div class="top">
       <button class="back" data-action="lock">‹</button>
-      <div class="who-name">🔐 Espace parent</div>
+      <div class="who-name">🔐 ${t("tabSettings")==="Settings"?"Parent area":"Espace parent"}</div>
     </div>
     <div class="tabs">
-      ${tabs.map(t=>`<button class="tab ${view.tab===t.id?"active":""}" data-action="ptab" data-tab="${t.id}">
-        ${t.label}${t.id==="approbations"&&pc>0?`<span class="badge-n">${pc}</span>`:""}
+      ${tabs.map(tab=>`<button class="tab ${view.tab===tab.id?"active":""}" data-action="ptab" data-tab="${tab.id}">
+        ${tab.label}${tab.id==="approbations"&&pc>0?`<span class="badge-n">${pc}</span>`:""}
       </button>`).join("")}
     </div>
     ${body}
@@ -488,48 +634,51 @@ function renderParent(){
 
 function parentApprovals(){
   const pend = state.completions.filter(c=>c.status==="pending").sort((a,b)=>a.createdAt-b.createdAt);
+  const fs = freqShort();
   if(pend.length===0){
-    return `<div class="empty"><span class="em">✅</span>Rien à valider pour le moment.<br>Quand un enfant coche « J'ai fait », ça apparaît ici.</div>`;
+    return `<div class="empty"><span class="em">✅</span>${t("noApprovals")}</div>`;
   }
   return pend.map(c=>{
-    const t = task(c.taskId); const k = child(c.childId);
-    if(!t||!k) return "";
+    const tsk = task(c.taskId); const k = child(c.childId);
+    if(!tsk||!k) return "";
     return `
       <div class="card approve-card">
         <div class="who-line">
           <span class="who-chip" style="background:${k.color}">${esc(k.emoji)} ${esc(k.name)}</span>
-          <span class="muted">${FREQ_SHORT[t.freq]}</span>
+          <span class="muted">${fs[tsk.freq]}</span>
         </div>
         <div class="row">
-          <div class="grow"><div class="t" style="font-weight:800;font-size:17px">${esc(t.title)}</div></div>
-          <span class="pts-badge">+${t.points}</span>
+          <div class="grow"><div class="t" style="font-weight:800;font-size:17px">${esc(tsk.title)}</div></div>
+          <span class="pts-badge">+${tsk.points}</span>
         </div>
         <div class="btn-line">
-          <button class="btn btn-yes" data-action="approve" data-id="${c.id}">✓ Valider (+${t.points})</button>
-          <button class="btn btn-no" data-action="reject" data-id="${c.id}">✗ Refuser</button>
+          <button class="btn btn-yes" data-action="approve" data-id="${c.id}">${t("btnApprove",{pts:tsk.points})}</button>
+          <button class="btn btn-no" data-action="reject" data-id="${c.id}">${t("btnReject")}</button>
         </div>
       </div>`;
   }).join("");
 }
 
 function parentTasks(){
-  let tpl = state.templates.map(t=>`
-    <button class="tpl" data-action="tpl" data-title="${esc(t.title)}" data-points="${t.points}">${esc(t.title)} <b>+${t.points}</b></button>
+  const fl = freqLabel();
+  const fs = freqShort();
+  let tpl = state.templates.map(tsk=>`
+    <button class="tpl" data-action="tpl" data-title="${esc(tsk.title)}" data-points="${tsk.points}">${esc(tsk.title)} <b>+${tsk.points}</b></button>
   `).join("");
 
   let byChild = state.children.map(k=>{
-    const list = state.tasks.filter(t=>t.childId===k.id);
+    const list = state.tasks.filter(tsk=>tsk.childId===k.id);
     const items = list.length===0
-      ? `<div class="muted" style="padding:8px 2px">Aucune mission assignée.</div>`
-      : list.map(t=>`
+      ? `<div class="muted" style="padding:8px 2px">${t("noTasksAssigned")}</div>`
+      : list.map(tsk=>`
         <div class="row" style="padding:11px 0;border-bottom:1px solid var(--line)">
           <div class="grow">
-            <div style="font-weight:800">${esc(t.title)}</div>
-            <div class="muted">${FREQ_LABEL[t.freq]} · +${t.points} pts</div>
+            <div style="font-weight:800">${esc(tsk.title)}</div>
+            <div class="muted">${fl[tsk.freq]} · +${tsk.points} pts</div>
           </div>
           <div class="item-actions">
-            <button class="icon-btn" data-action="edit-task" data-id="${t.id}">✏️</button>
-            <button class="icon-btn" data-action="del-task" data-id="${t.id}">🗑️</button>
+            <button class="icon-btn" data-action="edit-task" data-id="${tsk.id}">✏️</button>
+            <button class="icon-btn" data-action="del-task" data-id="${tsk.id}">🗑️</button>
           </div>
         </div>`).join("");
     return `
@@ -542,10 +691,10 @@ function parentTasks(){
   }).join("");
 
   return `
-    <button class="add-btn" data-action="new-task">＋ Nouvelle mission</button>
+    <button class="add-btn" data-action="new-task">${t("addTask")}</button>
     <div class="card">
-      <div class="row" style="margin-bottom:10px"><h3 style="font-size:15px">⚡ Modèles rapides</h3></div>
-      <div class="muted" style="margin-bottom:10px">Touche un modèle pour créer la mission en 2 secondes.</div>
+      <div class="row" style="margin-bottom:10px"><h3 style="font-size:15px">${t("quickTemplates")}</h3></div>
+      <div class="muted" style="margin-bottom:10px">${t("quickTemplatesHint")}</div>
       <div class="tpl-wrap">${tpl}</div>
     </div>
     ${byChild}
@@ -554,7 +703,7 @@ function parentTasks(){
 
 function parentRewards(){
   const list = state.rewards.length===0
-    ? `<div class="empty"><span class="em">🎁</span>Aucune récompense.</div>`
+    ? `<div class="empty"><span class="em">🎁</span>${t("noRewardsParent")}</div>`
     : state.rewards.map(r=>`
       <div class="card">
         <div class="row">
@@ -570,17 +719,17 @@ function parentRewards(){
   const hist = state.purchases.slice(0,15);
   const histHtml = hist.length===0 ? "" : `
     <div class="card">
-      <h3 style="font-size:15px;margin-bottom:8px">🧾 Derniers achats</h3>
+      <h3 style="font-size:15px;margin-bottom:8px">${t("lastPurchases")}</h3>
       ${hist.map(p=>`
         <div class="hist-row">
-          <span class="who-chip" style="background:${(child(p.childId)||{}).color||'#999'}">${esc((child(p.childId)||{}).emoji||"")} ${esc(p.childName)}</span>
+          <span class="who-chip" style="background:${(child(p.childId)||{}).color||"#999"}">${esc((child(p.childId)||{}).emoji||"")} ${esc(p.childName)}</span>
           <div class="grow">${esc(p.title)}</div>
           <span class="h-pts" style="color:#c0392b">−${p.cost}</span>
         </div>`).join("")}
     </div>`;
 
   return `
-    <button class="add-btn" data-action="new-reward">＋ Nouvelle récompense</button>
+    <button class="add-btn" data-action="new-reward">${t("addReward")}</button>
     ${list}
     ${histHtml}
   `;
@@ -588,7 +737,7 @@ function parentRewards(){
 
 function parentChildren(){
   return `
-    <button class="add-btn" data-action="new-child">＋ Ajouter un enfant</button>
+    <button class="add-btn" data-action="new-child">${t("addChild")}</button>
     ${state.children.map(k=>`
     <div class="card">
       <div class="row" style="margin-bottom:10px">
@@ -599,7 +748,7 @@ function parentChildren(){
           <button class="icon-btn" data-action="del-child" data-id="${k.id}">🗑️</button>
         </div>
       </div>
-      <div class="muted" style="margin-bottom:6px">Ajuster les points à la main :</div>
+      <div class="muted" style="margin-bottom:6px">${t("adjustPoints")}</div>
       <div class="mini">
         <button data-action="pts" data-id="${k.id}" data-d="1">+1</button>
         <button data-action="pts" data-id="${k.id}" data-d="5">+5</button>
@@ -607,7 +756,7 @@ function parentChildren(){
         <button data-action="pts" data-id="${k.id}" data-d="-1">−1</button>
         <button data-action="pts" data-id="${k.id}" data-d="-5">−5</button>
         <button data-action="pts" data-id="${k.id}" data-d="-10">−10</button>
-        <button data-action="pts-custom" data-id="${k.id}">Autre…</button>
+        <button data-action="pts-custom" data-id="${k.id}">${t("btnOther")}</button>
       </div>
     </div>`).join("")}`;
 }
@@ -615,41 +764,51 @@ function parentChildren(){
 function fmtDate(ts){
   if(!ts) return null;
   const d = new Date(ts);
-  const jours=["dim.","lun.","mar.","mer.","jeu.","ven.","sam."];
-  return jours[d.getDay()]+" "+pad(d.getDate())+"/"+pad(d.getMonth()+1)+" à "+pad(d.getHours())+":"+pad(d.getMinutes());
+  const jours = state.lang==="en"
+    ? ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
+    : ["dim.","lun.","mar.","mer.","jeu.","ven.","sam."];
+  return jours[d.getDay()]+" "+pad(d.getDate())+"/"+pad(d.getMonth()+1)+" "+(state.lang==="en"?"at":"à")+" "+pad(d.getHours())+":"+pad(d.getMinutes());
 }
+
 function parentSettings(){
   const lastBackup = fmtDate(state.lastBackupAt);
   return `
     <div class="card">
-      <h3 style="font-size:15px;margin-bottom:8px">💾 Sauvegarde</h3>
+      <h3 style="font-size:15px;margin-bottom:8px">${t("settingsBackup")}</h3>
       <div class="muted" style="margin-bottom:12px">
-        ${lastBackup ? `Dernière sauvegarde : <b style="color:var(--ink)">${lastBackup}</b>` : "Aucune sauvegarde téléchargée encore."}<br>
-        Si tu effaces l'historique de Safari, tout est perdu — télécharge une sauvegarde de temps en temps et garde-la dans iCloud Drive ou par courriel.
+        ${lastBackup ? `${t("lastBackupLabel")}<b style="color:var(--ink)">${lastBackup}</b>` : t("noBackupYet")}<br>
+        ${t("backupWarning")}
       </div>
       <div class="btn-line">
-        <button class="btn btn-yes" data-action="export-backup">⬇️ Télécharger une sauvegarde</button>
-        <button class="btn btn-ghost" data-action="trigger-import">⬆️ Restaurer</button>
+        <button class="btn btn-yes" data-action="export-backup">${t("btnDownloadBackup")}</button>
+        <button class="btn btn-ghost" data-action="trigger-import">${t("btnRestore")}</button>
       </div>
     </div>
     <div class="card">
-      <h3 style="font-size:15px;margin-bottom:8px">🔢 Code parent</h3>
+      <h3 style="font-size:15px;margin-bottom:8px">${t("settingsPin")}</h3>
       <div class="muted" style="margin-bottom:12px">
-        ${state.parentPin ? "Un code à 4 chiffres protège l'espace parent." : "Aucun code pour l'instant : tout le monde peut ouvrir l'espace parent."}
+        ${state.parentPin ? t("pinSet") : t("pinNotSet")}
       </div>
       <div class="btn-line">
-        <button class="btn btn-ghost" data-action="set-pin">${state.parentPin?"Changer le code":"Créer un code"}</button>
-        ${state.parentPin?`<button class="btn btn-no" data-action="clear-pin">Retirer le code</button>`:""}
+        <button class="btn btn-ghost" data-action="set-pin">${state.parentPin ? t("btnChangePin") : t("btnCreatePin")}</button>
+        ${state.parentPin ? `<button class="btn btn-no" data-action="clear-pin">${t("btnRemovePin")}</button>` : ""}
       </div>
     </div>
     <div class="card">
-      <h3 style="font-size:15px;margin-bottom:8px">💾 Données</h3>
-      <div class="muted" style="margin-bottom:12px">Tout est gardé sur cet iPad uniquement. Pense à ne pas effacer l'historique de Safari pour ce site.</div>
+      <h3 style="font-size:15px;margin-bottom:8px">${t("settingsLang")}</h3>
       <div class="btn-line">
-        <button class="btn btn-no" data-action="reset-all">Tout réinitialiser</button>
+        <button class="btn ${state.lang==="fr"?"btn-yes":"btn-ghost"}" data-action="set-lang" data-lang="fr">🇫🇷 Français</button>
+        <button class="btn ${state.lang==="en"?"btn-yes":"btn-ghost"}" data-action="set-lang" data-lang="en">🇬🇧 English</button>
       </div>
     </div>
-    <p class="footer-note">Mission Récompenses · fonctionne hors-ligne · aucune donnée envoyée sur internet</p>
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:8px">${t("settingsData")}</h3>
+      <div class="muted" style="margin-bottom:12px">${t("dataNote")}</div>
+      <div class="btn-line">
+        <button class="btn btn-no" data-action="reset-all">${t("btnResetAll")}</button>
+      </div>
+    </div>
+    <p class="footer-note">${t("footerNote")}</p>
   `;
 }
 
@@ -666,10 +825,10 @@ function shade(hex, percent){
 /* ============ Toast ============ */
 let toastTimer=null;
 function toast(msg){
-  const t=document.getElementById("toast");
-  t.textContent=msg; t.classList.add("show");
+  const el=document.getElementById("toast");
+  el.textContent=msg; el.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>t.classList.remove("show"),1800);
+  toastTimer=setTimeout(()=>el.classList.remove("show"),1800);
 }
 
 /* ============ Modale ============ */
@@ -678,32 +837,46 @@ function openModal(html){
   document.getElementById("modal-root").innerHTML = `<div class="modal-bg" data-action="modal-bg"><div class="modal">${html}</div></div>`;
 }
 
+/* ============ Rappel de sauvegarde du lundi ============ */
+function openBackupReminderModal(){
+  openModal(`
+    <h3>${t("mondayTitle")}</h3>
+    <p style="color:var(--ink-soft);font-weight:600;line-height:1.6;margin:0 0 18px">${t("mondayText")}</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-action="skip-backup-reminder">${t("btnLater")}</button>
+      <button class="btn btn-yes" data-action="monday-backup">${t("btnCreateBackup")}</button>
+    </div>
+  `);
+}
+
+/* ============ Formulaires ============ */
 let formState = {};
 function taskForm(existing){
   formState = existing
     ? {id:existing.id, title:existing.title, points:existing.points, freq:existing.freq, childId:existing.childId}
-    : {id:null, title:"", points:5, freq:"daily", childId:state.children[0].id};
+    : {id:null, title:"", points:5, freq:"daily", childId:state.children[0]?state.children[0].id:null};
   drawTaskForm();
 }
 function drawTaskForm(){
   const f = formState;
+  const fl = freqLabel();
   openModal(`
-    <h3>${f.id?"Modifier la mission":"Nouvelle mission"}</h3>
-    <label class="fld">Nom de la mission</label>
-    <input class="in" id="f-title" value="${esc(f.title)}" placeholder="Ex. Ranger sa chambre">
-    <label class="fld">Points gagnés</label>
+    <h3>${f.id ? t("formEditTask") : t("formNewTask")}</h3>
+    <label class="fld">${t("fldTaskName")}</label>
+    <input class="in" id="f-title" value="${esc(f.title)}" placeholder="${t("fldTaskNamePh")}">
+    <label class="fld">${t("fldPoints")}</label>
     <input class="in" id="f-points" type="number" inputmode="numeric" min="1" value="${f.points}">
-    <label class="fld">Pour quel enfant ?</label>
+    <label class="fld">${t("fldWhichChild")}</label>
     <div class="kid-pick" id="f-kid">
       ${state.children.map(k=>`<button class="opt ${f.childId===k.id?"on":""}" style="color:${k.color}" data-action="pick-kid" data-id="${k.id}">${esc(k.emoji)}<br>${esc(k.name)}</button>`).join("")}
     </div>
-    <label class="fld">À quelle fréquence ?</label>
+    <label class="fld">${t("fldFreq")}</label>
     <div class="seg" id="f-freq">
-      ${Object.keys(FREQ_LABEL).map(fr=>`<button class="opt ${f.freq===fr?"on":""}" data-action="pick-freq" data-f="${fr}">${FREQ_LABEL[fr]}</button>`).join("")}
+      ${Object.keys(fl).map(fr=>`<button class="opt ${f.freq===fr?"on":""}" data-action="pick-freq" data-f="${fr}">${fl[fr]}</button>`).join("")}
     </div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" data-action="modal-cancel">Annuler</button>
-      <button class="btn btn-yes" data-action="save-task">Enregistrer</button>
+      <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
+      <button class="btn btn-yes" data-action="save-task">${t("btnSave")}</button>
     </div>
   `);
 }
@@ -714,16 +887,16 @@ function rewardForm(existing){
     : {id:null, title:"", cost:20, emoji:"🎁"};
   const f=formState;
   openModal(`
-    <h3>${f.id?"Modifier la récompense":"Nouvelle récompense"}</h3>
-    <label class="fld">Émoji</label>
+    <h3>${f.id ? t("formEditReward") : t("formNewReward")}</h3>
+    <label class="fld">${t("fldEmoji")}</label>
     <input class="in" id="r-emoji" value="${esc(f.emoji)}" maxlength="4" style="width:90px;text-align:center;font-size:24px">
-    <label class="fld">Nom de la récompense</label>
-    <input class="in" id="r-title" value="${esc(f.title)}" placeholder="Ex. 30 min d'écran">
-    <label class="fld">Coût en points</label>
+    <label class="fld">${t("fldRewardName")}</label>
+    <input class="in" id="r-title" value="${esc(f.title)}" placeholder="${t("fldRewardNamePh")}">
+    <label class="fld">${t("fldCost")}</label>
     <input class="in" id="r-cost" type="number" inputmode="numeric" min="1" value="${f.cost}">
     <div class="modal-actions">
-      <button class="btn btn-ghost" data-action="modal-cancel">Annuler</button>
-      <button class="btn btn-yes" data-action="save-reward">Enregistrer</button>
+      <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
+      <button class="btn btn-yes" data-action="save-reward">${t("btnSave")}</button>
     </div>
   `);
 }
@@ -735,48 +908,33 @@ function childForm(existing){
   const f=formState;
   const palette=["#FF6B6B","#1FB6A6","#8B7FF5","#F2A33C","#3DA5FF","#E85FB0","#5BC15B","#7A6FF0"];
   openModal(`
-    <h3>${f.id ? "Modifier l'enfant" : "Nouvel enfant"}</h3>
-    <label class="fld">Émoji / avatar</label>
+    <h3>${f.id ? t("formEditChild") : t("formNewChild")}</h3>
+    <label class="fld">${t("fldChildEmoji")}</label>
     <input class="in" id="k-emoji" value="${esc(f.emoji)}" maxlength="4" style="width:90px;text-align:center;font-size:24px">
-    <label class="fld">Prénom</label>
+    <label class="fld">${t("fldChildName")}</label>
     <input class="in" id="k-name" value="${esc(f.name)}">
-    <label class="fld">Couleur</label>
+    <label class="fld">${t("fldColor")}</label>
     <div class="seg" id="k-color">
       ${palette.map(col=>`<button class="opt ${f.color.toLowerCase()===col.toLowerCase()?"on":""}" data-action="pick-color" data-c="${col}" style="background:${col};color:#fff;min-width:54px">${f.color.toLowerCase()===col.toLowerCase()?"✓":"&nbsp;"}</button>`).join("")}
     </div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" data-action="modal-cancel">Annuler</button>
-      <button class="btn btn-yes" data-action="save-child">Enregistrer</button>
+      <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
+      <button class="btn btn-yes" data-action="save-child">${t("btnSave")}</button>
     </div>
   `);
 }
 
 function pinPrompt(purpose){
-  // purpose: 'enter' | 'set'
   openModal(`
-    <h3>${purpose==="set"?"Choisir un code à 4 chiffres":"Code parent"}</h3>
-    <label class="fld">${purpose==="set"?"Nouveau code":"Entre le code"}</label>
+    <h3>${purpose==="set" ? t("modalSetPin") : t("modalEnterPin")}</h3>
+    <label class="fld">${purpose==="set" ? t("fldNewPin") : t("fldEnterPin")}</label>
     <input class="in" id="pin-in" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="text-align:center;letter-spacing:8px;font-size:24px">
     <div class="modal-actions">
-      <button class="btn btn-ghost" data-action="modal-cancel">Annuler</button>
-      <button class="btn btn-yes" data-action="${purpose==="set"?"save-pin":"check-pin"}">OK</button>
+      <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
+      <button class="btn btn-yes" data-action="${purpose==="set"?"save-pin":"check-pin"}">${t("btnOK")}</button>
     </div>
   `);
   setTimeout(()=>{ const el=document.getElementById("pin-in"); if(el) el.focus(); },50);
-}
-
-/* ============ Rappel de sauvegarde du lundi ============ */
-function openBackupReminderModal(){
-  openModal(`
-    <h3>💾 Sauvegarde du lundi</h3>
-    <p style="color:var(--ink-soft);font-weight:600;line-height:1.6;margin:0 0 18px">
-      C'est lundi ! Pense à télécharger une sauvegarde pour ne rien perdre si Safari efface ses données.
-    </p>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" data-action="skip-backup-reminder">Plus tard</button>
-      <button class="btn btn-yes" data-action="monday-backup">⬇️ Créer une sauvegarde</button>
-    </div>
-  `);
 }
 
 /* ============ Sauvegarde / Restauration ============ */
@@ -793,7 +951,7 @@ function exportBackup(){
   a.click();
   document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url), 2000);
-  toast("Sauvegarde téléchargée 💾");
+  toast(t("toastBackupDone"));
   render();
 }
 function handleRestoreFile(ev){
@@ -804,15 +962,16 @@ function handleRestoreFile(ev){
   reader.onload = function(e){
     let data;
     try{ data = JSON.parse(e.target.result); }
-    catch(err){ toast("Ce fichier n'est pas une sauvegarde valide"); return; }
+    catch(err){ toast(t("toastInvalidBackup")); return; }
     if(!data || !Array.isArray(data.children) || !Array.isArray(data.tasks) || !Array.isArray(data.rewards)){
-      toast("Ce fichier n'est pas une sauvegarde valide"); return;
+      toast(t("toastInvalidBackup")); return;
     }
-    if(confirm("Remplacer toutes les données actuelles par cette sauvegarde ? Cette action est irréversible.")){
+    if(confirm(t("confirmRestore"))){
       state = data;
+      if(!state.lang) state.lang = "fr";
       save();
       go("lock");
-      toast("Sauvegarde restaurée ✓");
+      toast(t("toastRestored"));
     }
   };
   reader.readAsText(file);
@@ -827,6 +986,12 @@ document.addEventListener("click", (e)=>{
   const id = el.dataset.id;
 
   switch(a){
+    /* langue */
+    case "toggle-lang":
+      state.lang = state.lang==="fr" ? "en" : "fr"; save(); render(); break;
+    case "set-lang":
+      state.lang = el.dataset.lang; save(); render(); break;
+
     /* navigation accueil */
     case "open-child": go("child",{childId:id}); break;
     case "open-store": case "open-store2": go("store",{childId:id}); break;
@@ -835,15 +1000,15 @@ document.addEventListener("click", (e)=>{
     /* enfant */
     case "do-task":
       markDone(id);
-      toast("Envoyé ! Un parent va valider 👍");
+      toast(t("toastSent"));
       render();
       break;
     case "buy": {
       const r = reward(id); const k = child(el.dataset.child);
-      if(k.points < r.cost){ toast("Pas assez de points 🙈"); break; }
-      if(confirm(`Acheter « ${r.title} » pour ${r.cost} points ?`)){
+      if(k.points < r.cost){ toast(t("toastNotEnoughPts")); break; }
+      if(confirm(t("confirmBuy",{title:r.title,cost:r.cost}))){
         buy(id, el.dataset.child);
-        toast("Acheté ! Va voir un parent 🎉");
+        toast(t("toastBought"));
         render();
       }
       break;
@@ -857,27 +1022,27 @@ document.addEventListener("click", (e)=>{
     case "check-pin": {
       const v=(document.getElementById("pin-in")||{}).value||"";
       if(v===state.parentPin){ closeModal(); go("parent",{tab:"approbations"}); }
-      else { toast("Code incorrect"); }
+      else { toast(t("toastWrongPin")); }
       break;
     }
     case "ptab": go("parent",{tab:el.dataset.tab}); break;
 
     /* validations */
-    case "approve": approve(id); toast("Points accordés ✅"); render(); break;
-    case "reject":  reject(id);  toast("Refusé — la mission reste à faire"); render(); break;
+    case "approve": approve(id); toast(t("toastApproved")); render(); break;
+    case "reject":  reject(id);  toast(t("toastRejected")); render(); break;
 
     /* missions */
     case "new-task": taskForm(null); break;
     case "edit-task": taskForm(task(id)); break;
     case "del-task":
-      if(confirm("Supprimer cette mission ?")){
-        state.tasks = state.tasks.filter(t=>t.id!==id);
+      if(confirm(t("confirmDelTask"))){
+        state.tasks = state.tasks.filter(tsk=>tsk.id!==id);
         state.completions = state.completions.filter(c=>c.taskId!==id);
         save(); render();
       }
       break;
     case "tpl":
-      formState = {id:null, title:el.dataset.title, points:parseInt(el.dataset.points,10), freq:"daily", childId:state.children[0].id};
+      formState = {id:null, title:el.dataset.title, points:parseInt(el.dataset.points,10), freq:"daily", childId:state.children[0]?state.children[0].id:null};
       drawTaskForm();
       break;
     case "pick-kid":  formState.childId=id; drawTaskForm(); break;
@@ -885,13 +1050,13 @@ document.addEventListener("click", (e)=>{
     case "save-task": {
       const title=(document.getElementById("f-title").value||"").trim();
       const points=Math.max(1, parseInt(document.getElementById("f-points").value,10)||1);
-      if(!title){ toast("Donne un nom à la mission"); break; }
+      if(!title){ toast(t("toastNeedTaskName")); break; }
       if(formState.id){
-        const t=task(formState.id); t.title=title; t.points=points; t.freq=formState.freq; t.childId=formState.childId;
+        const tsk=task(formState.id); tsk.title=title; tsk.points=points; tsk.freq=formState.freq; tsk.childId=formState.childId;
       } else {
         state.tasks.push({id:uid(), title, points, freq:formState.freq, childId:formState.childId, createdAt:Date.now()});
       }
-      save(); closeModal(); render(); toast("Mission enregistrée ✓");
+      save(); closeModal(); render(); toast(t("toastTaskSaved"));
       break;
     }
 
@@ -899,7 +1064,7 @@ document.addEventListener("click", (e)=>{
     case "new-reward": rewardForm(null); break;
     case "edit-reward": rewardForm(reward(id)); break;
     case "del-reward":
-      if(confirm("Supprimer cette récompense ?")){
+      if(confirm(t("confirmDelReward"))){
         state.rewards = state.rewards.filter(r=>r.id!==id); save(); render();
       }
       break;
@@ -907,13 +1072,13 @@ document.addEventListener("click", (e)=>{
       const title=(document.getElementById("r-title").value||"").trim();
       const cost=Math.max(1, parseInt(document.getElementById("r-cost").value,10)||1);
       const emoji=(document.getElementById("r-emoji").value||"🎁").trim()||"🎁";
-      if(!title){ toast("Donne un nom à la récompense"); break; }
+      if(!title){ toast(t("toastNeedRewardName")); break; }
       if(formState.id){
         const r=reward(formState.id); r.title=title; r.cost=cost; r.emoji=emoji;
       } else {
         state.rewards.push({id:uid(), title, cost, emoji});
       }
-      save(); closeModal(); render(); toast("Récompense enregistrée ✓");
+      save(); closeModal(); render(); toast(t("toastRewardSaved"));
       break;
     }
 
@@ -922,8 +1087,8 @@ document.addEventListener("click", (e)=>{
     case "edit-child": childForm(child(id)); break;
     case "del-child": {
       const k=child(id); if(!k) break;
-      if(confirm(`Supprimer ${k.name} ? Toutes ses missions et son historique seront effacés.`)){
-        deleteChild(id); render(); toast("Enfant supprimé");
+      if(confirm(t("confirmDelChild",{name:k.name}))){
+        deleteChild(id); render(); toast(t("toastChildDeleted"));
       }
       break;
     }
@@ -931,19 +1096,19 @@ document.addEventListener("click", (e)=>{
     case "save-child": {
       const name=((document.getElementById("k-name").value||"").trim());
       const emoji=((document.getElementById("k-emoji").value||"").trim())||"⭐";
-      if(!name){ toast("Donne un prénom à l'enfant"); break; }
+      if(!name){ toast(t("toastNeedChildName")); break; }
       if(formState.id){
         const k=child(formState.id);
         k.name=name; k.emoji=emoji; k.color=formState.color;
       } else {
         state.children.push({id:uid(), name, emoji, color:formState.color, points:0});
       }
-      save(); closeModal(); render(); toast("Enregistré ✓");
+      save(); closeModal(); render(); toast(t("toastChildSaved"));
       break;
     }
     case "pts": adjustPoints(id, parseInt(el.dataset.d,10)); render(); break;
     case "pts-custom": {
-      const v=prompt("Combien de points ajouter ? (un nombre négatif pour en retirer)");
+      const v=prompt(t("promptCustomPts"));
       if(v!==null){ const n=parseInt(v,10); if(!isNaN(n)){ adjustPoints(id,n); render(); } }
       break;
     }
@@ -960,16 +1125,16 @@ document.addEventListener("click", (e)=>{
     case "set-pin": pinPrompt("set"); break;
     case "save-pin": {
       const v=(document.getElementById("pin-in").value||"").trim();
-      if(!/^\d{4}$/.test(v)){ toast("Il faut 4 chiffres"); break; }
-      state.parentPin=v; save(); closeModal(); render(); toast("Code enregistré 🔒");
+      if(!/^\d{4}$/.test(v)){ toast(t("toastNeedPin")); break; }
+      state.parentPin=v; save(); closeModal(); render(); toast(t("toastPinSaved"));
       break;
     }
     case "clear-pin":
-      if(confirm("Retirer le code parent ?")){ state.parentPin=""; save(); render(); }
+      if(confirm(t("confirmRemovePin"))){ state.parentPin=""; save(); render(); }
       break;
     case "reset-all":
-      if(confirm("Tout effacer et recommencer à zéro ? (missions, récompenses, points)")){
-        state = defaults(); save(); go("lock"); toast("Réinitialisé");
+      if(confirm(t("confirmReset"))){
+        state = defaults(); save(); go("lock"); toast(t("toastReset"));
       }
       break;
 
