@@ -506,7 +506,7 @@ function render(){
 function renderLock(){
   app().innerHTML = `
     <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
-      <button class="lang-btn" data-action="toggle-lang">${state.lang==="fr"?"🇬🇧 EN":"🇫🇷 FR"}</button>
+      <button class="lang-btn" data-action="toggle-lang">${state.lang==="fr"?"🇫🇷 FR":"🇬🇧 EN"}</button>
     </div>
     <div class="brand"><span class="logo">⭐️</span><h1>${t("appTitle")}</h1></div>
     <p class="tagline">${t("lockTagline")}</p>
@@ -534,20 +534,20 @@ function renderChild(){
   let sections = "";
   let anyTask = false;
   groups.forEach(g=>{
-    let list = myTasks.filter(t=>t.freq===g);
-    if(g==="once") list = list.filter(t=>taskStatus(t)!=="done");
+    let list = myTasks.filter(tsk=>tsk.freq===g);
+    if(g==="once") list = list.filter(tsk=>taskStatus(tsk)!=="done");
     if(list.length===0) return;
     anyTask = true;
     sections += `<div class="section-h"><h3>${groupTitle[g]}</h3><span class="tag">${fs[g]}</span></div>`;
-    list.forEach(t=>{
-      const st = taskStatus(t);
-      let action = `<button class="do" data-action="do-task" data-id="${t.id}">${t("btnDone")}</button>`;
+    list.forEach(tsk=>{
+      const st = taskStatus(tsk);
+      let action = `<button class="do" data-action="do-task" data-id="${tsk.id}">${t("btnDone")}</button>`;
       if(st==="pending") action = `<span class="waiting">${t("statusPending")}</span>`;
       if(st==="done")    action = `<span class="done-chip">${t("statusDone")}</span>`;
       sections += `
         <div class="task">
-          <span class="pts-badge">+${t.points}</span>
-          <div class="meta"><div class="t">${esc(t.title)}</div></div>
+          <span class="pts-badge">+${tsk.points}</span>
+          <div class="meta"><div class="t">${esc(tsk.title)}</div></div>
           ${action}
         </div>`;
     });
@@ -621,7 +621,9 @@ function renderParent(){
   app().innerHTML = `
     <div class="top">
       <button class="back" data-action="lock">‹</button>
-      <div class="who-name">🔐 ${t("tabSettings")==="Settings"?"Parent area":"Espace parent"}</div>
+      <div class="who-name">🔐 ${state.lang==="en"?"Parent area":"Espace parent"}</div>
+      <div class="spacer"></div>
+      <button class="lang-btn" data-action="toggle-lang">${state.lang==="fr"?"🇫🇷 FR":"🇬🇧 EN"}</button>
     </div>
     <div class="tabs">
       ${tabs.map(tab=>`<button class="tab ${view.tab===tab.id?"active":""}" data-action="ptab" data-tab="${tab.id}">
