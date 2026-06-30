@@ -688,14 +688,18 @@ function renderChild(){
   const nowMs = Date.now();
   const THIRTY_MIN = 30 * 60 * 1000;
   const beforeLen = (state.notifications||[]).length;
-  // remove expired (viewed > 30 min ago)
   state.notifications = (state.notifications||[]).filter(n =>
     n.childId !== c.id || !n.viewedAt || (nowMs - n.viewedAt) < THIRTY_MIN
   );
-  const myNotifs   = (state.notifications||[]).filter(n => n.childId === c.id);
+  const myNotifs    = (state.notifications||[]).filter(n => n.childId === c.id);
   const newlyViewed = myNotifs.filter(n => !n.viewedAt);
   newlyViewed.forEach(n => { n.viewedAt = nowMs; });
   if(newlyViewed.length > 0 || state.notifications.length !== beforeLen) save();
+
+  /* compute "before" points for newly-arriving notifications */
+  function notifDelta(n){ return n.delta !== undefined ? n.delta : (n.type==="powerup" ? n.points : -n.points); }
+  const pendingSum = newlyViewed.reduce((s, n) => s + notifDelta(n), 0);
+  const displayPts = c.points - pendingSum; /* what child sees BEFORE animation */
 
   /* events panel between hero and boutique */
   const evPanel = myNotifs.length === 0 ? "" : `
@@ -835,7 +839,7 @@ function renderChild(){
     <div class="hero" style="background:linear-gradient(135deg, ${c.color}, ${shade(c.color,-18)})">
       <span class="emoji">${esc(c.emoji)}</span>
       <div class="label">${t("myPoints")}</div>
-      <div class="big"><span class="c"></span><span id="pts-val">${c.points}</span></div>
+      <div class="big"><span class="c"></span><span id="pts-val">${displayPts}</span></div>
       <div class="sub">${t("heroSub")}</div>
     </div>
     ${evPanel}
@@ -843,12 +847,28 @@ function renderChild(){
     ${sections}
   `;
 
-  /* play animation for newly-viewed notifications (after DOM is ready) */
+  /* play animation then update the counter display */
+  let runningPts = displayPts;
   newlyViewed.forEach((notif, i) => {
+    const startAt  = 400 + i * 2900;
+    /* powerup badge: delay 0.15s + 1.8s = ~2s; bomb badge: delay 1.15s + 1.8s = ~3s */
+    const updateAt = startAt + (notif.type==="powerup" ? 2050 : 3050);
+
     setTimeout(() => {
       if(notif.type==="powerup"){ showPowerUpAnim(c.color, notif.points); playPowerUpSound(); }
       else { showBombAnim(notif.points); playBombSound(); }
-    }, 400 + i * 2900);
+    }, startAt);
+
+    setTimeout(() => {
+      runningPts = Math.max(0, runningPts + notifDelta(notif));
+      const pv = document.getElementById("pts-val");
+      if(pv){
+        pv.style.transition = "transform .25s ease";
+        pv.style.transform  = "scale(1.3)";
+        pv.textContent = runningPts;
+        setTimeout(() => { pv.style.transform = "scale(1)"; }, 220);
+      }
+    }, updateAt);
   });
 }
 
@@ -883,8 +903,8 @@ function renderStore(){
 function renderParent(){
   const tabs = [
     {id:"approbations", label:t("tabApprove")},
-    {id:"taches",       label:t("tabTasks")},
     {id:"evenements",   label:t("tabEvents")},
+    {id:"taches",       label:t("tabTasks")},
     {id:"periodes",     label:t("tabPeriods")},
     {id:"boutique",     label:t("tabStore")},
     {id:"enfants",      label:t("tabChildren")},
@@ -1292,10 +1312,12 @@ function applyEvent(type, title, points, childIds){
   if(!state.notifications) state.notifications = [];
   const targets = childIds.length===0 ? state.children
     : state.children.filter(c=>childIds.includes(c.id));
-  const delta = type==="powerup" ? Math.abs(points) : -Math.abs(points);
   targets.forEach(c=>{
-    c.points = Math.max(0, c.points + delta);
-    state.notifications.push({id:uid(), childId:c.id, type, points:Math.abs(points), title, createdAt:Date.now()});
+    const raw   = type==="powerup" ? Math.abs(points) : -Math.abs(points);
+    const after = Math.max(0, c.points + raw);
+    const delta = after - c.points; /* actual change (may be 0 if already at floor) */
+    c.points = after;
+    state.notifications.push({id:uid(), childId:c.id, type, points:Math.abs(points), delta, title, createdAt:Date.now()});
   });
   save();
 }
