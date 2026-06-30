@@ -806,7 +806,7 @@ function renderParent(){
         ${tab.label}${tab.id==="approbations"&&pc>0?`<span class="badge-n">${pc}</span>`:""}
       </button>`).join("")}
     </div>
-    ${body}
+    <div id="parent-body">${body}</div>
   `;
 }
 
@@ -1355,7 +1355,26 @@ document.addEventListener("click", (e)=>{
       else { toast(t("toastWrongPin")); }
       break;
     }
-    case "ptab": go("parent",{tab:el.dataset.tab}); break;
+    case "ptab": {
+      const newTab = el.dataset.tab;
+      if(newTab === view.tab) break;
+      view.tab = newTab;
+      /* update tab active state in-place */
+      document.querySelectorAll("[data-action='ptab']").forEach(btn=>{
+        btn.classList.toggle("active", btn.dataset.tab === newTab);
+      });
+      /* update body only — no scroll reset */
+      let body = "";
+      if(newTab==="approbations") body = parentApprovals();
+      if(newTab==="taches")       body = parentTasks();
+      if(newTab==="periodes")     body = parentPeriods();
+      if(newTab==="boutique")     body = parentRewards();
+      if(newTab==="enfants")      body = parentChildren();
+      if(newTab==="reglages")     body = parentSettings();
+      const pb = document.getElementById("parent-body");
+      if(pb) pb.innerHTML = body;
+      break;
+    }
 
     /* validations */
     case "approve": approve(id); toast(t("toastApproved")); render(); break;
