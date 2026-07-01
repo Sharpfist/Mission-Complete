@@ -390,7 +390,7 @@ const TRANSLATIONS = {
     statusWaitOthers:"⏳ En attente des autres",statusWaitApproval:"⏳ En attente d'approbation",
     btnApproveKeep:"✓ Approuver",btnApproveFinish:"✓✓ Approuver & terminer",
     rejectPenaltyLabel:"Points de pénalité (bombe, 0 = aucune)",
-    btnConfirmReject:"Confirmé",notDoneSuffix:"non terminé",
+    btnConfirmReject:"Confirmé",notDoneSuffix:"non terminé",incompleteSuffix:"non complétée",
     sharedTag:"partagée",
   },
   en: {
@@ -494,7 +494,7 @@ const TRANSLATIONS = {
     statusWaitOthers:"⏳ Waiting for others",statusWaitApproval:"⏳ Waiting for approval",
     btnApproveKeep:"✓ Approve",btnApproveFinish:"✓✓ Approve & finish",
     rejectPenaltyLabel:"Penalty points (bomb, 0 = none)",
-    btnConfirmReject:"Confirm",notDoneSuffix:"not completed",
+    btnConfirmReject:"Confirm",notDoneSuffix:"not completed",incompleteSuffix:"not completed",
     sharedTag:"shared",
   }
 };
@@ -694,14 +694,20 @@ function markDone(taskId, childId){
   const pk = periodKey(t.freq);
   const exists = state.completions.find(c=>c.taskId===t.id && c.childId===cid && c.periodKey===pk);
   if(exists) return;
-  state.completions.push({id:uid(), taskId:t.id, childId:cid, periodKey:pk, status:"pending", createdAt:Date.now()});
+  /* pts ajustés si une réduction de report a été appliquée */
+  const cpKey = `${t.id}|${cid}`;
+  const adjPts = (state.carryPenalties && state.carryPenalties[cpKey] != null)
+    ? state.carryPenalties[cpKey] : null;
+  state.completions.push({id:uid(), taskId:t.id, childId:cid, periodKey:pk, status:"pending",
+    pts: adjPts, createdAt:Date.now()});
   save();
 }
 function approve(compId){
   const c = state.completions.find(x=>x.id===compId); if(!c) return;
-  const t = task(c.taskId);
+  const tsk = task(c.taskId);
   c.status = "approved"; c.approvedAt = Date.now();
-  if(t){ const k = child(c.childId); if(k){ k.points += t.points; } }
+  /* utilise les points ajustés stockés dans la complétion (carry penalty), sinon tsk.points */
+  if(tsk){ const k = child(c.childId); if(k){ k.points += (c.pts != null ? c.pts : tsk.points); } }
   save();
 }
 function reject(compId){
@@ -713,7 +719,7 @@ function approveExtremeComp(compId, finish){
   const c = state.completions.find(x=>x.id===compId); if(!c) return;
   const tsk = task(c.taskId); if(!tsk) return;
   c.status = "approved"; c.approvedAt = Date.now();
-  const k = child(c.childId); if(k){ k.points += tsk.points; }
+  const k = child(c.childId); if(k){ k.points += (c.pts != null ? c.pts : tsk.points); }
   if(tsk.extremeMode === "competitive"){
     /* remporté : ferme pour tous, retire les autres complétions en attente */
     closeExtreme(tsk);
@@ -1012,9 +1018,20 @@ function renderChild(){
         carried ? "border-left:3px solid var(--wait);padding-left:13px" : "",
       ].filter(Boolean).join(";");
 
+      /* badge avec réduction de report éventuelle */
+      const cpKey2 = `${tsk.id}|${c.id}`;
+      const adjPts2 = (state.carryPenalties && state.carryPenalties[cpKey2] != null)
+        ? state.carryPenalties[cpKey2] : null;
+      const ptsBadge = adjPts2 != null
+        ? `<span style="display:flex;flex-direction:column;align-items:center;gap:1px">
+             <span class="pts-badge" style="font-size:11px;opacity:.55;text-decoration:line-through;padding:3px 8px">+${tsk.points}</span>
+             <span class="pts-badge" style="background:#FFDAD6;color:#c0392b;font-size:14px">+${adjPts2}</span>
+           </span>`
+        : `<span class="pts-badge" style="font-size:${greyed?"12px":"14px"}">${greyed?"":"+"}${tsk.points}</span>`;
+
       sections += `
         <div class="task" style="${wrapStyle}">
-          <span class="pts-badge" style="font-size:${greyed?"12px":"14px"}">${greyed?"":"+"}${tsk.points}</span>
+          ${ptsBadge}
           <div class="meta">
             <div class="t" style="${greyed?"font-size:14px":""}">${esc(tsk.title)}</div>
             ${carried ? `<div class="f" style="color:var(--wait);font-size:12px">↩ ${t("carriedOver")}</div>` : ""}
@@ -1181,6 +1198,14 @@ function approvalCard(c, fs){
   if(!tsk||!k) return "";
   const ex = isExtreme(tsk);
   const modeTag = ex ? `<span class="muted">${extremeEmoji(tsk)} ${t("typeExtreme")}</span>` : "";
+  /* points effectifs pour cette complétion (réduits si carry penalty) */
+  const effPts = c.pts != null ? c.pts : tsk.points;
+  const ptsDisplay = effPts < tsk.points
+    ? `<span style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+         <span class="pts-badge" style="font-size:11px;opacity:.55;text-decoration:line-through;padding:3px 8px">+${tsk.points}</span>
+         <span class="pts-badge" style="background:#FFDAD6;color:#c0392b">+${effPts}</span>
+       </span>`
+    : `<span class="pts-badge">+${effPts}</span>`;
 
   let buttons;
   if(rejectingComp === c.id){
@@ -1200,27 +1225,27 @@ function approvalCard(c, fs){
   } else if(ex && tsk.extremeMode==="collab"){
     buttons = `
       <div class="btn-line">
-        <button class="btn btn-yes" data-action="appr-ext-keep" data-id="${c.id}">${t("btnApproveKeep")} (+${tsk.points})</button>
+        <button class="btn btn-yes" data-action="appr-ext-keep" data-id="${c.id}">${t("btnApproveKeep")} (+${effPts})</button>
         <button class="btn btn-no" data-action="rej-ext-start" data-id="${c.id}">${t("btnReject")}</button>
       </div>
       <button class="btn btn-yes" data-action="appr-ext-finish" data-id="${c.id}" style="width:100%;margin-top:6px;background:#1d8a55">${t("btnApproveFinish")}</button>`;
   } else if(ex && tsk.extremeMode==="competitive"){
     buttons = `
       <div class="btn-line">
-        <button class="btn btn-yes" data-action="appr-ext-keep" data-id="${c.id}">${t("btnApprove",{pts:tsk.points})}</button>
+        <button class="btn btn-yes" data-action="appr-ext-keep" data-id="${c.id}">${t("btnApprove",{pts:effPts})}</button>
         <button class="btn btn-no" data-action="rej-ext-start" data-id="${c.id}">${t("btnReject")}</button>
       </div>`;
   } else if(ex){
     /* solo ou tous : approbation standard + refus avec pénalité */
     buttons = `
       <div class="btn-line">
-        <button class="btn btn-yes" data-action="approve" data-id="${c.id}">${t("btnApprove",{pts:tsk.points})}</button>
+        <button class="btn btn-yes" data-action="approve" data-id="${c.id}">${t("btnApprove",{pts:effPts})}</button>
         <button class="btn btn-no" data-action="rej-ext-start" data-id="${c.id}">${t("btnReject")}</button>
       </div>`;
   } else {
     buttons = `
       <div class="btn-line">
-        <button class="btn btn-yes" data-action="approve" data-id="${c.id}">${t("btnApprove",{pts:tsk.points})}</button>
+        <button class="btn btn-yes" data-action="approve" data-id="${c.id}">${t("btnApprove",{pts:effPts})}</button>
         <button class="btn btn-no" data-action="reject" data-id="${c.id}">${t("btnReject")}</button>
       </div>`;
   }
@@ -1234,7 +1259,7 @@ function approvalCard(c, fs){
       </div>
       <div class="row">
         <div class="grow"><div class="t" style="font-weight:800;font-size:17px">${ex?extremeEmoji(tsk)+" ":""}${esc(tsk.title)}</div></div>
-        <span class="pts-badge">+${tsk.points}</span>
+        ${ptsDisplay}
       </div>
       ${buttons}
     </div>`;
@@ -2362,6 +2387,106 @@ document.addEventListener("click", (e)=>{
     case "modal-cancel": closeModal(); break;
     case "modal-bg": if(e.target.classList.contains("modal-bg")) closeModal(); break;
   }
+});
+
+/* ============ Moteur de pénalités automatiques ============
+   Lancé au chargement + à chaque retour au premier plan.
+
+   carryOnPenalty  → réduit les points de la tâche (pas de bombe), une seule fois.
+                     Stocké dans state.carryPenalties["taskId|childId"] = adjPts.
+   incompletePenalty → bombe "nom : non complétée", une fois par occurrence de période.
+
+   state.penaltyLog["key"] = dateStr  empêche la double application.
+   "pending" (soumis, attente approbation) = exempt.
+============================================================ */
+function applyPenalties(){
+  if(!state.penaltyLog)    state.penaltyLog    = {};
+  if(!state.carryPenalties) state.carryPenalties = {};
+
+  const now    = new Date();
+  const nowStr = pad(now.getHours()) + ":" + pad(now.getMinutes());
+  const today  = todayStr();
+  let changed  = false;
+
+  /* — Passe 1 : pénalités de fin de période — */
+  state.tasks.forEach(tsk => {
+    if(!tsk.carryOnPenalty && !tsk.incompletePenalty) return;
+    const p = period(tsk.periodId);
+    if(!p || p.isAllDay) return;       /* pas de limite horaire pour all-day */
+    if(nowStr <= p.endTime) return;    /* période pas encore terminée */
+
+    const pk = periodKey(tsk.freq);
+
+    taskChildIds(tsk).forEach(cid => {
+      const st = taskStatusFor(tsk, cid);
+      if(st === "done" || st === "pending") return; /* complété ou soumis → exempt */
+
+      /* réduction de report : modifie les pts de la tâche pour cet enfant, une fois */
+      if(tsk.carryOn && tsk.carryOnPenalty > 0){
+        const logKey = `${tsk.id}|${cid}|carry`;
+        if(!state.penaltyLog[logKey]){
+          state.penaltyLog[logKey] = today;
+          state.carryPenalties[`${tsk.id}|${cid}`] =
+            Math.max(0, tsk.points - tsk.carryOnPenalty);
+          changed = true;
+        }
+      }
+
+      /* pénalité d'incomplétion (sans carry-on) → bombe */
+      if(!tsk.carryOn && tsk.incompletePenalty > 0){
+        const logKey = `${tsk.id}|${cid}|${pk}|incomplete`;
+        if(!state.penaltyLog[logKey]){
+          state.penaltyLog[logKey] = today;
+          applyEvent("bomb",
+            esc(tsk.title) + " : " + t("incompleteSuffix"),
+            tsk.incompletePenalty, [cid]);
+          changed = true;
+        }
+      }
+    });
+  });
+
+  /* — Passe 2 : pénalités de fin de journée (carryOn + incompletePenalty) — */
+  const lastDay = state.lastDayChecked || today;
+  if(lastDay !== today){
+    const prevDate = new Date(lastDay + "T12:00:00");
+
+    state.tasks.forEach(tsk => {
+      if(!tsk.carryOn || !tsk.incompletePenalty) return;
+      const p = period(tsk.periodId);
+      if(!p || p.isAllDay) return;
+
+      const prevPk = periodKey(tsk.freq, prevDate);
+      const currPk = periodKey(tsk.freq);
+      if(prevPk === currPk) return; /* même occurrence de fréquence → rien */
+
+      taskChildIds(tsk).forEach(cid => {
+        /* complétion (approuvée ou soumise) dans la période précédente → exempt */
+        const prevDone = state.completions.some(x =>
+          x.taskId===tsk.id && x.childId===cid && x.periodKey===prevPk);
+        if(prevDone) return;
+
+        const logKey = `${tsk.id}|${cid}|${prevPk}|incomplete-eod`;
+        if(!state.penaltyLog[logKey]){
+          state.penaltyLog[logKey] = today;
+          applyEvent("bomb",
+            esc(tsk.title) + " : " + t("incompleteSuffix"),
+            tsk.incompletePenalty, [cid]);
+          changed = true;
+        }
+      });
+    });
+
+    state.lastDayChecked = today;
+    changed = true;
+  }
+
+  if(changed) save();
+}
+
+applyPenalties();
+document.addEventListener("visibilitychange", () => {
+  if(!document.hidden) applyPenalties();
 });
 
 render();
