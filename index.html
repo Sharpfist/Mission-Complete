@@ -682,10 +682,6 @@ function render(){
 /* ----- Écran d'accueil ----- */
 function renderLock(){
   app().innerHTML = `
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:4px">
-      <button class="lang-btn" data-action="refresh-app" title="Actualiser">🔄</button>
-      <button class="lang-btn" data-action="toggle-lang">${state.lang==="fr"?"🇫🇷 FR":"🇬🇧 EN"}</button>
-    </div>
     <div class="brand"><span class="logo">⭐️</span><h1>${t("appTitle")}</h1></div>
     <p class="tagline">${t("lockTagline")}</p>
     <div class="who-grid">
@@ -702,6 +698,10 @@ function renderLock(){
     </div>
     <button class="parent-btn" data-action="open-parent">${t("parentBtn")}</button>
     <p class="footer-note">${t("lockTip")}</p>
+    <div style="display:flex;justify-content:center;gap:10px;margin-top:18px">
+      <button class="lang-btn" data-action="refresh-app" title="Actualiser">🔄</button>
+      <button class="lang-btn" data-action="toggle-lang">${state.lang==="fr"?"🇫🇷 FR":"🇬🇧 EN"}</button>
+    </div>
   `;
 }
 
@@ -948,9 +948,6 @@ function renderParent(){
     <div class="top">
       <button class="back" data-action="lock">‹</button>
       <div class="who-name">🔐 ${state.lang==="en"?"Parent area":"Espace parent"}</div>
-      <div class="spacer"></div>
-      <button class="lang-btn" data-action="refresh-app" title="Actualiser">🔄</button>
-      <button class="lang-btn" data-action="toggle-lang">${state.lang==="fr"?"🇫🇷 FR":"🇬🇧 EN"}</button>
     </div>
     <div class="tabs">
       ${tabs.map(tab=>`<button class="tab ${view.tab===tab.id?"active":""}" data-action="ptab" data-tab="${tab.id}">
@@ -958,6 +955,10 @@ function renderParent(){
       </button>`).join("")}
     </div>
     <div id="parent-body">${body}</div>
+    <div style="display:flex;justify-content:center;gap:10px;margin:18px 0 10px">
+      <button class="lang-btn" data-action="refresh-app" title="Actualiser">🔄</button>
+      <button class="lang-btn" data-action="toggle-lang">${state.lang==="fr"?"🇫🇷 FR":"🇬🇧 EN"}</button>
+    </div>
   `;
   if(view.tab === "enfants") setTimeout(setupChildDrag, 0);
 }
@@ -1261,7 +1262,7 @@ function parentSettings(){
       </div>
     </div>
     <p class="footer-note">${t("footerNote")}</p>
-    <p class="footer-note" style="margin-top:6px;opacity:.45">Version 0.3</p>
+    <p class="footer-note" style="margin-top:6px;opacity:.45">Version 0.7</p>
   `;
 }
 
