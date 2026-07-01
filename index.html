@@ -953,7 +953,7 @@ function renderChild(){
         } else if(st === "pending"){
           action = statusChip("waiting", tsk.extremeMode==="all"?t("statusWaitOthers"):t("statusPending"));
         } else if(closed){
-          action = statusChip("status-chip", tsk.extremeMode==="competitive"?t("extremeWon"):t("extremeClosedLbl"));
+          action = statusChip("status-chip", t("extremeWon"));
           locked = true;
         } else if(!unlocked){
           action = `<span style="font-size:16px;padding:6px 10px;background:var(--line);border-radius:10px">🔒</span>`;
