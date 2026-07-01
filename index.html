@@ -359,6 +359,7 @@ const TRANSLATIONS = {
     powerupLabel:"⚡ Power-Up",bombLabel:"💣 Bombe",
     toastPowerUpApplied:"⚡ Power-Up appliqué !",toastBombApplied:"💣 Bombe appliquée !",
     confirmDelTpl:"Supprimer ce modèle ?",
+    toastSelectChild:"Sélectionne au moins un enfant",formEditEvent:"Modifier l'événement",
     addPeriod:"＋ Ajouter une période",
     allDayLabel:"Toute la journée",
     allDayTime:"00:00 – 23:59",
@@ -463,6 +464,7 @@ const TRANSLATIONS = {
     powerupLabel:"⚡ Power-Up",bombLabel:"💣 Bomb",
     toastPowerUpApplied:"⚡ Power-Up applied!",toastBombApplied:"💣 Bomb applied!",
     confirmDelTpl:"Delete this template?",
+    toastSelectChild:"Select at least one child",formEditEvent:"Edit event",
     addPeriod:"＋ Add a period",
     allDayLabel:"All day",
     allDayTime:"00:00 – 23:59",
@@ -1548,42 +1550,60 @@ function parentSettings(){
 }
 
 /* ============ Événements (Power-Up / Bombe) ============ */
+let evLive = {};
 function parentEvents(){
   const etpls = state.eventTemplates || [];
+  etpls.forEach(tpl => {
+    if(!evLive[tpl.id]) evLive[tpl.id] = { pts: tpl.points, childIds: [] };
+  });
   const tplCards = etpls.length === 0
     ? `<div class="empty"><span class="em">📋</span>${t("noEventTpls")}</div>`
-    : etpls.map(tpl => `
-      <div class="card ev-tpl-card ${tpl.type}">
-        <div class="row">
-          <span style="font-size:26px">${tpl.type==="powerup"?"⚡":"💣"}</span>
-          <div class="grow">
-            <div style="font-weight:800">${esc(tpl.title)}</div>
-            <div class="muted">${tpl.type==="powerup"?"+":"-"}${tpl.points} pts · ${tpl.childIds.length===0?t("affectsAll"):tpl.childIds.map(cid=>{ const k=child(cid); return k?`${k.emoji} ${k.name}`:""; }).join(", ")}</div>
-          </div>
-          <button class="btn btn-yes" style="font-size:13px;padding:9px 14px;flex-shrink:0" data-action="apply-event-tpl" data-id="${tpl.id}">${tpl.type==="powerup"?"⚡":"💣"} ${t("applyEvent")}</button>
-          <button class="icon-btn" style="background:#FCE9E9;font-size:15px;flex-shrink:0" data-action="del-event-tpl" data-id="${tpl.id}">✕</button>
-        </div>
-      </div>`).join("");
+    : etpls.map(tpl => {
+        const isPowerup = tpl.type === "powerup";
+        const accentColor = isPowerup ? "#2BB673" : "#E74C3C";
+        const live = evLive[tpl.id];
+        return `
+          <div class="card ev-tpl-card ${tpl.type}" style="padding:14px 16px">
+            <div class="row" style="margin-bottom:10px;gap:10px">
+              <span style="font-size:24px;flex-shrink:0">${isPowerup?"⚡":"💣"}</span>
+              <div style="font-weight:800;font-size:16px;flex:1">${esc(tpl.title)}</div>
+              <button class="icon-btn" style="flex-shrink:0;font-size:18px" data-action="edit-event-tpl" data-id="${tpl.id}">✏️</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+              <button class="icon-btn" style="width:32px;height:32px;background:var(--line);border-radius:9px;font-size:20px;font-weight:900;color:var(--ink)" data-action="ev-pts-down" data-id="${tpl.id}">−</button>
+              <span id="ev-pts-${tpl.id}" style="font-weight:900;font-size:18px;min-width:28px;text-align:center;color:${accentColor}">${live.pts}</span>
+              <button class="icon-btn" style="width:32px;height:32px;background:var(--line);border-radius:9px;font-size:20px;font-weight:900;color:var(--ink)" data-action="ev-pts-up" data-id="${tpl.id}">+</button>
+              <span style="color:var(--ink-soft);font-size:13px;font-weight:700">pts</span>
+            </div>
+            <div class="kid-pick" style="margin-bottom:14px">
+              ${state.children.map(k => {
+                const on = live.childIds.includes(k.id);
+                return `<button class="opt${on?" on":""}" data-action="ev-kid-tog" data-tpl="${tpl.id}" data-kid="${k.id}" style="color:${k.color}">${esc(k.emoji)} ${esc(k.name)}</button>`;
+              }).join("")}
+            </div>
+            <button class="btn btn-yes" style="width:100%" data-action="apply-ev-inline" data-id="${tpl.id}">
+              ${isPowerup?"⚡":"💣"} ${t("applyEvent")}
+            </button>
+          </div>`;
+      }).join("");
 
   return `
     <button class="add-btn" data-action="new-event">+ ${t("newEvent")}</button>
-    <div class="section-h" style="margin:22px 4px 12px">
-      <h3>${t("quickTemplates")}</h3>
-    </div>
     ${tplCards}
   `;
 }
 
 let eventFormState = {};
 function newEventForm(){
-  eventFormState = {type:"powerup", title:"", points:5, childIds:[], saveAsTemplate:false};
+  eventFormState = {editId:null, type:"powerup", title:"", points:5, childIds:[], saveAsTemplate:true};
   drawEventForm();
 }
 function drawEventForm(){
   const f = eventFormState;
   const isPowerup = f.type==="powerup";
+  const isEdit = !!f.editId;
   openModal(`
-    <h3>${isPowerup ? t("powerupLabel") : t("bombLabel")}</h3>
+    <h3>${isEdit ? t("formEditEvent") : (isPowerup ? t("powerupLabel") : t("bombLabel"))}</h3>
     <label class="fld">${t("evType")}</label>
     <div class="seg" style="margin-bottom:16px">
       <button class="opt ${isPowerup?"on":""}" data-action="pick-ev-type" data-v="powerup">${t("powerupLabel")}</button>
@@ -1597,21 +1617,33 @@ function drawEventForm(){
       <input class="in" id="ev-points" type="number" inputmode="numeric" min="1" value="${f.points}" style="flex:1;margin-bottom:0">
       <span class="muted">pts</span>
     </div>
-    <label class="fld">${t("evAffects")}</label>
-    <div class="seg" id="ev-kids" style="margin-bottom:16px">
-      <button class="opt ${f.childIds.length===0?"on":""}" data-action="pick-ev-kid" data-id="all">${t("affectsAll")}</button>
-      ${state.children.map(k=>`<button class="opt ${f.childIds.includes(k.id)?"on":""}" data-action="pick-ev-kid" data-id="${k.id}" style="${f.childIds.includes(k.id)?"":"color:"+k.color}">${esc(k.emoji)} ${esc(k.name)}</button>`).join("")}
+    <div style="display:none" id="ev-affects-section">
+      <label class="fld">${t("evAffects")}</label>
+      <div class="seg" id="ev-kids" style="margin-bottom:16px">
+        <button class="opt ${f.childIds.length===0?"on":""}" data-action="pick-ev-kid" data-id="all">${t("affectsAll")}</button>
+        ${state.children.map(k=>`<button class="opt ${f.childIds.includes(k.id)?"on":""}" data-action="pick-ev-kid" data-id="${k.id}" style="${f.childIds.includes(k.id)?"":"color:"+k.color}">${esc(k.emoji)} ${esc(k.name)}</button>`).join("")}
+      </div>
     </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding:12px 0;border-top:1px solid var(--line)">
-      <span style="font-weight:700;font-size:14px">${t("saveTpl")}</span>
-      <button class="toggle-sw ${f.saveAsTemplate?"on":""}" id="ev-save-tpl" data-action="pick-ev-save-tpl"></button>
-    </div>
-    <button class="btn btn-yes" style="width:100%;font-size:17px;padding:16px" data-action="apply-event">
-      ${isPowerup?"⚡":"💣"} ${t("applyEvent")} ${isPowerup?t("powerupLabel"):t("bombLabel")}
-    </button>
-    <div style="margin-top:8px">
-      <button class="btn btn-ghost" style="width:100%" data-action="modal-cancel">${t("btnCancel")}</button>
-    </div>
+    ${isEdit ? `
+      <div class="modal-actions" style="margin-top:20px">
+        <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
+        <button class="btn btn-yes" data-action="save-event-tpl">${state.lang==="en"?"Save":"Sauvegarder"}</button>
+      </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+        <button class="btn btn-no" style="width:100%" data-action="del-event-tpl" data-id="${f.editId}">${t("btnDelete")}</button>
+      </div>
+    ` : `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding:12px 0;border-top:1px solid var(--line)">
+        <span style="font-weight:700;font-size:14px">${t("saveTpl")}</span>
+        <button class="toggle-sw ${f.saveAsTemplate?"on":""}" id="ev-save-tpl" data-action="pick-ev-save-tpl"></button>
+      </div>
+      <button class="btn btn-yes" style="width:100%;font-size:17px;padding:16px" data-action="apply-event">
+        ${isPowerup?"⚡":"💣"} ${t("applyEvent")} ${isPowerup?t("powerupLabel"):t("bombLabel")}
+      </button>
+      <div style="margin-top:8px">
+        <button class="btn btn-ghost" style="width:100%" data-action="modal-cancel">${t("btnCancel")}</button>
+      </div>
+    `}
   `);
 }
 
@@ -2262,7 +2294,7 @@ document.addEventListener("click", (e)=>{
       if(!title){ toast(t("toastNeedTaskName")); break; }
       if(eventFormState.saveAsTemplate){
         if(!state.eventTemplates) state.eventTemplates=[];
-        state.eventTemplates.push({id:uid(), type:eventFormState.type, title, points, childIds:[...eventFormState.childIds]});
+        state.eventTemplates.push({id:uid(), type:eventFormState.type, title, points, childIds:[]});
       }
       applyEvent(eventFormState.type, title, points, eventFormState.childIds);
       closeModal();
@@ -2271,17 +2303,68 @@ document.addEventListener("click", (e)=>{
       toast(t(eventFormState.type==="powerup"?"toastPowerUpApplied":"toastBombApplied"));
       break;
     }
-    case "apply-event-tpl": {
+    case "edit-event-tpl": {
       const tpl=(state.eventTemplates||[]).find(x=>x.id===id); if(!tpl) break;
-      applyEvent(tpl.type, tpl.title, tpl.points, tpl.childIds);
+      eventFormState={editId:id, type:tpl.type, title:tpl.title, points:tpl.points, childIds:[...(tpl.childIds||[])], saveAsTemplate:false};
+      drawEventForm(); break;
+    }
+    case "save-event-tpl": {
+      const title=(document.getElementById("ev-title").value||"").trim();
+      const points=Math.max(1,Math.abs(parseInt((document.getElementById("ev-points")||{}).value)||1));
+      if(!title){ toast(t("toastNeedTaskName")); break; }
+      const tpl=(state.eventTemplates||[]).find(x=>x.id===eventFormState.editId);
+      if(tpl){ tpl.type=eventFormState.type; tpl.title=title; tpl.points=points; }
+      if(evLive[eventFormState.editId]) evLive[eventFormState.editId].pts=points;
+      save(); closeModal();
+      const pb2=document.getElementById("parent-body");
+      if(pb2) pb2.innerHTML=parentEvents();
+      toast(t("toastTaskSaved")); break;
+    }
+    case "ev-pts-up": {
+      const tpl=(state.eventTemplates||[]).find(x=>x.id===id); if(!tpl) break;
+      if(!evLive[id]) evLive[id]={pts:tpl.points, childIds:[]};
+      evLive[id].pts++;
+      const disp=document.getElementById("ev-pts-"+id);
+      if(disp) disp.textContent=evLive[id].pts;
+      break;
+    }
+    case "ev-pts-down": {
+      const tpl=(state.eventTemplates||[]).find(x=>x.id===id); if(!tpl) break;
+      if(!evLive[id]) evLive[id]={pts:tpl.points, childIds:[]};
+      evLive[id].pts=Math.max(1, evLive[id].pts-1);
+      const disp2=document.getElementById("ev-pts-"+id);
+      if(disp2) disp2.textContent=evLive[id].pts;
+      break;
+    }
+    case "ev-kid-tog": {
+      const tplId=el.dataset.tpl, kid=el.dataset.kid;
+      const tpl=(state.eventTemplates||[]).find(x=>x.id===tplId); if(!tpl) break;
+      if(!evLive[tplId]) evLive[tplId]={pts:tpl.points, childIds:[]};
+      const arr=evLive[tplId].childIds;
+      const idx=arr.indexOf(kid);
+      if(idx>=0) arr.splice(idx,1); else arr.push(kid);
+      el.classList.toggle("on", arr.includes(kid));
+      break;
+    }
+    case "apply-ev-inline": {
+      const tpl=(state.eventTemplates||[]).find(x=>x.id===id); if(!tpl) break;
+      if(!evLive[id]) evLive[id]={pts:tpl.points, childIds:[]};
+      const live=evLive[id];
+      if(live.childIds.length===0){ toast(t("toastSelectChild")); break; }
+      applyEvent(tpl.type, tpl.title, live.pts, live.childIds);
       toast(t(tpl.type==="powerup"?"toastPowerUpApplied":"toastBombApplied"));
+      evLive[id]={pts:tpl.points, childIds:[]};
+      const pb3=document.getElementById("parent-body");
+      if(pb3) pb3.innerHTML=parentEvents();
       break;
     }
     case "del-event-tpl": {
       if(confirm(t("confirmDelTpl"))){
-        state.eventTemplates=(state.eventTemplates||[]).filter(x=>x.id!==id); save();
-        const pb=document.getElementById("parent-body");
-        if(pb) pb.innerHTML=parentEvents();
+        state.eventTemplates=(state.eventTemplates||[]).filter(x=>x.id!==id);
+        delete evLive[id];
+        save(); closeModal();
+        const pb4=document.getElementById("parent-body");
+        if(pb4) pb4.innerHTML=parentEvents();
       }
       break;
     }
