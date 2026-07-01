@@ -303,7 +303,7 @@ const TRANSLATIONS = {
     storeTitle:"🛒 Boutique",buyBtn:"Acheter — {cost} pts",buyLocked:"🔒 {cost} pts",
     storeNote:"Quand tu achètes, tes points baissent.<br>Va voir un parent pour recevoir ta surprise 😊",
     noRewards:"Aucune récompense pour l'instant.",
-    tabApprove:"À valider",tabTasks:"Missions",tabStore:"Boutique",tabChildren:"Enfants",tabSettings:"Réglages",
+    tabApprove:"À valider",tabTasks:"Missions",tabStore:"Boutique",tabChildren:"Enfants",tabInvestment:"Investissement",tabSettings:"Réglages",
     noApprovals:"Rien à valider pour le moment.<br>Quand un enfant coche « J'ai fait », ça apparaît ici.",
     btnApprove:"✓ Valider (+{pts})",btnReject:"✗ Refuser",
     addTask:"＋ Nouvelle mission",quickTemplates:"⚡ Modèles rapides",
@@ -352,6 +352,10 @@ const TRANSLATIONS = {
     confirmRestore:"Remplacer toutes les données actuelles par cette sauvegarde ? Cette action est irréversible.",
     promptCustomPts:"Combien de points ajouter ? (un nombre négatif pour en retirer)",
     tabPeriods:"Périodes",tabEvents:"Événements",
+    invTitle:"Investissement",invEnabled:"Actif",
+    invRateLabel:"Taux de rendement",invFreqLabel:"Fréquence",
+    invFreqDaily:"Chaque jour (à 00:01)",invFreqWeekly:"Chaque semaine — vendredi à 00:01",invFreqMonthly:"Chaque mois — 1er du mois à 00:01",
+    invEventTitle:"Investissement",
     newEvent:"Ajouter un événement",quickTemplates:"Modèles rapides",
     noEventTpls:"Aucun modèle. Créez un événement et cochez Sauvegarder.",
     evType:"Type",evPointsLabel:"Points",evAffects:"Affecte",affectsAll:"Tout le monde",
@@ -408,7 +412,7 @@ const TRANSLATIONS = {
     storeTitle:"🛒 Store",buyBtn:"Buy — {cost} pts",buyLocked:"🔒 {cost} pts",
     storeNote:"When you buy, your points go down.<br>See a parent to get your surprise 😊",
     noRewards:"No rewards yet.",
-    tabApprove:"To approve",tabTasks:"Missions",tabStore:"Store",tabChildren:"Children",tabSettings:"Settings",
+    tabApprove:"To approve",tabTasks:"Missions",tabStore:"Store",tabChildren:"Children",tabInvestment:"Investment",tabSettings:"Settings",
     noApprovals:"Nothing to approve right now.<br>When a child taps « Done », it appears here.",
     btnApprove:"✓ Approve (+{pts})",btnReject:"✗ Reject",
     addTask:"＋ New mission",quickTemplates:"⚡ Quick templates",
@@ -457,6 +461,10 @@ const TRANSLATIONS = {
     confirmRestore:"Replace all current data with this backup? This cannot be undone.",
     promptCustomPts:"How many points to add? (negative number to remove)",
     tabPeriods:"Periods",tabEvents:"Events",
+    invTitle:"Investment",invEnabled:"Active",
+    invRateLabel:"Return rate",invFreqLabel:"Frequency",
+    invFreqDaily:"Every day (at 00:01)",invFreqWeekly:"Every week — Friday at 00:01",invFreqMonthly:"Every month — 1st of the month at 00:01",
+    invEventTitle:"Investment",
     newEvent:"Add an event",quickTemplates:"Quick templates",
     noEventTpls:"No templates yet. Create an event and check Save.",
     evType:"Type",evPointsLabel:"Points",evAffects:"Affects",affectsAll:"Everyone",
@@ -577,6 +585,8 @@ function defaults(){
       {id:"etpl-4", type:"bomb",    title:"A été impoli(e)",                   points:5, childIds:[]},
     ],
     notifications:[],
+    investment:{enabled:true, rate:2, freq:"daily"},
+    lastInvestmentApplied:"",
     lastBackupAt:null,
     lastMondayReminderDate:null,
   };
@@ -594,6 +604,8 @@ if(!state.periods) {
   save();
 }
 if(!state.notifications) { state.notifications = []; save(); }
+if(!state.investment) { state.investment = {enabled:true, rate:2, freq:"daily"}; save(); }
+if(state.lastInvestmentApplied === undefined) { state.lastInvestmentApplied = ""; save(); }
 if(!state.eventTemplates){
   state.eventTemplates = [
     {id:"etpl-1", type:"powerup", title:"Bon comportement au resto",   points:5,  childIds:[]},
@@ -789,7 +801,7 @@ function statusChip(cls, full){
 }
 
 /* delta signé d'une notification (rétrocompat si delta absent) */
-function notifDelta(n){ return n.delta !== undefined ? n.delta : (n.type==="powerup" ? n.points : -n.points); }
+function notifDelta(n){ return n.delta !== undefined ? n.delta : ((n.type==="powerup"||n.type==="investment") ? n.points : -n.points); }
 
 /* points à afficher sur l'écran d'accueil avant que l'enfant ait vu l'animation */
 function lockDisplayPts(c){
@@ -860,9 +872,9 @@ function renderChild(){
       <div style="font-size:11px;font-weight:800;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">${state.lang==="fr"?"Événements":"Events"}</div>
       ${myNotifs.map((n,i)=>`
         <div style="display:flex;align-items:center;gap:10px;padding:7px 0${i<myNotifs.length-1?";border-bottom:1px solid var(--line)":""}">
-          <span style="font-size:18px">${n.type==="powerup"?"⚡":"💣"}</span>
+          <span style="font-size:18px">${n.type==="powerup"?"⚡":n.type==="investment"?"💰":"💣"}</span>
           <div style="flex:1;font-weight:700;font-size:15px">${esc(n.title)}</div>
-          <span style="font-weight:900;font-size:16px;color:${n.type==="powerup"?"#2BB673":"#E74C3C"}">${n.type==="powerup"?"+":"-"}${n.points}</span>
+          <span style="font-weight:900;font-size:16px;color:${(n.type==="powerup"||n.type==="investment")?"#2BB673":"#E74C3C"}">${(n.type==="powerup"||n.type==="investment")?"+":"-"}${n.points}</span>
         </div>`).join("")}
     </div>`;
 
@@ -1069,10 +1081,11 @@ function renderChild(){
   newlyViewed.forEach((notif, i) => {
     const startAt  = 400 + i * 2900;
     /* powerup badge: delay 0.15s + 1.8s = ~2s; bomb badge: delay 1.15s + 1.8s = ~3s */
-    const updateAt = startAt + (notif.type==="powerup" ? 1550 : 2550);
+    const updateAt = startAt + ((notif.type==="powerup"||notif.type==="investment") ? 1550 : 2550);
 
     setTimeout(() => {
       if(notif.type==="powerup"){ showPowerUpAnim(c.color, notif.points); playPowerUpSound(); }
+      else if(notif.type==="investment"){ showPowerUpAnim(c.color, notif.points); playInvestmentSound(); }
       else { showBombAnim(notif.points); playBombSound(); }
     }, startAt);
 
@@ -1124,8 +1137,9 @@ function renderParent(){
     {id:"taches",       label:t("tabTasks")},
     {id:"periodes",     label:t("tabPeriods")},
     {id:"boutique",     label:t("tabStore")},
-    {id:"enfants",      label:t("tabChildren")},
-    {id:"reglages",     label:t("tabSettings")},
+    {id:"enfants",        label:t("tabChildren")},
+    {id:"investissement", label:t("tabInvestment")},
+    {id:"reglages",       label:t("tabSettings")},
   ];
   const pc = pendingCount();
   let body = "";
@@ -1134,8 +1148,9 @@ function renderParent(){
   if(view.tab==="evenements")   body = parentEvents();
   if(view.tab==="periodes")     body = parentPeriods();
   if(view.tab==="boutique")     body = parentRewards();
-  if(view.tab==="enfants")      body = parentChildren();
-  if(view.tab==="reglages")     body = parentSettings();
+  if(view.tab==="enfants")        body = parentChildren();
+  if(view.tab==="investissement") body = parentInvestissement();
+  if(view.tab==="reglages")       body = parentSettings();
 
   app().innerHTML = `
     <div class="top">
@@ -1167,8 +1182,9 @@ function refreshParentBody(){
   else if(tab==="evenements") body = parentEvents();
   else if(tab==="periodes")   body = parentPeriods();
   else if(tab==="boutique")   body = parentRewards();
-  else if(tab==="enfants")    body = parentChildren();
-  else if(tab==="reglages")   body = parentSettings();
+  else if(tab==="enfants")        body = parentChildren();
+  else if(tab==="investissement") body = parentInvestissement();
+  else if(tab==="reglages")       body = parentSettings();
   pb.innerHTML = body;
   if(tab==="enfants") setTimeout(setupChildDrag, 0);
 }
@@ -1593,6 +1609,60 @@ function parentEvents(){
   `;
 }
 
+function parentInvestissement(){
+  const inv = state.investment || {enabled:true, rate:2, freq:"daily"};
+  const isFR = state.lang !== "en";
+  const explainText = isFR
+    ? `Un gain est appliqué après la période choisie, au pourcentage indiqué, sur le total des points de l'enfant à ce moment. Par exemple : pour 2% chaque jour, si l'enfant a 100 points, il gagne 2 points le lendemain matin (arrondi à la hausse).
+<br><br>
+<b>Chaque jour</b> : appliqué à 00:01<br>
+<b>Chaque semaine</b> : appliqué le vendredi à 00:01<br>
+<b>Chaque mois</b> : appliqué le premier jour du mois à 00:01`
+    : `A gain is applied after the chosen period, at the indicated rate, on the child's total points at that time. Example: at 2% every day, if the child has 100 points, they earn 2 points the next morning (rounded up).
+<br><br>
+<b>Every day</b>: applied at 00:01<br>
+<b>Every week</b>: applied Friday at 00:01<br>
+<b>Every month</b>: applied on the 1st at 00:01`;
+
+  return `
+    <div class="card" style="margin-bottom:12px">
+      <div class="row" style="gap:12px">
+        <div class="grow">
+          <div style="font-weight:800;font-size:16px">💰 ${t("invTitle")}</div>
+          <div class="muted" style="margin-top:2px">${t("invEnabled")}</div>
+        </div>
+        <button class="toggle-sw ${inv.enabled?"on":""}" data-action="inv-toggle"></button>
+      </div>
+    </div>
+
+    ${inv.enabled ? `
+    <div class="card" style="margin-bottom:12px">
+      <label class="fld">${t("invRateLabel")}</label>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <button class="icon-btn" style="width:36px;height:36px;background:var(--line);border-radius:9px;font-size:22px;font-weight:900;color:var(--ink)" data-action="inv-rate-down">−</button>
+        <span id="inv-rate-display" style="font-weight:900;font-size:22px;min-width:36px;text-align:center;color:#2BB673">${inv.rate}</span>
+        <button class="icon-btn" style="width:36px;height:36px;background:var(--line);border-radius:9px;font-size:22px;font-weight:900;color:var(--ink)" data-action="inv-rate-up">+</button>
+        <span style="font-weight:700;font-size:16px;color:var(--ink-soft)">%</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px">
+      <label class="fld">${t("invFreqLabel")}</label>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${["daily","weekly","monthly"].map(f=>`
+          <button class="opt ${inv.freq===f?"on":""}" data-action="inv-freq" data-v="${f}" style="text-align:left;padding:12px 14px;border:2px solid var(--line);border-radius:14px;font-weight:700;font-size:14px;${inv.freq===f?"border-color:var(--ink);background:var(--ink);color:#fff":""}">
+            ${t("invFreq_"+f)}
+          </button>`).join("")}
+      </div>
+    </div>
+    ` : ""}
+
+    <div style="margin:4px 2px 16px;padding:14px 16px;background:var(--line);border-radius:16px">
+      <div style="font-size:13px;color:var(--ink-soft);line-height:1.65">${explainText}</div>
+    </div>
+  `;
+}
+
 let eventFormState = {};
 function newEventForm(){
   eventFormState = {editId:null, type:"powerup", title:"", points:5, childIds:[], saveAsTemplate:true};
@@ -1652,7 +1722,7 @@ function applyEvent(type, title, points, childIds){
   const targets = childIds.length===0 ? state.children
     : state.children.filter(c=>childIds.includes(c.id));
   targets.forEach(c=>{
-    const raw   = type==="powerup" ? Math.abs(points) : -Math.abs(points);
+    const raw   = (type==="powerup"||type==="investment") ? Math.abs(points) : -Math.abs(points);
     const after = Math.max(0, c.points + raw);
     const delta = after - c.points; /* actual change (may be 0 if already at floor) */
     c.points = after;
@@ -1695,6 +1765,37 @@ function playBombSound(){
     eg.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+1.1);
     src.connect(eg); eg.connect(ctx.destination);
     src.start(ctx.currentTime+0.72); src.stop(ctx.currentTime+1.1);
+  }catch(e){}
+}
+
+function playInvestmentSound(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    /* montée de pièces : do mi sol do' */
+    [[523,0,0.07],[659,0.08,0.07],[784,0.16,0.07],[1047,0.24,0.12]].forEach(([f,dt,dur])=>{
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.type="triangle"; o.frequency.value=f;
+      g.gain.setValueAtTime(0.18, ctx.currentTime+dt);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+dt+dur);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(ctx.currentTime+dt); o.stop(ctx.currentTime+dt+dur+0.01);
+    });
+    /* ching final */
+    const o2=ctx.createOscillator(), g2=ctx.createGain();
+    o2.type="sine"; o2.frequency.value=3136;
+    g2.gain.setValueAtTime(0.14, ctx.currentTime+0.38);
+    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.38+0.7);
+    o2.connect(g2); g2.connect(ctx.destination);
+    o2.start(ctx.currentTime+0.38); o2.stop(ctx.currentTime+1.1);
+    /* shimmer métallique */
+    const buf=ctx.createBuffer(1,Math.floor(ctx.sampleRate*0.18),ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/(ctx.sampleRate*0.025));
+    const src=ctx.createBufferSource();
+    const bpf=ctx.createBiquadFilter(); bpf.type="bandpass"; bpf.frequency.value=9000; bpf.Q.value=3;
+    const gn=ctx.createGain(); gn.gain.setValueAtTime(0.09,ctx.currentTime+0.37);
+    src.buffer=buf; src.connect(bpf); bpf.connect(gn); gn.connect(ctx.destination);
+    src.start(ctx.currentTime+0.37);
   }catch(e){}
 }
 
@@ -2134,8 +2235,9 @@ document.addEventListener("click", (e)=>{
       if(newTab==="evenements")   body = parentEvents();
       if(newTab==="periodes")     body = parentPeriods();
       if(newTab==="boutique")     body = parentRewards();
-      if(newTab==="enfants")      body = parentChildren();
-      if(newTab==="reglages")     body = parentSettings();
+      if(newTab==="enfants")        body = parentChildren();
+      if(newTab==="investissement") body = parentInvestissement();
+      if(newTab==="reglages")       body = parentSettings();
       const pb = document.getElementById("parent-body");
       if(pb) pb.innerHTML = body;
       if(newTab === "enfants") setTimeout(setupChildDrag, 0);
@@ -2369,6 +2471,34 @@ document.addEventListener("click", (e)=>{
       break;
     }
 
+    /* investissement */
+    case "inv-toggle": {
+      if(!state.investment) state.investment={enabled:true,rate:2,freq:"daily"};
+      state.investment.enabled = !state.investment.enabled;
+      save(); refreshParentBody(); break;
+    }
+    case "inv-rate-up": {
+      if(!state.investment) state.investment={enabled:true,rate:2,freq:"daily"};
+      state.investment.rate = Math.min(100, (state.investment.rate||2) + 1);
+      save();
+      const rd=document.getElementById("inv-rate-display");
+      if(rd) rd.textContent=state.investment.rate;
+      break;
+    }
+    case "inv-rate-down": {
+      if(!state.investment) state.investment={enabled:true,rate:2,freq:"daily"};
+      state.investment.rate = Math.max(1, (state.investment.rate||2) - 1);
+      save();
+      const rd2=document.getElementById("inv-rate-display");
+      if(rd2) rd2.textContent=state.investment.rate;
+      break;
+    }
+    case "inv-freq": {
+      if(!state.investment) state.investment={enabled:true,rate:2,freq:"daily"};
+      state.investment.freq = el.dataset.v;
+      save(); refreshParentBody(); break;
+    }
+
     /* enfants */
     case "new-child": childForm(null); break;
     case "edit-child": childForm(child(id)); break;
@@ -2482,6 +2612,41 @@ document.addEventListener("click", (e)=>{
    state.penaltyLog["key"] = dateStr  empêche la double application.
    "pending" (soumis, attente approbation) = exempt.
 ============================================================ */
+function applyInvestment(){
+  if(!state.investment) state.investment = {enabled:true, rate:2, freq:"daily"};
+  const inv = state.investment;
+  if(!inv.enabled) return;
+
+  const today = todayStr();
+  const lastApplied = state.lastInvestmentApplied || "";
+
+  /* Calculer la date de déclenchement la plus récente */
+  let triggerDate = "";
+  if(inv.freq === "daily"){
+    triggerDate = today;
+  } else if(inv.freq === "weekly"){
+    const d = new Date();
+    const daysBack = (d.getDay() - 5 + 7) % 7; /* jours depuis le vendredi */
+    const fri = new Date(d);
+    fri.setDate(d.getDate() - daysBack);
+    triggerDate = fri.getFullYear() + "-" + pad(fri.getMonth()+1) + "-" + pad(fri.getDate());
+  } else if(inv.freq === "monthly"){
+    const d = new Date();
+    triggerDate = d.getFullYear() + "-" + pad(d.getMonth()+1) + "-01";
+  }
+
+  if(!triggerDate || lastApplied >= triggerDate) return;
+
+  state.lastInvestmentApplied = today;
+  state.children.forEach(c => {
+    if(c.points <= 0) return;
+    const gain = Math.ceil(c.points * inv.rate / 100);
+    if(gain <= 0) return;
+    applyEvent("investment", "💰 " + t("invEventTitle"), gain, [c.id]);
+  });
+  save();
+}
+
 function applyPenalties(){
   if(!state.penaltyLog)    state.penaltyLog    = {};
   if(!state.carryPenalties) state.carryPenalties = {};
@@ -2568,8 +2733,9 @@ function applyPenalties(){
 }
 
 applyPenalties();
+applyInvestment();
 document.addEventListener("visibilitychange", () => {
-  if(!document.hidden) applyPenalties();
+  if(!document.hidden){ applyPenalties(); applyInvestment(); }
 });
 
 render();
