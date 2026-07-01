@@ -178,8 +178,10 @@
   @media(min-width:560px){.modal-bg{align-items:center}}
   .modal{
     background:#fff;border-radius:26px 26px 0 0;width:100%;max-width:520px;padding:22px 20px 26px;
-    box-shadow:0 -10px 40px rgba(0,0,0,.2);max-height:92vh;overflow:auto;
+    box-shadow:0 -10px 40px rgba(0,0,0,.2);max-height:92vh;overflow-y:auto;
+    -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
   }
+  body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden;}
   @media(min-width:560px){.modal{border-radius:26px}}
   .modal h3{font-size:20px;margin-bottom:16px}
   label.fld{display:block;font-weight:800;font-size:13px;color:var(--ink-soft);margin:12px 2px 6px}
@@ -1681,8 +1683,22 @@ function toast(msg){
 }
 
 /* ============ Modale ============ */
-function closeModal(){ document.getElementById("modal-root").innerHTML=""; }
+let modalScrollY = 0;
+function lockBodyScroll(){
+  if(document.body.classList.contains("modal-open")) return; /* déjà verrouillé (re-render du même modal) */
+  modalScrollY = window.scrollY || window.pageYOffset || 0;
+  document.body.style.top = `-${modalScrollY}px`;
+  document.body.classList.add("modal-open");
+}
+function unlockBodyScroll(){
+  if(!document.body.classList.contains("modal-open")) return;
+  document.body.classList.remove("modal-open");
+  document.body.style.top = "";
+  window.scrollTo(0, modalScrollY);
+}
+function closeModal(){ document.getElementById("modal-root").innerHTML=""; unlockBodyScroll(); }
 function openModal(html){
+  lockBodyScroll();
   document.getElementById("modal-root").innerHTML = `<div class="modal-bg" data-action="modal-bg"><div class="modal">${html}</div></div>`;
 }
 
