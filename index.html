@@ -372,6 +372,18 @@ const TRANSLATIONS = {
     editChildNote:"(enfant non modifiable en édition)",
     periodPast:"terminée",periodCurrent:"active",periodUpcoming:"à venir",
     carriedOver:"reportée de la période précédente",
+    extremeModeLabel:"Genre de mission extrême",
+    modeSolo:"Solo",modeCompetitive:"Compétitif",modeCollab:"Collabore",modeAll:"Tous",
+    fldAllDayRequired:"Les tâches « Toute la journée » doivent aussi être complétées",
+    extremeSurplus:"⭐ Surplus",
+    extremeLocked:"Termine d'abord tes tâches de la période",
+    extremeWon:"🏆 Remportée",
+    extremeClosedLbl:"✔️ Terminée",
+    statusWaitOthers:"⏳ En attente des autres",
+    btnApproveKeep:"✓ Approuver",btnApproveFinish:"✓✓ Approuver & terminer",
+    rejectPenaltyLabel:"Points de pénalité (bombe, 0 = aucune)",
+    btnConfirmReject:"Confirmé",notDoneSuffix:"non terminé",
+    sharedTag:"partagée",
   },
   en: {
     appTitle:"Mission Rewards",
@@ -464,6 +476,18 @@ const TRANSLATIONS = {
     editChildNote:"(child cannot be changed when editing)",
     periodPast:"ended",periodCurrent:"active",periodUpcoming:"upcoming",
     carriedOver:"carried over from previous period",
+    extremeModeLabel:"Extreme mission kind",
+    modeSolo:"Solo",modeCompetitive:"Competitive",modeCollab:"Collaborate",modeAll:"Everyone",
+    fldAllDayRequired:"« All day » tasks must also be completed",
+    extremeSurplus:"⭐ Surplus",
+    extremeLocked:"Finish your period tasks first",
+    extremeWon:"🏆 Won",
+    extremeClosedLbl:"✔️ Done",
+    statusWaitOthers:"⏳ Waiting for others",
+    btnApproveKeep:"✓ Approve",btnApproveFinish:"✓✓ Approve & finish",
+    rejectPenaltyLabel:"Penalty points (bomb, 0 = none)",
+    btnConfirmReject:"Confirm",notDoneSuffix:"not completed",
+    sharedTag:"shared",
   }
 };
 
@@ -601,6 +625,45 @@ function taskPeriodName(tsk){
   return p ? p.name : t("allDayLabel");
 }
 
+/* ---- Missions extrêmes : helpers ---- */
+const EXTREME_EMOJI = {solo:"🧍", competitive:"⚔️", collab:"🤝", all:"👨‍👩‍👧‍👦"};
+function isExtreme(tsk){ return tsk && tsk.type === "extreme"; }
+function taskChildIds(tsk){ return tsk.childIds ? tsk.childIds : (tsk.childId!=null ? [tsk.childId] : []); }
+function extremeEmoji(tsk){ return EXTREME_EMOJI[tsk.extremeMode] || "⭐"; }
+function alldayPeriodId(){ const p=(state.periods||[]).find(x=>x.isAllDay); return p?p.id:"allday"; }
+
+/* statut par enfant, valable pour tâche normale OU extrême partagée */
+function taskStatusFor(tsk, childId){
+  const pk = periodKey(tsk.freq);
+  const c = state.completions.find(x=>x.taskId===tsk.id && x.childId===childId && x.periodKey===pk);
+  if(!c) return "open";
+  return c.status==="approved" ? "done" : "pending";
+}
+
+/* mission extrême « fermée » pour la période courante (compétitif remporté / collab terminé) */
+function extremeClosedKey(tsk){ return tsk.id + "|" + periodKey(tsk.freq); }
+function isExtremeClosed(tsk){ return !!(state.extremeClosed && state.extremeClosed[extremeClosedKey(tsk)]); }
+function closeExtreme(tsk){
+  if(!state.extremeClosed) state.extremeClosed = {};
+  state.extremeClosed[extremeClosedKey(tsk)] = true;
+}
+
+/* une mission extrême se débloque pour un enfant quand toutes ses tâches
+   régulières de la période assignée (+ all-day si requis) sont APPROUVÉES */
+function extremeUnlocked(tsk, childId){
+  const alldayId = alldayPeriodId();
+  const pid = tsk.periodId || alldayId;
+  const gatingIds = new Set([pid]);
+  if(tsk.allDayRequired) gatingIds.add(alldayId);
+  const gating = state.tasks.filter(x =>
+    !isExtreme(x) &&
+    taskChildIds(x).includes(childId) &&
+    gatingIds.has(x.periodId || alldayId)
+  );
+  if(gating.length === 0) return true; // rien à compléter → surplus disponible
+  return gating.every(x => taskStatusFor(x, childId) === "done");
+}
+
 function taskStatus(t){
   const pk = periodKey(t.freq);
   const c = state.completions.find(x=>x.taskId===t.id && x.childId===t.childId && x.periodKey===pk);
@@ -611,12 +674,14 @@ function pendingCount(){
   return state.completions.filter(c=>c.status==="pending").length;
 }
 
-function markDone(taskId){
+function markDone(taskId, childId){
   const t = task(taskId); if(!t) return;
+  const cid = childId != null ? childId : t.childId;
+  if(cid == null) return;
   const pk = periodKey(t.freq);
-  const exists = state.completions.find(c=>c.taskId===t.id && c.childId===t.childId && c.periodKey===pk);
+  const exists = state.completions.find(c=>c.taskId===t.id && c.childId===cid && c.periodKey===pk);
   if(exists) return;
-  state.completions.push({id:uid(), taskId:t.id, childId:t.childId, periodKey:pk, status:"pending", createdAt:Date.now()});
+  state.completions.push({id:uid(), taskId:t.id, childId:cid, periodKey:pk, status:"pending", createdAt:Date.now()});
   save();
 }
 function approve(compId){
@@ -629,6 +694,37 @@ function approve(compId){
 function reject(compId){
   state.completions = state.completions.filter(x=>x.id!==compId);
   save();
+}
+/* Approbation d'une complétion de mission extrême partagée (compétitif / collabore) */
+function approveExtremeComp(compId, finish){
+  const c = state.completions.find(x=>x.id===compId); if(!c) return;
+  const tsk = task(c.taskId); if(!tsk) return;
+  c.status = "approved"; c.approvedAt = Date.now();
+  const k = child(c.childId); if(k){ k.points += tsk.points; }
+  if(tsk.extremeMode === "competitive"){
+    /* remporté : ferme pour tous, retire les autres complétions en attente */
+    closeExtreme(tsk);
+    const pk = periodKey(tsk.freq);
+    state.completions = state.completions.filter(x =>
+      !(x.taskId===tsk.id && x.periodKey===pk && x.id!==c.id && x.status!=="approved")
+    );
+  } else if(tsk.extremeMode === "collab" && finish){
+    /* approuvé & terminé : ferme pour tous, mais garde les complétions déjà en attente */
+    closeExtreme(tsk);
+  }
+  save();
+}
+/* Refus d'une mission extrême avec pénalité optionnelle (bombe) */
+function rejectExtremeConfirm(compId, penalty){
+  const c = state.completions.find(x=>x.id===compId); if(!c) return;
+  const tsk = task(c.taskId);
+  const k = tsk ? child(c.childId) : null;
+  state.completions = state.completions.filter(x=>x.id!==compId);
+  if(tsk && k && penalty >= 1){
+    applyEvent("bomb", tsk.title + " : " + t("notDoneSuffix"), penalty, [k.id]);
+  } else {
+    save();
+  }
 }
 function buy(rewardId, childId){
   const r = reward(rewardId); const k = child(childId);
@@ -646,7 +742,9 @@ function adjustPoints(childId, delta){
 }
 function deleteChild(id){
   state.children = state.children.filter(c=>c.id!==id);
-  state.tasks = state.tasks.filter(t=>t.childId!==id);
+  /* retire l'enfant des missions partagées ; supprime la mission si plus aucun enfant */
+  state.tasks.forEach(tk=>{ if(tk.childIds) tk.childIds = tk.childIds.filter(x=>x!==id); });
+  state.tasks = state.tasks.filter(tk=> tk.childIds ? tk.childIds.length>0 : tk.childId!==id);
   state.completions = state.completions.filter(c=>c.childId!==id);
   state.purchases = state.purchases.filter(p=>p.childId!==id);
   save();
@@ -654,6 +752,7 @@ function deleteChild(id){
 
 /* ============ Routeur de vue ============ */
 let view = { name:"lock", childId:null, tab:"approbations" };
+let rejectingComp = null; /* id de complétion en cours de refus avec pénalité */
 function go(name, opts){ view = Object.assign({name}, opts||{}); render(); }
 
 /* ============ Rendu ============ */
@@ -708,7 +807,7 @@ function renderLock(){
 /* ----- Écran enfant ----- */
 function renderChild(){
   const c = child(view.childId);
-  const myTasks = state.tasks.filter(tsk => tsk.childId === c.id);
+  const myTasks = state.tasks.filter(tsk => taskChildIds(tsk).includes(c.id));
 
   /* --- notification lifecycle --- */
   const nowMs = Date.now();
@@ -772,21 +871,22 @@ function renderChild(){
   }
 
   myTasks.forEach(tsk => {
-    const st  = taskStatus(tsk);
+    const st  = taskStatusFor(tsk, c.id);
     if(tsk.freq === "once" && st === "done") return;
+    const ex = isExtreme(tsk);
 
     const pid = tsk.periodId || (alldayP ? alldayP.id : null);
     const p   = allPeriods.find(x => x.id === pid);
     const status = pStatus(p);
 
     if(status !== "past" || !p || p.isAllDay){
-      addToMap(pid, {tsk, carried:false, greyed:false});
+      addToMap(pid, {tsk, carried:false, greyed:false, ex});
     } else if(tsk.carryOn && st === "open"){
       /* carry to period covering current time */
-      addToMap(carryTargetId(), {tsk, carried:true, greyed:false});
+      addToMap(carryTargetId(), {tsk, carried:true, greyed:false, ex});
     } else {
       /* stay in past period — greyed */
-      addToMap(pid, {tsk, carried:false, greyed:true});
+      addToMap(pid, {tsk, carried:false, greyed:true, ex});
     }
   });
 
@@ -822,8 +922,48 @@ function renderChild(){
         ${badge}
       </div>`;
 
-    items.forEach(({tsk, carried, greyed}) => {
-      const st = taskStatus(tsk);
+    /* missions extrêmes (surplus) en dernier dans la période */
+    items.sort((a,b)=> (a.ex?1:0) - (b.ex?1:0));
+
+    items.forEach(({tsk, carried, greyed, ex}) => {
+      const st = taskStatusFor(tsk, c.id);
+
+      if(ex){
+        const unlocked = extremeUnlocked(tsk, c.id);
+        const closed   = isExtremeClosed(tsk);
+        const modeEmoji= extremeEmoji(tsk);
+        let action, locked=false;
+        if(st === "done"){
+          action = `<span class="done-chip">${t("statusDone")}</span>`;
+        } else if(st === "pending"){
+          action = `<span class="waiting">${tsk.extremeMode==="all"?t("statusWaitOthers"):t("statusPending")}</span>`;
+        } else if(closed){
+          action = `<span class="waiting">${tsk.extremeMode==="competitive"?t("extremeWon"):t("extremeClosedLbl")}</span>`;
+          locked = true;
+        } else if(!unlocked){
+          action = `<span style="font-size:16px;padding:6px 10px;background:var(--line);border-radius:10px">🔒</span>`;
+          locked = true;
+        } else {
+          action = `<button class="do" data-action="do-task" data-id="${tsk.id}">${t("btnDone")}</button>`;
+        }
+        const wrapStyle = locked
+          ? "opacity:.55;border:2px dashed var(--line);border-radius:16px"
+          : "border:2px solid #FFCF5C;background:linear-gradient(135deg,#FFF9E9,#FFF1CC);border-radius:16px";
+        const subLine = (!unlocked && !closed && st==="open")
+          ? `${t("extremeSurplus")} · ${t("extremeLocked")}`
+          : t("extremeSurplus");
+        sections += `
+          <div class="task" style="${wrapStyle}">
+            <span class="pts-badge" style="background:#FFB020;color:#4a2d00">+${tsk.points}</span>
+            <div class="meta">
+              <div class="t">${modeEmoji} ${esc(tsk.title)}</div>
+              <div class="f" style="font-size:12px;color:#a06d00;font-weight:800">${subLine}</div>
+            </div>
+            ${action}
+          </div>`;
+        return;
+      }
+
       let action;
       if(greyed && st === "open"){
         action = `<span style="font-size:12px;font-weight:700;color:var(--ink-soft);padding:6px 10px;background:var(--line);border-radius:10px">—</span>`;
@@ -963,31 +1103,107 @@ function renderParent(){
   if(view.tab === "enfants") setTimeout(setupChildDrag, 0);
 }
 
+/* re-render du corps de l'espace parent sans reset du scroll (pour l'expansion refus) */
+function refreshParentBody(){
+  const pb = document.getElementById("parent-body");
+  if(!pb) return;
+  const tab = view.tab;
+  let body = "";
+  if(tab==="approbations") body = parentApprovals();
+  else if(tab==="taches")     body = parentTasks();
+  else if(tab==="evenements") body = parentEvents();
+  else if(tab==="periodes")   body = parentPeriods();
+  else if(tab==="boutique")   body = parentRewards();
+  else if(tab==="enfants")    body = parentChildren();
+  else if(tab==="reglages")   body = parentSettings();
+  pb.innerHTML = body;
+  if(tab==="enfants") setTimeout(setupChildDrag, 0);
+}
+
+/* mission « Tous » : prête à approuver seulement quand tous les enfants ciblés ont marqué terminé */
+function allModeReady(tsk){
+  const pk = periodKey(tsk.freq);
+  const ids = taskChildIds(tsk);
+  return ids.length>0 && ids.every(cid =>
+    state.completions.some(x=>x.taskId===tsk.id && x.childId===cid && x.periodKey===pk));
+}
+
 function parentApprovals(){
-  const pend = state.completions.filter(c=>c.status==="pending").sort((a,b)=>a.createdAt-b.createdAt);
   const fs = freqShort();
-  if(pend.length===0){
+  const pend = state.completions.filter(c=>c.status==="pending").sort((a,b)=>a.createdAt-b.createdAt);
+  const visible = pend.filter(c=>{
+    const tsk = task(c.taskId);
+    if(tsk && isExtreme(tsk) && tsk.extremeMode==="all") return allModeReady(tsk);
+    return true;
+  });
+  if(visible.length===0){
     return `<div class="empty"><span class="em">✅</span>${t("noApprovals")}</div>`;
   }
-  return pend.map(c=>{
-    const tsk = task(c.taskId); const k = child(c.childId);
-    if(!tsk||!k) return "";
-    return `
-      <div class="card approve-card">
-        <div class="who-line">
-          <span class="who-chip" style="background:${k.color}">${esc(k.emoji)} ${esc(k.name)}</span>
-          <span class="muted">${fs[tsk.freq]}</span>
+  return visible.map(c=>approvalCard(c, fs)).join("");
+}
+
+function approvalCard(c, fs){
+  const tsk = task(c.taskId); const k = child(c.childId);
+  if(!tsk||!k) return "";
+  const ex = isExtreme(tsk);
+  const modeTag = ex ? `<span class="muted">${extremeEmoji(tsk)} ${t("typeExtreme")}</span>` : "";
+
+  let buttons;
+  if(rejectingComp === c.id){
+    buttons = `
+      <div style="width:100%;margin-top:6px">
+        <label class="fld">${t("rejectPenaltyLabel")}</label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-weight:900;font-size:20px;color:#c0392b">−</span>
+          <input class="in" id="rej-pen-${c.id}" type="number" inputmode="numeric" min="0" value="0" style="flex:1">
+          <span style="font-weight:700;color:var(--ink-soft)">pts</span>
         </div>
-        <div class="row">
-          <div class="grow"><div class="t" style="font-weight:800;font-size:17px">${esc(tsk.title)}</div></div>
-          <span class="pts-badge">+${tsk.points}</span>
-        </div>
-        <div class="btn-line">
-          <button class="btn btn-yes" data-action="approve" data-id="${c.id}">${t("btnApprove",{pts:tsk.points})}</button>
-          <button class="btn btn-no" data-action="reject" data-id="${c.id}">${t("btnReject")}</button>
+        <div class="btn-line" style="margin-top:8px">
+          <button class="btn btn-ghost" data-action="rej-ext-cancel">${t("btnCancel")}</button>
+          <button class="btn btn-no" data-action="rej-ext-confirm" data-id="${c.id}">${t("btnConfirmReject")}</button>
         </div>
       </div>`;
-  }).join("");
+  } else if(ex && tsk.extremeMode==="collab"){
+    buttons = `
+      <div class="btn-line">
+        <button class="btn btn-yes" data-action="appr-ext-keep" data-id="${c.id}">${t("btnApproveKeep")} (+${tsk.points})</button>
+        <button class="btn btn-no" data-action="rej-ext-start" data-id="${c.id}">${t("btnReject")}</button>
+      </div>
+      <button class="btn btn-yes" data-action="appr-ext-finish" data-id="${c.id}" style="width:100%;margin-top:6px;background:#1d8a55">${t("btnApproveFinish")}</button>`;
+  } else if(ex && tsk.extremeMode==="competitive"){
+    buttons = `
+      <div class="btn-line">
+        <button class="btn btn-yes" data-action="appr-ext-keep" data-id="${c.id}">${t("btnApprove",{pts:tsk.points})}</button>
+        <button class="btn btn-no" data-action="rej-ext-start" data-id="${c.id}">${t("btnReject")}</button>
+      </div>`;
+  } else if(ex){
+    /* solo ou tous : approbation standard + refus avec pénalité */
+    buttons = `
+      <div class="btn-line">
+        <button class="btn btn-yes" data-action="approve" data-id="${c.id}">${t("btnApprove",{pts:tsk.points})}</button>
+        <button class="btn btn-no" data-action="rej-ext-start" data-id="${c.id}">${t("btnReject")}</button>
+      </div>`;
+  } else {
+    buttons = `
+      <div class="btn-line">
+        <button class="btn btn-yes" data-action="approve" data-id="${c.id}">${t("btnApprove",{pts:tsk.points})}</button>
+        <button class="btn btn-no" data-action="reject" data-id="${c.id}">${t("btnReject")}</button>
+      </div>`;
+  }
+
+  return `
+    <div class="card approve-card">
+      <div class="who-line">
+        <span class="who-chip" style="background:${k.color}">${esc(k.emoji)} ${esc(k.name)}</span>
+        <span class="muted">${fs[tsk.freq]}</span>
+        ${modeTag}
+      </div>
+      <div class="row">
+        <div class="grow"><div class="t" style="font-weight:800;font-size:17px">${ex?extremeEmoji(tsk)+" ":""}${esc(tsk.title)}</div></div>
+        <span class="pts-badge">+${tsk.points}</span>
+      </div>
+      ${buttons}
+    </div>`;
 }
 
 function parentTasks(){
@@ -998,20 +1214,26 @@ function parentTasks(){
   `).join("");
 
   let byChild = state.children.map(k=>{
-    const list = state.tasks.filter(tsk=>tsk.childId===k.id);
+    const list = state.tasks.filter(tsk=>taskChildIds(tsk).includes(k.id));
     const items = list.length===0
       ? `<div class="muted" style="padding:8px 2px">${t("noTasksAssigned")}</div>`
-      : list.map(tsk=>`
+      : list.map(tsk=>{
+        const ex = isExtreme(tsk);
+        const shared = !!tsk.childIds;
+        const exInfo = ex
+          ? ` · ${extremeEmoji(tsk)} ${t("mode"+(tsk.extremeMode||"solo").charAt(0).toUpperCase()+(tsk.extremeMode||"solo").slice(1))}${shared?" · "+t("sharedTag"):""}`
+          : "";
+        return `
         <div class="row" style="padding:11px 0;border-bottom:1px solid var(--line)">
           <div class="grow">
-            <div style="font-weight:800">${esc(tsk.title)}</div>
-            <div class="muted">${fl[tsk.freq]} · ${taskPeriodName(tsk)} · +${tsk.points} pts${tsk.carryOn?" · ↩️":""}${tsk.incompletePenalty>0?" · −"+tsk.incompletePenalty:""}</div>
+            <div style="font-weight:800">${ex?extremeEmoji(tsk)+" ":""}${esc(tsk.title)}</div>
+            <div class="muted">${fl[tsk.freq]} · ${taskPeriodName(tsk)} · +${tsk.points} pts${tsk.carryOn?" · ↩️":""}${tsk.incompletePenalty>0?" · −"+tsk.incompletePenalty:""}${exInfo}</div>
           </div>
           <div class="item-actions">
             <button class="icon-btn" data-action="edit-task" data-id="${tsk.id}">✏️</button>
             <button class="icon-btn" data-action="del-task" data-id="${tsk.id}">🗑️</button>
           </div>
-        </div>`).join("");
+        </div>`;}).join("");
     return `
       <div class="card">
         <div class="row" style="margin-bottom:6px">
@@ -1262,7 +1484,7 @@ function parentSettings(){
       </div>
     </div>
     <p class="footer-note">${t("footerNote")}</p>
-    <p class="footer-note" style="margin-top:6px;opacity:.45">Version 0.7</p>
+    <p class="footer-note" style="margin-top:6px;opacity:.45">Version 0.8</p>
   `;
 }
 
@@ -1482,15 +1704,18 @@ function taskForm(existing){
   formState = existing
     ? {
         id:existing.id, type:existing.type||"mission",
+        extremeMode:existing.extremeMode||"solo",
+        allDayRequired:!!existing.allDayRequired,
         title:existing.title, points:existing.points, freq:existing.freq,
-        childIds:[existing.childId],
+        childIds:taskChildIds(existing),
         periodId:existing.periodId||"allday",
         carryOn:!!existing.carryOn,
         carryOnPenalty:existing.carryOnPenalty||0,
         incompletePenalty:existing.incompletePenalty||0,
       }
     : {
-        id:null, type:"mission", title:"", points:5, freq:"daily",
+        id:null, type:"mission", extremeMode:"solo", allDayRequired:false,
+        title:"", points:5, freq:"daily",
         childIds:state.children[0]?[state.children[0].id]:[],
         periodId:"allday", carryOn:false, carryOnPenalty:0, incompletePenalty:0,
       };
@@ -1519,6 +1744,16 @@ function drawTaskForm(){
       <button class="opt ${f.type==="mission"?"on":""}" data-action="pick-task-type" data-type="mission">${t("typeMission")}</button>
       <button class="opt ${f.type==="extreme"?"on":""}" data-action="pick-task-type" data-type="extreme">${t("typeExtreme")}</button>
     </div>
+    ${f.type==="extreme" ? `
+    <label class="fld">${t("extremeModeLabel")}</label>
+    <div class="seg" style="flex-wrap:wrap">
+      ${["solo","competitive","collab","all"].map(m=>`<button class="opt ${f.extremeMode===m?"on":""}" data-action="pick-extreme-mode" data-mode="${m}" style="flex:1 1 46%">${EXTREME_EMOJI[m]} ${t("mode"+m.charAt(0).toUpperCase()+m.slice(1))}</button>`).join("")}
+    </div>
+    <label class="fld">${t("fldAllDayRequired")}</label>
+    <div class="seg">
+      <button class="opt ${f.allDayRequired?"on":""}" data-action="pick-allday-req" data-v="true">${t("yesLabel")}</button>
+      <button class="opt ${!f.allDayRequired?"on":""}" data-action="pick-allday-req" data-v="false">${t("noLabel")}</button>
+    </div>` : ""}
 
     <label class="fld">${t("fldTaskName")}</label>
     <input class="in" id="f-title" value="${esc(f.title)}" placeholder="${t("fldTaskNamePh")}">
@@ -1744,7 +1979,7 @@ document.addEventListener("click", (e)=>{
 
     /* enfant */
     case "do-task":
-      markDone(id);
+      markDone(id, view.childId);
       toast(t("toastSent"));
       render();
       break;
@@ -1796,6 +2031,17 @@ document.addEventListener("click", (e)=>{
     /* validations */
     case "approve": approve(id); toast(t("toastApproved")); render(); break;
     case "reject":  reject(id);  toast(t("toastRejected")); render(); break;
+    case "appr-ext-keep":   approveExtremeComp(id, false); toast(t("toastApproved")); render(); break;
+    case "appr-ext-finish": approveExtremeComp(id, true);  toast(t("toastApproved")); render(); break;
+    case "rej-ext-start":   rejectingComp = id;   refreshParentBody(); break;
+    case "rej-ext-cancel":  rejectingComp = null; refreshParentBody(); break;
+    case "rej-ext-confirm": {
+      const inp = document.getElementById("rej-pen-"+id);
+      const pen = inp ? (parseInt(inp.value,10)||0) : 0;
+      rejectingComp = null;
+      rejectExtremeConfirm(id, pen);
+      toast(t("toastRejected")); render(); break;
+    }
 
     /* missions */
     case "new-task": taskForm(null); break;
@@ -1809,13 +2055,16 @@ document.addEventListener("click", (e)=>{
       break;
     case "tpl":
       formState = {
-        id:null, type:"mission", title:el.dataset.title, points:parseInt(el.dataset.points,10), freq:"daily",
+        id:null, type:"mission", extremeMode:"solo", allDayRequired:false,
+        title:el.dataset.title, points:parseInt(el.dataset.points,10), freq:"daily",
         childIds:state.children[0]?[state.children[0].id]:[],
         periodId:"allday", carryOn:false, carryOnPenalty:0, incompletePenalty:0,
       };
       drawTaskForm();
       break;
     case "pick-task-type": formState.type=el.dataset.type; drawTaskForm(); break;
+    case "pick-extreme-mode": formState.extremeMode=el.dataset.mode; drawTaskForm(); break;
+    case "pick-allday-req": formState.allDayRequired=(el.dataset.v==="true"); drawTaskForm(); break;
     case "pick-kid": {
       if(formState.id) break;
       const arr=[...(formState.childIds||[])];
@@ -1846,14 +2095,26 @@ document.addEventListener("click", (e)=>{
       const carryOn=formState.carryOn;
       const carryOnPenalty=carryOn?(parseInt(((document.getElementById("f-carry-penalty")||{}).value||"0"),10)||0):0;
       const incompletePenalty=parseInt(((document.getElementById("f-incomplete-penalty")||{}).value||"0"),10)||0;
+      const isExtremeT = formState.type==="extreme";
+      const extremeMode = isExtremeT ? formState.extremeMode : undefined;
+      const allDayRequired = isExtremeT ? !!formState.allDayRequired : false;
+      const isShared = isExtremeT && ["competitive","collab","all"].includes(formState.extremeMode);
       if(formState.id){
         const tsk=task(formState.id);
         tsk.title=title; tsk.points=points; tsk.freq=formState.freq; tsk.type=formState.type;
+        tsk.extremeMode=extremeMode; tsk.allDayRequired=allDayRequired;
         tsk.periodId=periodId; tsk.carryOn=carryOn; tsk.carryOnPenalty=carryOnPenalty; tsk.incompletePenalty=incompletePenalty;
+      } else if(isShared){
+        state.tasks.push({
+          id:uid(), type:"extreme", extremeMode, allDayRequired,
+          title, points, freq:formState.freq, childIds:[...(formState.childIds||[])],
+          periodId, carryOn, carryOnPenalty, incompletePenalty, createdAt:Date.now(),
+        });
       } else {
         (formState.childIds||[]).forEach(cid=>{
           state.tasks.push({
-            id:uid(), type:formState.type, title, points, freq:formState.freq, childId:cid,
+            id:uid(), type:formState.type, extremeMode, allDayRequired,
+            title, points, freq:formState.freq, childId:cid,
             periodId, carryOn, carryOnPenalty, incompletePenalty, createdAt:Date.now(),
           });
         });
