@@ -682,7 +682,8 @@ function render(){
 /* ----- Écran d'accueil ----- */
 function renderLock(){
   app().innerHTML = `
-    <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:4px">
+      <button class="lang-btn" data-action="refresh-app" title="Actualiser">🔄</button>
       <button class="lang-btn" data-action="toggle-lang">${state.lang==="fr"?"🇫🇷 FR":"🇬🇧 EN"}</button>
     </div>
     <div class="brand"><span class="logo">⭐️</span><h1>${t("appTitle")}</h1></div>
@@ -692,7 +693,7 @@ function renderLock(){
         const hasPending = (state.notifications||[]).some(n => n.childId===c.id && !n.viewedAt);
         return `
         <button class="who" data-action="open-child" data-id="${c.id}" style="border-color:${c.color}">
-          ${hasPending ? `<div class="ev-q">?</div>` : ""}
+          ${hasPending ? `<div class="ev-q">!</div>` : ""}
           <div class="face">${esc(c.emoji)}</div>
           <div class="nm" style="color:${c.color}">${esc(c.name)}</div>
           <div class="pts">${coinPill(lockDisplayPts(c))}</div>
@@ -948,6 +949,7 @@ function renderParent(){
       <button class="back" data-action="lock">‹</button>
       <div class="who-name">🔐 ${state.lang==="en"?"Parent area":"Espace parent"}</div>
       <div class="spacer"></div>
+      <button class="lang-btn" data-action="refresh-app" title="Actualiser">🔄</button>
       <button class="lang-btn" data-action="toggle-lang">${state.lang==="fr"?"🇫🇷 FR":"🇬🇧 EN"}</button>
     </div>
     <div class="tabs">
@@ -1728,6 +1730,7 @@ document.addEventListener("click", (e)=>{
 
   switch(a){
     /* langue */
+    case "refresh-app": location.reload(true); break;
     case "toggle-lang":
       state.lang = state.lang==="fr" ? "en" : "fr"; save(); render(); break;
     case "set-lang":
@@ -2045,6 +2048,20 @@ render();
 if(new Date().getDay()===1 && state.lastMondayReminderDate!==todayStr()){
   openBackupReminderModal();
 }
+
+/* ---- Refresh automatique le dimanche ---- */
+(function(){
+  const KEY = "missions_sunday_reload";
+  function checkSundayReload(){
+    if(new Date().getDay() !== 0) return;          // pas dimanche
+    const today = todayStr();
+    if(localStorage.getItem(KEY) === today) return; // déjà fait aujourd'hui
+    localStorage.setItem(KEY, today);
+    location.reload(true);
+  }
+  checkSundayReload();
+  document.addEventListener("visibilitychange", () => { if(!document.hidden) checkSundayReload(); });
+})();
 </script>
 </body>
 </html>
