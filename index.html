@@ -2642,7 +2642,7 @@ function applyInvestment(){
     if(c.points <= 0) return;
     const gain = Math.ceil(c.points * inv.rate / 100);
     if(gain <= 0) return;
-    applyEvent("investment", "💰 " + t("invEventTitle"), gain, [c.id]);
+    applyEvent("investment", t("invEventTitle"), gain, [c.id]);
   });
   save();
 }
