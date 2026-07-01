@@ -1716,6 +1716,15 @@ function openBackupReminderModal(){
 
 /* ============ Formulaires ============ */
 let formState = {};
+/* sauvegarde les valeurs saisies avant un re-rendu du formulaire de mission
+   (sinon un tap sur un enfant / le type efface le nom, les points, etc.) */
+function captureTaskForm(){
+  const ti=document.getElementById("f-title");             if(ti) formState.title=ti.value;
+  const pt=document.getElementById("f-points");            if(pt) formState.points=pt.value;
+  const pe=document.getElementById("f-period");            if(pe) formState.periodId=pe.value;
+  const cp=document.getElementById("f-carry-penalty");     if(cp) formState.carryOnPenalty=cp.value;
+  const ip=document.getElementById("f-incomplete-penalty");if(ip) formState.incompletePenalty=ip.value;
+}
 function taskForm(existing){
   formState = existing
     ? {
@@ -2078,17 +2087,18 @@ document.addEventListener("click", (e)=>{
       };
       drawTaskForm();
       break;
-    case "pick-task-type": formState.type=el.dataset.type; drawTaskForm(); break;
-    case "pick-extreme-mode": formState.extremeMode=el.dataset.mode; drawTaskForm(); break;
-    case "pick-allday-req": formState.allDayRequired=(el.dataset.v==="true"); drawTaskForm(); break;
+    case "pick-task-type": captureTaskForm(); formState.type=el.dataset.type; drawTaskForm(); break;
+    case "pick-extreme-mode": captureTaskForm(); formState.extremeMode=el.dataset.mode; drawTaskForm(); break;
+    case "pick-allday-req": captureTaskForm(); formState.allDayRequired=(el.dataset.v==="true"); drawTaskForm(); break;
     case "pick-kid": {
       if(formState.id) break;
+      captureTaskForm();
       const arr=[...(formState.childIds||[])];
       const idx=arr.indexOf(id);
       if(idx===-1){ arr.push(id); } else if(arr.length>1){ arr.splice(idx,1); }
       formState.childIds=arr; drawTaskForm(); break;
     }
-    case "pick-freq": formState.freq=el.dataset.f; drawTaskForm(); break;
+    case "pick-freq": captureTaskForm(); formState.freq=el.dataset.f; drawTaskForm(); break;
     case "pick-carry-on": {
       const newVal = el.dataset.v === "true";
       formState.carryOn = newVal;
