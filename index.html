@@ -838,11 +838,13 @@ function renderChild(){
   );
   const myNotifs    = (state.notifications||[]).filter(n => n.childId === c.id);
   const newlyViewed = myNotifs.filter(n => !n.viewedAt);
+
+  /* capturer displayPts AVANT de poser viewedAt : lockDisplayPts soustrait les deltas
+     des notifications non vues, donnant la valeur "avant animation" correcte */
+  const displayPts = lockDisplayPts(c);
+
   newlyViewed.forEach(n => { n.viewedAt = nowMs; });
   if(newlyViewed.length > 0 || state.notifications.length !== beforeLen) save();
-
-  /* what child sees BEFORE animation plays (uses global lockDisplayPts) */
-  const displayPts = lockDisplayPts(c);
 
   /* events panel between hero and boutique */
   const evPanel = myNotifs.length === 0 ? "" : `
