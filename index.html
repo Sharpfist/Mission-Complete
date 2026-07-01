@@ -387,7 +387,7 @@ const TRANSLATIONS = {
     extremeLocked:"Termine d'abord tes tâches de la période",
     extremeWon:"❌ Déjà remportée",
     extremeClosedLbl:"✔️ Terminée",
-    statusWaitOthers:"⏳ En attente des autres",
+    statusWaitOthers:"⏳ En attente des autres",statusWaitApproval:"⏳ En attente d'approbation",
     btnApproveKeep:"✓ Approuver",btnApproveFinish:"✓✓ Approuver & terminer",
     rejectPenaltyLabel:"Points de pénalité (bombe, 0 = aucune)",
     btnConfirmReject:"Confirmé",notDoneSuffix:"non terminé",
@@ -491,7 +491,7 @@ const TRANSLATIONS = {
     extremeLocked:"Finish your period tasks first",
     extremeWon:"❌ Already won",
     extremeClosedLbl:"✔️ Done",
-    statusWaitOthers:"⏳ Waiting for others",
+    statusWaitOthers:"⏳ Waiting for others",statusWaitApproval:"⏳ Waiting for approval",
     btnApproveKeep:"✓ Approve",btnApproveFinish:"✓✓ Approve & finish",
     rejectPenaltyLabel:"Penalty points (bomb, 0 = none)",
     btnConfirmReject:"Confirm",notDoneSuffix:"not completed",
@@ -956,7 +956,9 @@ function renderChild(){
         if(st === "done"){
           action = statusChip("done-chip", t("statusDone"));
         } else if(st === "pending"){
-          action = statusChip("waiting", tsk.extremeMode==="all"?t("statusWaitOthers"):t("statusPending"));
+          action = statusChip("waiting", tsk.extremeMode==="all"
+            ? (allModeReady(tsk) ? t("statusWaitApproval") : t("statusWaitOthers"))
+            : t("statusPending"));
         } else if(closed){
           action = statusChip("status-chip", t("extremeWon"));
           locked = true;
