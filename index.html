@@ -679,7 +679,12 @@ function taskStatus(t){
   return c.status==="approved" ? "done" : "pending";
 }
 function pendingCount(){
-  return state.completions.filter(c=>c.status==="pending").length;
+  return state.completions.filter(c=>{
+    if(c.status !== "pending") return false;
+    const tsk = task(c.taskId);
+    if(tsk && isExtreme(tsk) && tsk.extremeMode === "all") return allModeReady(tsk);
+    return true;
+  }).length;
 }
 
 function markDone(taskId, childId){
@@ -964,9 +969,19 @@ function renderChild(){
         const wrapStyle = locked
           ? "opacity:.55;border:2px dashed var(--line);border-radius:16px"
           : "border:2px solid #FFCF5C;background:linear-gradient(135deg,#FFF9E9,#FFF1CC);border-radius:16px";
+        /* compteur X/N pour mode Tous */
+        let allCounter = "";
+        if(tsk.extremeMode === "all"){
+          const pk = periodKey(tsk.freq);
+          const ids = taskChildIds(tsk);
+          const done = ids.filter(cid =>
+            state.completions.some(x=>x.taskId===tsk.id && x.childId===cid && x.periodKey===pk)
+          ).length;
+          allCounter = ` · <b>${done}/${ids.length}</b>`;
+        }
         const subLine = (!unlocked && !closed && st==="open")
-          ? `${t("extremeSurplus")} · ${t("extremeLocked")}`
-          : t("extremeSurplus");
+          ? `${t("extremeSurplus")}${allCounter} · ${t("extremeLocked")}`
+          : `${t("extremeSurplus")}${allCounter}`;
         sections += `
           <div class="task" style="${wrapStyle}">
             <span class="pts-badge" style="background:#FFB020;color:#4a2d00">+${tsk.points}</span>
