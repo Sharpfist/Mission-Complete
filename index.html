@@ -534,6 +534,7 @@ function freqLabel(){ return { daily:t("freqDaily"), weekly:t("freqWeekly"), mon
 function freqShort(){ return { daily:t("freqShortDaily"), weekly:t("freqShortWeekly"), monthly:t("freqShortMonthly"), once:t("freqShortOnce") }; }
 
 /* ============ Stockage ============ */
+const APP_VERSION = "v0.26";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -856,7 +857,7 @@ function renderLock(){
       }).join("")}
     </div>
     <button class="parent-btn" data-action="open-parent">${t("parentBtn")}</button>
-    <p class="footer-note">${t("lockTip")}</p>
+    <p class="footer-note">${t("lockTip")}<br><span style="opacity:.5;font-size:10px">${APP_VERSION}</span></p>
     <div style="display:flex;justify-content:center;gap:10px;margin-top:18px">
       <button class="lang-btn" data-action="refresh-app" title="Actualiser">🔄</button>
       <button class="lang-btn" data-action="toggle-lang">${state.lang==="fr"?"🇫🇷 FR":"🇬🇧 EN"}</button>
