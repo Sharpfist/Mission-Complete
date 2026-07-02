@@ -324,7 +324,7 @@ const TRANSLATIONS = {
     fldChildEmoji:"Émoji / avatar",fldChildName:"Prénom",fldColor:"Couleur",
     settingsBackup:"💾 Sauvegarde",lastBackupLabel:"Dernière sauvegarde : ",noBackupYet:"Aucune sauvegarde téléchargée encore.",
     backupWarning:"Si tu effaces l'historique de Safari, tout est perdu — télécharge une sauvegarde de temps en temps et garde-la dans iCloud Drive ou par courriel.",
-    btnDownloadBackup:"⬇️ Télécharger une sauvegarde",btnRestore:"⬆️ Restaurer",
+    btnDownloadBackup:"⬆️ Exporter une sauvegarde",btnRestore:"⬇️ Restaurer",
     settingsPin:"🔢 Code parent",pinSet:"Un code à 4 chiffres protège l'espace parent.",
     pinNotSet:"Aucun code pour l'instant : tout le monde peut ouvrir l'espace parent.",
     btnChangePin:"Changer le code",btnCreatePin:"Créer un code",btnRemovePin:"Retirer le code",
@@ -434,7 +434,7 @@ const TRANSLATIONS = {
     fldChildEmoji:"Emoji / avatar",fldChildName:"First name",fldColor:"Color",
     settingsBackup:"💾 Backup",lastBackupLabel:"Last backup: ",noBackupYet:"No backup downloaded yet.",
     backupWarning:"If you clear Safari history, all data is lost — download a backup occasionally and keep it in iCloud Drive or email.",
-    btnDownloadBackup:"⬇️ Download a backup",btnRestore:"⬆️ Restore",
+    btnDownloadBackup:"⬆️ Export a backup",btnRestore:"⬇️ Restore",
     settingsPin:"🔢 Parent PIN",pinSet:"A 4-digit PIN protects the parent area.",
     pinNotSet:"No PIN set: anyone can open the parent area.",
     btnChangePin:"Change PIN",btnCreatePin:"Create a PIN",btnRemovePin:"Remove PIN",
@@ -1095,7 +1095,7 @@ function renderChild(){
     ${evPanel}
     ${view.childEditMode ? `
       <div class="parental-edit-panel" style="margin-bottom:10px">
-        <button class="add-btn" data-action="add-task-child" data-id="${c.id}">＋ ${t("addTask")}</button>
+        <button class="add-btn" data-action="add-task-child" data-id="${c.id}">${t("addTask")}</button>
       </div>
     ` : ""}
     <button class="add-btn" data-action="open-store" data-id="${c.id}">${t("shopBtn")}</button>
