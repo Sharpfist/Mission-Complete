@@ -2333,7 +2333,7 @@ document.addEventListener("click", (e)=>{
 
   switch(a){
     /* langue */
-    case "refresh-app": location.reload(true); break;
+    case "refresh-app": { const u=new URL(location.href); u.searchParams.set("_cb",Date.now()); location.replace(u.toString()); break; }
     case "toggle-lang":
       state.lang = state.lang==="fr" ? "en" : "fr"; save(); render(); break;
     case "set-lang":
