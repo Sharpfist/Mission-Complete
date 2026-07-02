@@ -276,6 +276,9 @@
   .ev-tpl-card{border-left:4px solid #ddd}
   .ev-tpl-card.powerup{border-left-color:#2BB673}
   .ev-tpl-card.bomb{border-left-color:#E74C3C}
+  @keyframes fadeInDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+  .parental-edit-panel{animation:fadeInDown 0.25s ease both}
+  .task-skipped{opacity:.4}
 </style>
 </head>
 <body>
@@ -304,6 +307,7 @@ const TRANSLATIONS = {
     storeNote:"Quand tu achètes, tes points baissent.<br>Va voir un parent pour recevoir ta surprise 😊",
     noRewards:"Aucune récompense pour l'instant.",
     tabApprove:"À valider",tabTasks:"Missions",tabStore:"Boutique",tabChildren:"Enfants",tabInvestment:"Investissement",tabSettings:"Réglages",
+    skip:"Ignorer",skipped:"Ignorée",parentalDone:"Terminé ✓",
     noApprovals:"Rien à valider pour le moment.<br>Quand un enfant coche « J'ai fait », ça apparaît ici.",
     btnApprove:"✓ Valider (+{pts})",btnReject:"✗ Refuser",
     addTask:"＋ Nouvelle mission",quickTemplates:"⚡ Modèles rapides",
@@ -413,6 +417,7 @@ const TRANSLATIONS = {
     storeNote:"When you buy, your points go down.<br>See a parent to get your surprise 😊",
     noRewards:"No rewards yet.",
     tabApprove:"To approve",tabTasks:"Missions",tabStore:"Store",tabChildren:"Children",tabInvestment:"Investment",tabSettings:"Settings",
+    skip:"Skip",skipped:"Skipped",parentalDone:"Done ✓",
     noApprovals:"Nothing to approve right now.<br>When a child taps « Done », it appears here.",
     btnApprove:"✓ Approve (+{pts})",btnReject:"✗ Reject",
     addTask:"＋ New mission",quickTemplates:"⚡ Quick templates",
@@ -585,6 +590,7 @@ function defaults(){
       {id:"etpl-4", type:"bomb",    title:"A été impoli(e)",                   points:5, childIds:[]},
     ],
     notifications:[],
+    skips:[],
     investment:{enabled:true, rate:2, freq:"daily"},
     lastInvestmentApplied:"",
     lastBackupAt:null,
@@ -604,6 +610,7 @@ if(!state.periods) {
   save();
 }
 if(!state.notifications) { state.notifications = []; save(); }
+if(!state.skips) { state.skips = []; save(); }
 if(!state.investment) { state.investment = {enabled:true, rate:2, freq:"daily"}; save(); }
 if(state.lastInvestmentApplied === undefined) { state.lastInvestmentApplied = ""; save(); }
 if(!state.eventTemplates){
@@ -657,6 +664,7 @@ function alldayPeriodId(){ const p=(state.periods||[]).find(x=>x.isAllDay); retu
 /* statut par enfant, valable pour tâche normale OU extrême partagée */
 function taskStatusFor(tsk, childId){
   const pk = periodKey(tsk.freq);
+  if(state.skips && state.skips.some(x=>x.taskId===tsk.id && x.childId===childId && x.periodKey===pk)) return "skipped";
   const c = state.completions.find(x=>x.taskId===tsk.id && x.childId===childId && x.periodKey===pk);
   if(!c) return "open";
   return c.status==="approved" ? "done" : "pending";
@@ -1019,7 +1027,13 @@ function renderChild(){
       }
 
       let action;
-      if(greyed && st === "open"){
+      if(view.childEditMode && st === "skipped"){
+        action = `<button class="do" style="background:#ddd;color:#888;font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skipped")}</button>`;
+      } else if(view.childEditMode && st === "open" && !greyed){
+        action = `<button class="do" style="background:var(--line);color:var(--ink-soft);font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skip")}</button>`;
+      } else if(st === "skipped"){
+        action = statusChip("status-chip", `✗ ${t("skipped")}`);
+      } else if(greyed && st === "open"){
         action = `<span style="font-size:12px;font-weight:700;color:var(--ink-soft);padding:6px 10px;background:var(--line);border-radius:10px">—</span>`;
       } else {
         action = `<button class="do" data-action="do-task" data-id="${tsk.id}">${t("btnDone")}</button>`;
@@ -1028,7 +1042,7 @@ function renderChild(){
       }
 
       const wrapStyle = [
-        greyed  ? "opacity:.4" : "",
+        (greyed || st === "skipped") ? "opacity:.4" : "",
         carried ? "border-left:3px solid var(--wait);padding-left:13px" : "",
       ].filter(Boolean).join(";");
 
@@ -1044,7 +1058,7 @@ function renderChild(){
         : `<span class="pts-badge" style="font-size:${greyed?"12px":"14px"}">${greyed?"":"+"}${tsk.points}</span>`;
 
       sections += `
-        <div class="task" style="${wrapStyle}">
+        <div class="task" id="tc-${tsk.id}" style="${wrapStyle}">
           ${ptsBadge}
           <div class="meta">
             <div class="t" style="${greyed?"font-size:14px":""}">${esc(tsk.title)}</div>
@@ -1062,8 +1076,15 @@ function renderChild(){
   app().innerHTML = `
     <div class="top">
       <button class="back" data-action="lock">‹</button>
-      <div class="who-name" style="color:${c.color}">${esc(c.emoji)} ${esc(c.name)}</div>
-      <button class="icon-btn" data-action="child-edit-self" data-id="${c.id}" style="font-size:18px;flex-shrink:0">✏️</button>
+      <div class="who-name" style="color:${c.color};flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.emoji)} ${esc(c.name)}</div>
+      ${view.childEditMode ? `
+        <button class="btn btn-yes" style="font-size:13px;padding:8px 14px;flex-shrink:0" data-action="child-edit-done">${t("parentalDone")}</button>
+      ` : `
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <button class="icon-btn" style="font-size:18px" data-action="child-edit-self" data-id="${c.id}">✏️</button>
+          <button class="icon-btn" style="font-size:18px" data-action="child-edit-gear" data-id="${c.id}">⚙️</button>
+        </div>
+      `}
     </div>
     <div class="hero" style="background:linear-gradient(135deg, ${c.color}, ${shade(c.color,-18)})">
       <span class="emoji">${esc(c.emoji)}</span>
@@ -1072,6 +1093,11 @@ function renderChild(){
       <div class="sub">${t("heroSub")}</div>
     </div>
     ${evPanel}
+    ${view.childEditMode ? `
+      <div class="parental-edit-panel" style="margin-bottom:10px">
+        <button class="add-btn" data-action="add-task-child" data-id="${c.id}">＋ ${t("addTask")}</button>
+      </div>
+    ` : ""}
     <button class="add-btn" data-action="open-store" data-id="${c.id}">${t("shopBtn")}</button>
     ${sections}
   `;
@@ -2519,6 +2545,64 @@ document.addEventListener("click", (e)=>{
     }
 
     /* enfants */
+    /* mode édition parental depuis l'écran enfant */
+    case "child-edit-gear": {
+      if(state.parentPin){
+        openModal(`
+          <h3>⚙️ ${state.lang==="en"?"Parental access":"Accès parental"}</h3>
+          <label class="fld">${t("fldEnterPin")}</label>
+          <input class="in" id="gear-pin-in" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="text-align:center;letter-spacing:8px;font-size:24px">
+          <div class="modal-actions">
+            <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
+            <button class="btn btn-yes" data-action="gear-pin-confirm">${t("btnOK")}</button>
+          </div>
+        `);
+        setTimeout(()=>{ const inp=document.getElementById("gear-pin-in"); if(inp) inp.focus(); },50);
+      } else {
+        view.childEditMode = true; render();
+      }
+      break;
+    }
+    case "gear-pin-confirm": {
+      const v=(document.getElementById("gear-pin-in")||{}).value||"";
+      if(v===state.parentPin){ view.childEditMode=true; closeModal(); render(); }
+      else { toast(t("toastWrongPin")); }
+      break;
+    }
+    case "child-edit-done": { view.childEditMode=false; render(); break; }
+    case "add-task-child": {
+      const preChild = child(id);
+      formState = {
+        id:null, type:"mission", extremeMode:"solo", allDayRequired:false,
+        title:"", points:5, freq:"daily",
+        childIds: preChild ? [preChild.id] : (state.children[0]?[state.children[0].id]:[]),
+        periodId:"allday", carryOn:false, carryOnPenalty:0, incompletePenalty:0,
+      };
+      drawTaskForm(); break;
+    }
+    case "skip-task": {
+      const taskId=id, childId=view.childId;
+      const tsk=task(taskId); if(!tsk) break;
+      const pk=periodKey(tsk.freq);
+      if(!state.skips) state.skips=[];
+      const idx=state.skips.findIndex(x=>x.taskId===taskId && x.childId===childId && x.periodKey===pk);
+      const nowSkipped = idx<0;
+      if(idx>=0) state.skips.splice(idx,1);
+      else state.skips.push({id:uid(), taskId, childId, periodKey:pk, skippedAt:Date.now()});
+      save();
+      const card=document.getElementById("tc-"+taskId);
+      if(card){
+        card.style.opacity = nowSkipped ? "0.4" : "";
+        const btn=card.querySelector("[data-action='skip-task']");
+        if(btn){
+          btn.textContent = nowSkipped ? t("skipped") : t("skip");
+          btn.style.background = nowSkipped ? "#ddd" : "var(--line)";
+          btn.style.color = nowSkipped ? "#888" : "var(--ink-soft)";
+        }
+      }
+      break;
+    }
+
     case "new-child": childForm(null); break;
     case "edit-child": childForm(child(id)); break;
     case "child-edit-self": { const k=child(id); if(k) childSelfEditForm(k); break; }
@@ -2703,7 +2787,7 @@ function applyPenalties(){
 
     taskChildIds(tsk).forEach(cid => {
       const st = taskStatusFor(tsk, cid);
-      if(st === "done" || st === "pending") return; /* complété ou soumis → exempt */
+      if(st === "done" || st === "pending" || st === "skipped") return; /* complété, soumis ou ignoré → exempt */
 
       /* réduction de report : modifie les pts de la tâche pour cet enfant, une fois */
       if(tsk.carryOn && tsk.carryOnPenalty > 0){
