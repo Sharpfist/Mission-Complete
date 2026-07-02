@@ -206,6 +206,10 @@
   .kid-pick .opt{flex:1;min-width:90px;text-align:center;border:3px solid var(--line);border-radius:14px;padding:12px 8px;font-weight:800;font-size:14px}
   .kid-pick .opt.on{border-color:currentColor}
   .modal-actions{display:flex;gap:10px;margin-top:22px}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:14px}
+  .cal-hd{text-align:center;font-size:11px;font-weight:700;color:var(--ink-soft);padding:3px 0}
+  .cal-day{background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:0;height:38px;font-size:14px;font-weight:700;color:var(--ink)}
+  .cal-day.cal-sel{background:var(--accent,#007AFF);color:#fff;border-color:var(--accent,#007AFF)}
   .toast{
     position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);opacity:0;
     background:var(--ink);color:#fff;font-weight:800;padding:13px 20px;border-radius:14px;z-index:80;
@@ -343,8 +347,10 @@ const TRANSLATIONS = {
     mondayTitle:"💾 Sauvegarde du lundi",
     mondayText:"C'est lundi ! Pense à télécharger une sauvegarde pour ne rien perdre si Safari efface ses données.",
     btnLater:"Plus tard",btnCreateBackup:"⬇️ Créer une sauvegarde",
-    freqDaily:"Chaque jour",freqWeekly:"Chaque semaine",freqMonthly:"Chaque mois",freqOnce:"Une seule fois",
-    freqShortDaily:"Quotidienne",freqShortWeekly:"Hebdo",freqShortMonthly:"Mensuelle",freqShortOnce:"Ponctuelle",
+    freqDaily:"Chaque jour",freqWeekly:"Chaque semaine",freqMonthly:"Chaque mois",freqOnce:"Une seule fois",freqWeekdays:"Jours de semaine",freqCalendar:"Calendrier",
+    freqShortDaily:"Quotidienne",freqShortWeekly:"Hebdo",freqShortMonthly:"Mensuelle",freqShortOnce:"Ponctuelle",freqShortWeekdays:"Sem.",freqShortCalendar:"Cal.",
+    calMonths:"Janvier,Février,Mars,Avril,Mai,Juin,Juillet,Août,Septembre,Octobre,Novembre,Décembre",
+    calDays:"Lu,Ma,Me,Je,Ve,Sa,Di",calChooseDates:"Choisir les dates",calApply:"Appliquer",
     btnCancel:"Annuler",btnSave:"Enregistrer",btnOK:"OK",btnOther:"Autre…",
     toastSent:"Envoyé ! Un parent va valider 👍",toastNotEnoughPts:"Pas assez de points 🙈",
     toastBought:"Acheté ! Va voir un parent 🎉",toastWrongPin:"Code incorrect",
@@ -457,8 +463,10 @@ const TRANSLATIONS = {
     mondayTitle:"💾 Monday Backup",
     mondayText:"It's Monday! Remember to download a backup so you don't lose anything if Safari clears its data.",
     btnLater:"Later",btnCreateBackup:"⬇️ Create a backup",
-    freqDaily:"Every day",freqWeekly:"Every week",freqMonthly:"Every month",freqOnce:"Just once",
-    freqShortDaily:"Daily",freqShortWeekly:"Weekly",freqShortMonthly:"Monthly",freqShortOnce:"One-time",
+    freqDaily:"Every day",freqWeekly:"Every week",freqMonthly:"Every month",freqOnce:"Just once",freqWeekdays:"Weekdays",freqCalendar:"Calendar",
+    freqShortDaily:"Daily",freqShortWeekly:"Weekly",freqShortMonthly:"Monthly",freqShortOnce:"One-time",freqShortWeekdays:"Wkd.",freqShortCalendar:"Cal.",
+    calMonths:"January,February,March,April,May,June,July,August,September,October,November,December",
+    calDays:"Mo,Tu,We,Th,Fr,Sa,Su",calChooseDates:"Choose dates",calApply:"Apply",
     btnCancel:"Cancel",btnSave:"Save",btnOK:"OK",btnOther:"Other…",
     toastSent:"Sent! A parent will approve 👍",toastNotEnoughPts:"Not enough points 🙈",
     toastBought:"Bought! Go see a parent 🎉",toastWrongPin:"Wrong PIN",
@@ -533,11 +541,17 @@ function t(key, vars){
   return str;
 }
 
-function freqLabel(){ return { daily:t("freqDaily"), weekly:t("freqWeekly"), monthly:t("freqMonthly"), once:t("freqOnce") }; }
-function freqShort(){ return { daily:t("freqShortDaily"), weekly:t("freqShortWeekly"), monthly:t("freqShortMonthly"), once:t("freqShortOnce") }; }
+function freqLabel(){ return { daily:t("freqDaily"), weekly:t("freqWeekly"), monthly:t("freqMonthly"), once:t("freqOnce"), weekdays:t("freqWeekdays"), calendar:t("freqCalendar") }; }
+function freqShort(){ return { daily:t("freqShortDaily"), weekly:t("freqShortWeekly"), monthly:t("freqShortMonthly"), once:t("freqShortOnce"), weekdays:t("freqShortWeekdays"), calendar:t("freqShortCalendar") }; }
+function calFreqLabel(tsk){
+  const dates = (tsk.calDates||[]).slice().sort();
+  if(!dates.length) return "Cal";
+  const fmt = d => d.slice(5);
+  return dates.length===1 ? "Cal : "+fmt(dates[0]) : "Cal : "+fmt(dates[0])+" ~ "+fmt(dates[dates.length-1]);
+}
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.28";
+const APP_VERSION = "v0.29";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -649,10 +663,12 @@ function isoWeek(d){
 }
 function periodKey(freq, d){
   d = d || new Date();
-  if(freq==="once")    return "once";
-  if(freq==="daily")   return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
-  if(freq==="weekly")  return isoWeek(d);
-  if(freq==="monthly") return d.getFullYear()+"-"+pad(d.getMonth()+1);
+  if(freq==="once")     return "once";
+  if(freq==="daily")    return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+  if(freq==="weekdays") return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+  if(freq==="calendar") return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+  if(freq==="weekly")   return isoWeek(d);
+  if(freq==="monthly")  return d.getFullYear()+"-"+pad(d.getMonth()+1);
   return "once";
 }
 
@@ -950,12 +966,17 @@ function renderChild(){
   newlyViewed.forEach(n => { n.viewedAt = nowMs; });
   if(newlyViewed.length > 0 || state.notifications.length !== beforeLen) save();
 
-  /* events panel between hero and boutique */
-  const evPanel = myNotifs.length === 0 ? "" : `
+  /* events panel — bonuses first, bombs second */
+  const sortedNotifs = [...myNotifs].sort((a,b)=>{
+    const aPos = (a.type==="powerup"||a.type==="investment") ? 0 : 1;
+    const bPos = (b.type==="powerup"||b.type==="investment") ? 0 : 1;
+    return aPos!==bPos ? aPos-bPos : b.createdAt-a.createdAt;
+  });
+  const evPanel = sortedNotifs.length === 0 ? "" : `
     <div style="margin:0 0 10px;background:#fff;border-radius:18px;padding:14px 18px;box-shadow:var(--shadow)">
       <div style="font-size:11px;font-weight:800;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">${state.lang==="fr"?"Événements":"Events"}</div>
-      ${myNotifs.map((n,i)=>`
-        <div style="display:flex;align-items:center;gap:10px;padding:7px 0${i<myNotifs.length-1?";border-bottom:1px solid var(--line)":""}">
+      ${sortedNotifs.map((n,i)=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 0${i<sortedNotifs.length-1?";border-bottom:1px solid var(--line)":""}">
           <span style="font-size:18px">${n.type==="powerup"?"⚡":n.type==="investment"?"💰":"💣"}</span>
           <div style="flex:1;font-weight:700;font-size:15px">${esc(n.title)}</div>
           <span style="font-weight:900;font-size:16px;color:${(n.type==="powerup"||n.type==="investment")?"#2BB673":"#E74C3C"}">${(n.type==="powerup"||n.type==="investment")?"+":"-"}${n.points}</span>
@@ -996,9 +1017,12 @@ function renderChild(){
     else if(alldayP) displayMap[alldayP.id].push(entry);
   }
 
+  const todayDow = new Date().getDay(); /* 0=Sun, 6=Sat */
   myTasks.forEach(tsk => {
     const st  = taskStatusFor(tsk, c.id);
     if(tsk.freq === "once" && st === "done") return;
+    if(tsk.freq === "weekdays" && (todayDow===0||todayDow===6)) return;
+    if(tsk.freq === "calendar" && !(tsk.calDates||[]).includes(todayStr())) return;
     const ex = isExtreme(tsk);
 
     const pid = tsk.periodId || (alldayP ? alldayP.id : null);
@@ -1437,7 +1461,7 @@ function parentTasks(){
         <div class="row" style="padding:11px 0;border-bottom:1px solid var(--line)">
           <div class="grow">
             <div style="font-weight:800">${ex?extremeEmoji(tsk)+" ":""}${esc(tsk.title)}</div>
-            <div class="muted">${fl[tsk.freq]} · ${taskPeriodName(tsk)} · +${tsk.points} pts${tsk.carryOn?" · ↩️":""}${tsk.incompletePenalty>0?" · −"+tsk.incompletePenalty:""}${exInfo}</div>
+            <div class="muted">${tsk.freq==="calendar"?calFreqLabel(tsk):(fl[tsk.freq]||tsk.freq)} · ${taskPeriodName(tsk)} · +${tsk.points} pts${tsk.carryOn?" · ↩️":""}${tsk.incompletePenalty>0?" · −"+tsk.incompletePenalty:""}${exInfo}</div>
           </div>
           <div class="item-actions">
             <button class="icon-btn" data-action="edit-task" data-id="${tsk.id}">✏️</button>
@@ -2048,7 +2072,36 @@ function captureTaskForm(){
   const cp=document.getElementById("f-carry-penalty");     if(cp) formState.carryOnPenalty=cp.value;
   const ip=document.getElementById("f-incomplete-penalty");if(ip) formState.incompletePenalty=ip.value;
 }
+function drawCalPicker(){
+  const year = formState.calYear, month = formState.calMonth;
+  const selected = formState.calDates || [];
+  const months = t("calMonths").split(",");
+  const days   = t("calDays").split(",");
+  const firstDow = ((new Date(year, month, 1).getDay() + 6) % 7); /* Mon-based */
+  const totalDays = new Date(year, month+1, 0).getDate();
+  let cells = "";
+  for(let i=0;i<firstDow;i++) cells += `<div></div>`;
+  for(let d=1;d<=totalDays;d++){
+    const ds = year+"-"+pad(month+1)+"-"+pad(d);
+    const sel = selected.includes(ds);
+    cells += `<button class="cal-day${sel?" cal-sel":""}" data-action="cal-day" data-date="${ds}">${d}</button>`;
+  }
+  return `
+    <h3 style="margin-bottom:14px">${t("calChooseDates")}</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <button class="icon-btn" style="font-size:24px;padding:4px 10px" data-action="cal-prev">‹</button>
+      <span style="font-weight:800;font-size:16px">${months[month]} ${year}</span>
+      <button class="icon-btn" style="font-size:24px;padding:4px 10px" data-action="cal-next">›</button>
+    </div>
+    <div class="cal-grid">${days.map(h=>`<div class="cal-hd">${h}</div>`).join("")}${cells}</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-action="cal-cancel-picker">${t("btnCancel")}</button>
+      <button class="btn btn-yes" data-action="cal-apply">${t("calApply")}</button>
+    </div>`;
+}
+
 function taskForm(existing){
+  const now = new Date();
   formState = existing
     ? {
         id:existing.id, type:existing.type||"mission",
@@ -2060,17 +2113,21 @@ function taskForm(existing){
         carryOn:!!existing.carryOn,
         carryOnPenalty:existing.carryOnPenalty||0,
         incompletePenalty:existing.incompletePenalty||0,
+        calDates:[...(existing.calDates||[])],
+        calYear:now.getFullYear(), calMonth:now.getMonth(), showCalPicker:false,
       }
     : {
         id:null, type:"mission", extremeMode:"solo", allDayRequired:false,
         title:"", points:5, freq:"daily",
         childIds:state.children[0]?[state.children[0].id]:[],
         periodId:"allday", carryOn:false, carryOnPenalty:0, incompletePenalty:0,
+        calDates:[], calYear:now.getFullYear(), calMonth:now.getMonth(), showCalPicker:false,
       };
   drawTaskForm();
 }
 function drawTaskForm(){
   const f = formState;
+  if(f.showCalPicker){ openModal(drawCalPicker()); return; }
   const fl = freqLabel();
   const periods = (state.periods||[]);
 
@@ -2487,7 +2544,36 @@ document.addEventListener("click", (e)=>{
       if(idx===-1){ arr.push(id); } else if(arr.length>1){ arr.splice(idx,1); }
       formState.childIds=arr; drawTaskForm(); break;
     }
-    case "pick-freq": captureTaskForm(); formState.freq=el.dataset.f; drawTaskForm(); break;
+    case "pick-freq":
+      captureTaskForm();
+      formState.prevFreq = formState.freq;
+      formState.freq = el.dataset.f;
+      if(formState.freq === "calendar"){ formState.showCalPicker = true; }
+      drawTaskForm();
+      break;
+    case "cal-prev":
+      formState.calMonth--; if(formState.calMonth<0){ formState.calMonth=11; formState.calYear--; }
+      openModal(drawCalPicker()); break;
+    case "cal-next":
+      formState.calMonth++; if(formState.calMonth>11){ formState.calMonth=0; formState.calYear++; }
+      openModal(drawCalPicker()); break;
+    case "cal-day": {
+      const ds = el.dataset.date;
+      if(!formState.calDates) formState.calDates=[];
+      const idx = formState.calDates.indexOf(ds);
+      if(idx===-1) formState.calDates.push(ds); else formState.calDates.splice(idx,1);
+      el.classList.toggle("cal-sel", idx===-1);
+      break;
+    }
+    case "cal-apply":
+      formState.showCalPicker = false;
+      drawTaskForm();
+      break;
+    case "cal-cancel-picker":
+      formState.showCalPicker = false;
+      if(!formState.calDates||formState.calDates.length===0) formState.freq = formState.prevFreq||"daily";
+      drawTaskForm();
+      break;
     case "pick-carry-on": {
       const newVal = el.dataset.v === "true";
       formState.carryOn = newVal;
@@ -2514,23 +2600,25 @@ document.addEventListener("click", (e)=>{
       const extremeMode = isExtremeT ? formState.extremeMode : undefined;
       const allDayRequired = isExtremeT ? !!formState.allDayRequired : false;
       const isShared = isExtremeT && ["competitive","collab","all"].includes(formState.extremeMode);
+      const calDates = formState.freq==="calendar" ? (formState.calDates||[]).slice().sort() : undefined;
       if(formState.id){
         const tsk=task(formState.id);
         tsk.title=title; tsk.points=points; tsk.freq=formState.freq; tsk.type=formState.type;
         tsk.extremeMode=extremeMode; tsk.allDayRequired=allDayRequired;
         tsk.periodId=periodId; tsk.carryOn=carryOn; tsk.carryOnPenalty=carryOnPenalty; tsk.incompletePenalty=incompletePenalty;
+        tsk.calDates=calDates;
       } else if(isShared){
         state.tasks.push({
           id:uid(), type:"extreme", extremeMode, allDayRequired,
           title, points, freq:formState.freq, childIds:[...(formState.childIds||[])],
-          periodId, carryOn, carryOnPenalty, incompletePenalty, createdAt:Date.now(),
+          periodId, carryOn, carryOnPenalty, incompletePenalty, calDates, createdAt:Date.now(),
         });
       } else {
         (formState.childIds||[]).forEach(cid=>{
           state.tasks.push({
             id:uid(), type:formState.type, extremeMode, allDayRequired,
             title, points, freq:formState.freq, childId:cid,
-            periodId, carryOn, carryOnPenalty, incompletePenalty, createdAt:Date.now(),
+            periodId, carryOn, carryOnPenalty, incompletePenalty, calDates, createdAt:Date.now(),
           });
         });
       }
@@ -2929,9 +3017,12 @@ function applyPenalties(){
   const today  = todayStr();
   let changed  = false;
 
+  const todayDowP = now.getDay();
   /* — Passe 1 : pénalités de fin de période — */
   state.tasks.forEach(tsk => {
     if(!tsk.carryOnPenalty && !tsk.incompletePenalty) return;
+    if(tsk.freq==="weekdays" && (todayDowP===0||todayDowP===6)) return;
+    if(tsk.freq==="calendar" && !(tsk.calDates||[]).includes(today)) return;
     const p = period(tsk.periodId);
     if(!p || p.isAllDay) return;       /* pas de limite horaire pour all-day */
     if(nowStr <= p.endTime) return;    /* période pas encore terminée */
@@ -2974,6 +3065,9 @@ function applyPenalties(){
 
     state.tasks.forEach(tsk => {
       if(!tsk.carryOn || !tsk.incompletePenalty) return;
+      const prevDow = prevDate.getDay();
+      if(tsk.freq==="weekdays" && (prevDow===0||prevDow===6)) return;
+      if(tsk.freq==="calendar" && !(tsk.calDates||[]).includes(lastDay)) return;
       const p = period(tsk.periodId);
       if(!p || p.isAllDay) return;
 
