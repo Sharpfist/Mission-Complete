@@ -317,6 +317,10 @@ const TRANSLATIONS = {
     fldTaskName:"Nom de la mission",fldTaskNamePh:"Ex. Ranger sa chambre",
     fldPoints:"Points gagnés",fldWhichChild:"Pour quel enfant ?",fldFreq:"À quelle fréquence ?",
     addReward:"＋ Nouvelle récompense",noRewardsParent:"Aucune récompense.",lastPurchases:"🧾 Derniers achats",
+    purchasePending:"⏳ En attente",purchaseApproved:"✅ Approuvé",purchaseApprovedSub:"À recevoir",
+    purchaseGiven:"🎁 Reçu ✓",purchaseRefused:"✗ Refusé",
+    btnMarkGiven:"Fut donné à l'enfant",markGivenDone:"Fut donné ✓",
+    sectionPurchases:"🛒 Achats boutique",btnApprovePurchase:"✓ Approuver",btnRefusePurchase:"✗ Refuser",
     formNewReward:"Nouvelle récompense",formEditReward:"Modifier la récompense",
     fldEmoji:"Émoji",fldRewardName:"Nom de la récompense",fldRewardNamePh:"Ex. 30 min d'écran",fldCost:"Coût en points",
     addChild:"＋ Ajouter un enfant",adjustPoints:"Ajuster les points à la main :",
@@ -427,6 +431,10 @@ const TRANSLATIONS = {
     fldTaskName:"Mission name",fldTaskNamePh:"e.g. Clean your room",
     fldPoints:"Points earned",fldWhichChild:"Which child?",fldFreq:"How often?",
     addReward:"＋ New reward",noRewardsParent:"No rewards.",lastPurchases:"🧾 Recent purchases",
+    purchasePending:"⏳ Pending",purchaseApproved:"✅ Approved",purchaseApprovedSub:"To receive",
+    purchaseGiven:"🎁 Received ✓",purchaseRefused:"✗ Refused",
+    btnMarkGiven:"Given to child",markGivenDone:"Given ✓",
+    sectionPurchases:"🛒 Store purchases",btnApprovePurchase:"✓ Approve",btnRefusePurchase:"✗ Refuse",
     formNewReward:"New reward",formEditReward:"Edit reward",
     fldEmoji:"Emoji",fldRewardName:"Reward name",fldRewardNamePh:"e.g. 30 min screen time",fldCost:"Cost in points",
     addChild:"＋ Add a child",adjustPoints:"Manually adjust points:",
@@ -701,12 +709,14 @@ function taskStatus(t){
   return c.status==="approved" ? "done" : "pending";
 }
 function pendingCount(){
-  return state.completions.filter(c=>{
+  const tasks = state.completions.filter(c=>{
     if(c.status !== "pending") return false;
     const tsk = task(c.taskId);
     if(tsk && isExtreme(tsk) && tsk.extremeMode === "all") return allModeReady(tsk);
     return true;
   }).length;
+  const purchases = (state.purchases||[]).filter(p=>p.status==="pending").length;
+  return tasks + purchases;
 }
 
 function markDone(taskId, childId){
@@ -772,7 +782,7 @@ function buy(rewardId, childId){
   if(!r||!k) return false;
   if(k.points < r.cost) return false;
   k.points -= r.cost;
-  state.purchases.unshift({id:uid(), rewardId:r.id, childId:k.id, childName:k.name, title:r.title, cost:r.cost, createdAt:Date.now()});
+  state.purchases.unshift({id:uid(), rewardId:r.id, childId:k.id, childName:k.name, title:r.title, emoji:r.emoji||"🎁", cost:r.cost, status:"pending", createdAt:Date.now()});
   save();
   return true;
 }
@@ -853,6 +863,66 @@ function renderLock(){
 }
 
 /* ----- Écran enfant ----- */
+function renderRewardHistory(c){
+  const now = Date.now(), H24 = 864e5;
+  const items = (state.purchases||[]).filter(p => {
+    if(!p.status) return false; /* old purchases without status */
+    if(p.childId !== c.id) return false;
+    if(p.status==="given"    && p.givenAt    && (now-p.givenAt)   >H24) return false;
+    if(p.status==="refused"  && p.refusedAt  && (now-p.refusedAt) >H24) return false;
+    return true;
+  });
+  if(items.length===0) return "";
+  return items.map(p=>{
+    let chip="", sub="", cancelBtn="";
+    if(p.status==="pending"){
+      chip=`<span class="tag" style="background:#FFF4D6;color:#a06d00;font-size:12px">${t("purchasePending")}</span>`;
+      cancelBtn=`<button class="btn btn-ghost" style="font-size:12px;padding:5px 12px;margin-top:6px" data-action="cancel-purchase" data-id="${p.id}">${t("btnCancel")}</button>`;
+    } else if(p.status==="approved"){
+      chip=`<span class="tag" style="background:#E6F7EE;color:#1d8a55;font-size:12px">${t("purchaseApproved")}</span>`;
+      sub=`<div style="font-size:11px;font-weight:700;color:#1d8a55;margin-top:2px">${t("purchaseApprovedSub")}</div>`;
+    } else if(p.status==="given"){
+      chip=`<span class="tag" style="background:#E6F7EE;color:#1d8a55;font-size:12px">${t("purchaseGiven")}</span>`;
+    } else if(p.status==="refused"){
+      chip=`<span class="tag" style="background:#FCE9E9;color:#c0392b;font-size:12px">${t("purchaseRefused")}</span>`;
+    }
+    const displayCost = p.status==="refused" ? 0 : p.cost;
+    return `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)">
+        <span style="font-size:22px;flex-shrink:0">${esc(p.emoji||"🎁")}</span>
+        <div class="grow">
+          <div style="font-weight:700;font-size:14px">${esc(p.title)}</div>
+          <div class="muted" style="font-size:12px">${displayCost} pts</div>
+          ${cancelBtn}
+        </div>
+        <div style="flex-shrink:0;text-align:right">${chip}${sub}</div>
+      </div>`;
+  }).join("");
+}
+
+function showRefundAnim(pts){
+  const ptsEl = document.getElementById("pts-val");
+  if(!ptsEl) return;
+  const rect = ptsEl.getBoundingClientRect();
+  const badge = document.createElement("span");
+  badge.textContent = "+" + pts;
+  badge.style.cssText = `position:fixed;left:${Math.round(rect.left)}px;top:${Math.round(rect.top)}px;z-index:600;pointer-events:none;font-weight:900;font-size:24px;color:#2BB673;animation:ev-pts-float 1.5s ease-out forwards`;
+  document.body.appendChild(badge);
+  setTimeout(()=>badge.remove(), 1600);
+  const k = child(view.childId);
+  if(k && ptsEl) setTimeout(()=>{ ptsEl.textContent = k.points; }, 200);
+}
+
+function cleanupPurchases(){
+  const now=Date.now(), H24=864e5, before=(state.purchases||[]).length;
+  state.purchases=(state.purchases||[]).filter(p=>{
+    if(p.status==="given"   && p.givenAt   && (now-p.givenAt)  >H24) return false;
+    if(p.status==="refused" && p.refusedAt && (now-p.refusedAt)>H24) return false;
+    return true;
+  });
+  if((state.purchases||[]).length!==before) save();
+}
+
 function renderChild(){
   const c = child(view.childId);
   const myTasks = state.tasks.filter(tsk => taskChildIds(tsk).includes(c.id));
@@ -1092,13 +1162,14 @@ function renderChild(){
       <div class="big"><span class="c"></span><span id="pts-val">${displayPts}</span></div>
       <div class="sub">${t("heroSub")}</div>
     </div>
-    ${evPanel}
     ${view.childEditMode ? `
       <div class="parental-edit-panel" style="margin-bottom:10px">
         <button class="add-btn" data-action="add-task-child" data-id="${c.id}">${t("addTask")}</button>
       </div>
     ` : ""}
     <button class="add-btn" data-action="open-store" data-id="${c.id}">${t("shopBtn")}</button>
+    <div id="reward-hist-${c.id}">${renderRewardHistory(c)}</div>
+    ${evPanel}
     ${sections}
   `;
 
@@ -1231,10 +1302,40 @@ function parentApprovals(){
     if(tsk && isExtreme(tsk) && tsk.extremeMode==="all") return allModeReady(tsk);
     return true;
   });
-  if(visible.length===0){
+
+  /* purchases section */
+  const pendingPurchases = (state.purchases||[]).filter(p=>p.status==="pending").sort((a,b)=>a.createdAt-b.createdAt);
+  let purchasesHtml = "";
+  if(pendingPurchases.length > 0){
+    purchasesHtml = `
+      <div style="font-weight:700;font-size:13px;color:var(--ink-soft);margin:12px 0 6px">${t("sectionPurchases")}</div>
+      ${pendingPurchases.map(p=>{
+        const k = child(p.childId);
+        const approvedState = p.status === "approved";
+        const buttons = approvedState
+          ? `<button class="btn" style="width:100%;margin-top:6px;background:var(--ink);color:#fff;font-size:13px" data-action="mark-given" data-id="${p.id}">${t("btnMarkGiven")}</button>`
+          : `<div class="btn-line" style="margin-top:6px">
+               <button class="btn btn-yes" style="font-size:13px" data-action="approve-purchase" data-id="${p.id}">${t("btnApprovePurchase")}</button>
+               <button class="btn btn-no" style="font-size:13px" data-action="refuse-purchase" data-id="${p.id}">${t("btnRefusePurchase")}</button>
+             </div>`;
+        return `
+          <div class="card approve-card">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:26px;flex-shrink:0">${esc(p.emoji||"🎁")}</span>
+              <div class="grow">
+                <div style="font-weight:700;font-size:15px">${esc(p.title)}</div>
+                <div class="muted" style="font-size:12px">${k ? `${esc(k.emoji)} ${esc(k.name)}` : esc(p.childName||"")} · ${p.cost} pts</div>
+              </div>
+            </div>
+            ${buttons}
+          </div>`;
+      }).join("")}`;
+  }
+
+  if(visible.length===0 && pendingPurchases.length===0){
     return `<div class="empty"><span class="em">✅</span>${t("noApprovals")}</div>`;
   }
-  return visible.map(c=>approvalCard(c, fs)).join("");
+  return purchasesHtml + visible.map(c=>approvalCard(c, fs)).join("");
 }
 
 function approvalCard(c, fs){
@@ -2289,6 +2390,52 @@ document.addEventListener("click", (e)=>{
       break;
     }
 
+    /* achats boutique */
+    case "cancel-purchase": {
+      const p = (state.purchases||[]).find(x=>x.id===id);
+      if(p && p.status==="pending"){
+        p.status = "cancelled";
+        const k = child(p.childId);
+        if(k){ k.points = (k.points||0) + p.cost; showRefundAnim(p.cost); }
+        state.purchases = state.purchases.filter(x=>x.id!==id);
+        save(); render();
+      }
+      break;
+    }
+    case "approve-purchase": {
+      const p = (state.purchases||[]).find(x=>x.id===id);
+      if(p && p.status==="pending"){
+        p.status = "approved"; p.approvedAt = Date.now();
+        save(); refreshParentBody();
+        /* also refresh child history if visible */
+        const hist = document.getElementById("reward-hist-"+p.childId);
+        if(hist){ const k=child(p.childId); if(k) hist.innerHTML=renderRewardHistory(k); }
+      }
+      break;
+    }
+    case "refuse-purchase": {
+      const p = (state.purchases||[]).find(x=>x.id===id);
+      if(p && p.status==="pending"){
+        p.status = "refused"; p.refusedAt = Date.now();
+        const k = child(p.childId);
+        if(k){ k.points = (k.points||0) + p.cost; }
+        save(); refreshParentBody();
+        const hist = document.getElementById("reward-hist-"+p.childId);
+        if(hist){ const kk=child(p.childId); if(kk) hist.innerHTML=renderRewardHistory(kk); }
+      }
+      break;
+    }
+    case "mark-given": {
+      const p = (state.purchases||[]).find(x=>x.id===id);
+      if(p && p.status==="approved"){
+        p.status = "given"; p.givenAt = Date.now();
+        save(); refreshParentBody();
+        const hist = document.getElementById("reward-hist-"+p.childId);
+        if(hist){ const k=child(p.childId); if(k) hist.innerHTML=renderRewardHistory(k); }
+      }
+      break;
+    }
+
     /* validations */
     case "approve": approve(id); toast(t("toastApproved")); render(); break;
     case "reject":  reject(id);  toast(t("toastRejected")); render(); break;
@@ -2854,8 +3001,9 @@ function applyPenalties(){
 
 applyPenalties();
 applyInvestment();
+cleanupPurchases();
 document.addEventListener("visibilitychange", () => {
-  if(!document.hidden){ applyPenalties(); applyInvestment(); }
+  if(!document.hidden){ applyPenalties(); applyInvestment(); cleanupPurchases(); }
 });
 
 render();
