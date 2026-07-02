@@ -720,7 +720,7 @@ function pendingCount(){
     if(tsk && isExtreme(tsk) && tsk.extremeMode === "all") return allModeReady(tsk);
     return true;
   }).length;
-  const purchases = (state.purchases||[]).filter(p=>p.status==="pending").length;
+  const purchases = (state.purchases||[]).filter(p=>p.status==="pending"||p.status==="approved").length;
   return tasks + purchases;
 }
 
@@ -1309,8 +1309,8 @@ function parentApprovals(){
     return true;
   });
 
-  /* purchases section */
-  const pendingPurchases = (state.purchases||[]).filter(p=>p.status==="pending").sort((a,b)=>a.createdAt-b.createdAt);
+  /* purchases section — pending + approved (waiting for "mark given") */
+  const pendingPurchases = (state.purchases||[]).filter(p=>p.status==="pending"||p.status==="approved").sort((a,b)=>a.createdAt-b.createdAt);
   let purchasesHtml = "";
   if(pendingPurchases.length > 0){
     purchasesHtml = `
