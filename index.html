@@ -537,7 +537,7 @@ function freqLabel(){ return { daily:t("freqDaily"), weekly:t("freqWeekly"), mon
 function freqShort(){ return { daily:t("freqShortDaily"), weekly:t("freqShortWeekly"), monthly:t("freqShortMonthly"), once:t("freqShortOnce") }; }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.26";
+const APP_VERSION = "v0.27";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1694,7 +1694,7 @@ function parentSettings(){
       </div>
     </div>
     <p class="footer-note">${t("footerNote")}</p>
-    <p class="footer-note" style="margin-top:6px;opacity:.45">Version 0.9</p>
+    <p class="footer-note" style="margin-top:6px;opacity:.45">${APP_VERSION}</p>
   `;
 }
 
