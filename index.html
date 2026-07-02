@@ -618,6 +618,7 @@ if(!state.periods) {
   save();
 }
 if(!state.notifications) { state.notifications = []; save(); }
+if(!state.purchases) { state.purchases = []; save(); }
 if(!state.skips) { state.skips = []; save(); }
 if(!state.investment) { state.investment = {enabled:true, rate:2, freq:"daily"}; save(); }
 if(state.lastInvestmentApplied === undefined) { state.lastInvestmentApplied = ""; save(); }
@@ -782,6 +783,7 @@ function buy(rewardId, childId){
   if(!r||!k) return false;
   if(k.points < r.cost) return false;
   k.points -= r.cost;
+  if(!state.purchases) state.purchases = [];
   state.purchases.unshift({id:uid(), rewardId:r.id, childId:k.id, childName:k.name, title:r.title, emoji:r.emoji||"🎁", cost:r.cost, status:"pending", createdAt:Date.now()});
   save();
   return true;
