@@ -350,7 +350,7 @@ const TRANSLATIONS = {
     mondayTitle:"💾 Sauvegarde du lundi",
     mondayText:"C'est lundi ! Pense à télécharger une sauvegarde pour ne rien perdre si Safari efface ses données.",
     btnLater:"Plus tard",btnCreateBackup:"⬇️ Créer une sauvegarde",
-    freqDaily:"Chaque jour",freqWeekly:"Chaque semaine",freqMonthly:"Chaque mois",freqOnce:"Une seule fois",freqWeekdays:"Jours de semaine",freqCalendar:"Calendrier",
+    freqDaily:"Chaque jour",freqWeekly:"Semaine",freqMonthly:"Mois",freqOnce:"Une seule fois",freqWeekdays:"Jours de semaine",freqCalendar:"Calendrier",
     freqShortDaily:"Quotidienne",freqShortWeekly:"Hebdo",freqShortMonthly:"Mensuelle",freqShortOnce:"Ponctuelle",freqShortWeekdays:"Sem.",freqShortCalendar:"Cal.",
     calMonths:"Janvier,Février,Mars,Avril,Mai,Juin,Juillet,Août,Septembre,Octobre,Novembre,Décembre",
     calDays:"Lu,Ma,Me,Je,Ve,Sa,Di",calChooseDates:"Choisir les dates",calApply:"Appliquer",
@@ -467,7 +467,7 @@ const TRANSLATIONS = {
     mondayTitle:"💾 Monday Backup",
     mondayText:"It's Monday! Remember to download a backup so you don't lose anything if Safari clears its data.",
     btnLater:"Later",btnCreateBackup:"⬇️ Create a backup",
-    freqDaily:"Every day",freqWeekly:"Every week",freqMonthly:"Every month",freqOnce:"Just once",freqWeekdays:"Weekdays",freqCalendar:"Calendar",
+    freqDaily:"Every day",freqWeekly:"Week",freqMonthly:"Month",freqOnce:"Just once",freqWeekdays:"Weekdays",freqCalendar:"Calendar",
     freqShortDaily:"Daily",freqShortWeekly:"Weekly",freqShortMonthly:"Monthly",freqShortOnce:"One-time",freqShortWeekdays:"Wkd.",freqShortCalendar:"Cal.",
     calMonths:"January,February,March,April,May,June,July,August,September,October,November,December",
     calDays:"Mo,Tu,We,Th,Fr,Sa,Su",calChooseDates:"Choose dates",calApply:"Apply",
@@ -545,7 +545,7 @@ function t(key, vars){
   return str;
 }
 
-function freqLabel(){ return { daily:t("freqDaily"), weekly:t("freqWeekly"), monthly:t("freqMonthly"), once:t("freqOnce"), weekdays:t("freqWeekdays"), calendar:t("freqCalendar") }; }
+function freqLabel(){ return { once:t("freqOnce"), daily:t("freqDaily"), weekly:t("freqWeekly"), monthly:t("freqMonthly"), calendar:t("freqCalendar") }; }
 function freqShort(){ return { daily:t("freqShortDaily"), weekly:t("freqShortWeekly"), monthly:t("freqShortMonthly"), once:t("freqShortOnce"), weekdays:t("freqShortWeekdays"), calendar:t("freqShortCalendar") }; }
 function calFreqLabel(tsk){
   const dates = (tsk.calDates||[]).slice().sort();
@@ -555,7 +555,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.32";
+const APP_VERSION = "v0.33";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
