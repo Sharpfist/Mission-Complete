@@ -212,6 +212,19 @@
   .cal-hd{text-align:center;font-size:11px;font-weight:700;color:var(--ink-soft);padding:3px 0}
   .cal-day{background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:0;height:38px;font-size:14px;font-weight:700;color:var(--ink)}
   .cal-day.cal-sel{background:var(--accent,#007AFF);color:#fff;border-color:var(--accent,#007AFF)}
+  .wk-panel{margin:2px 0 4px;animation:wkIn .25s ease}
+  .wk-divider{border-top:1.5px solid var(--line);margin:16px 0 2px}
+  @keyframes wkIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  .wk-modes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+  .wk-mode{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:13px 8px;font-size:13px;font-weight:800;color:var(--ink);line-height:1.2}
+  .wk-mode.on{background:var(--accent,#007AFF);color:#fff;border-color:var(--accent,#007AFF)}
+  .wk-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:4px 0 6px}
+  .wk-sub{background:var(--bg);border-radius:14px;padding:12px 14px;margin-top:4px}
+  .wk-intro{font-size:12px;color:var(--ink-soft);line-height:1.35;margin-bottom:8px}
+  .wk-hint{font-size:12px;color:var(--ink-soft);text-align:center;padding:2px 0 2px}
+  .wk-cool-row{display:flex;align-items:center;justify-content:center;gap:14px}
+  .wk-cool-row button{width:38px;height:38px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-size:20px;font-weight:900;color:var(--ink)}
+  .wk-cool-row span{font-weight:800;font-size:15px;min-width:86px;text-align:center}
   .toast{
     position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);opacity:0;
     background:var(--ink);color:#fff;font-weight:800;padding:13px 20px;border-radius:14px;z-index:80;
@@ -354,6 +367,10 @@ const TRANSLATIONS = {
     freqShortDaily:"Quotidienne",freqShortWeekly:"Hebdo",freqShortMonthly:"Mensuelle",freqShortOnce:"Ponctuelle",freqShortWeekdays:"Sem.",freqShortCalendar:"Cal.",
     calMonths:"Janvier,Février,Mars,Avril,Mai,Juin,Juillet,Août,Septembre,Octobre,Novembre,Décembre",
     calDays:"Lu,Ma,Me,Je,Ve,Sa,Di",calChooseDates:"Choisir les dates",calApply:"Appliquer",
+    wkModeDays:"Journée(s) spécifique(s)",wkModeWeek:"1x /sem",wkModeWork:"1x / sem de travail",wkModeWeekend:"1x / fds",
+    wkPickDays:"Choisis les jours",wkWeekIntro:"Une fois complétée, la mission redevient disponible la semaine prochaine ET après",wkDaysUnit:"jour(s)",
+    wkWorkHint:"Lundi au vendredi 23h59",wkWeekendHint:"Vendredi 14h à dimanche 23h59",wkBoxTitle:"Semaine",
+    wkValWeek:"1 fois / semaine",wkValWork:"Lundi au Vendredi",wkValWeekend:"Vendredi pm · Samedi · Dimanche",wkValDaysNone:"Aucun jour choisi",wkDayShort:"J",wkSectionTitle:"Semaine :",
     btnCancel:"Annuler",btnSave:"Enregistrer",btnOK:"OK",btnOther:"Autre…",
     toastSent:"Envoyé ! Un parent va valider 👍",toastNotEnoughPts:"Pas assez de points 🙈",
     toastBought:"Acheté ! Va voir un parent 🎉",toastWrongPin:"Code incorrect",
@@ -471,6 +488,10 @@ const TRANSLATIONS = {
     freqShortDaily:"Daily",freqShortWeekly:"Weekly",freqShortMonthly:"Monthly",freqShortOnce:"One-time",freqShortWeekdays:"Wkd.",freqShortCalendar:"Cal.",
     calMonths:"January,February,March,April,May,June,July,August,September,October,November,December",
     calDays:"Mo,Tu,We,Th,Fr,Sa,Su",calChooseDates:"Choose dates",calApply:"Apply",
+    wkModeDays:"Specific day(s)",wkModeWeek:"1x /wk",wkModeWork:"1x /work week",wkModeWeekend:"1x /weekend",
+    wkPickDays:"Choose the days",wkWeekIntro:"Once completed, the mission becomes available again next week AND after",wkDaysUnit:"day(s)",
+    wkWorkHint:"Monday to Friday 11:59pm",wkWeekendHint:"Friday 2pm to Sunday 11:59pm",wkBoxTitle:"Week",
+    wkValWeek:"Once / week",wkValWork:"Monday to Friday",wkValWeekend:"Friday pm · Saturday · Sunday",wkValDaysNone:"No day chosen",wkDayShort:"d",wkSectionTitle:"Week:",
     btnCancel:"Cancel",btnSave:"Save",btnOK:"OK",btnOther:"Other…",
     toastSent:"Sent! A parent will approve 👍",toastNotEnoughPts:"Not enough points 🙈",
     toastBought:"Bought! Go see a parent 🎉",toastWrongPin:"Wrong PIN",
@@ -547,6 +568,23 @@ function t(key, vars){
 
 function freqLabel(){ return { once:t("freqOnce"), daily:t("freqDaily"), weekly:t("freqWeekly"), monthly:t("freqMonthly"), calendar:t("freqCalendar") }; }
 function freqShort(){ return { daily:t("freqShortDaily"), weekly:t("freqShortWeekly"), monthly:t("freqShortMonthly"), once:t("freqShortOnce"), weekdays:t("freqShortWeekdays"), calendar:t("freqShortCalendar") }; }
+/* ordre d'affichage des jours (getDay()): Lu Ma Me Je Ve Sa Di */
+const WEEK_DAY_ORDER = [1,2,3,4,5,6,0];
+/* étiquette grise décrivant le sous-mode « Semaine » d'une mission */
+function weekValueLabel(tsk){
+  const mode = tsk.weekMode || "week";
+  if(mode==="days"){
+    const abbr = t("calDays").split(",");
+    const sel  = tsk.weekDays || [];
+    const labels = WEEK_DAY_ORDER.map((d,i)=> sel.includes(d) ? abbr[i] : null).filter(Boolean);
+    return labels.length ? labels.join(" · ") : t("wkValDaysNone");
+  }
+  if(mode==="workweek") return t("wkValWork");
+  if(mode==="weekend")  return t("wkValWeekend");
+  const n = tsk.weekCooldown!=null ? tsk.weekCooldown : 4;
+  return t("wkModeWeek") + ", +" + n + t("wkDayShort");
+}
+function isWeekTask(tsk){ return tsk && tsk.freq==="weekly"; }
 function calFreqLabel(tsk){
   const dates = (tsk.calDates||[]).slice().sort();
   if(!dates.length) return "Cal";
@@ -555,7 +593,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.33";
+const APP_VERSION = "v0.34";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -675,6 +713,61 @@ function periodKey(freq, d){
   if(freq==="monthly")  return d.getFullYear()+"-"+pad(d.getMonth()+1);
   return "once";
 }
+/* clé d'occurrence tenant compte du sous-mode Semaine :
+   « Journée(s) spécifique(s) » = une occurrence par jour ; les autres modes = par semaine ISO */
+function taskPK(tsk, d){
+  if(tsk && tsk.freq==="weekly" && tsk.weekMode==="days") return periodKey("daily", d);
+  return periodKey(tsk ? tsk.freq : "once", d);
+}
+/* lundi 00:00 de la semaine contenant d */
+function isoWeekMonday(d){
+  const x = new Date(d);
+  const back = (x.getDay()+6)%7; /* 0=lundi */
+  x.setHours(0,0,0,0);
+  x.setDate(x.getDate()-back);
+  return x;
+}
+/* fenêtre [start,end] + clé de l'occurrence hebdo contenant refDate (modes week/workweek/weekend) */
+function weekWindow(tsk, refDate){
+  const mon  = isoWeekMonday(refDate);
+  const mode = tsk.weekMode||"week";
+  const start= new Date(mon), end = new Date(mon);
+  if(mode==="workweek"){ end.setDate(mon.getDate()+4); end.setHours(23,59,59,999); }        /* Lu → Ve 23:59 */
+  else if(mode==="weekend"){ start.setDate(mon.getDate()+4); start.setHours(14,0,0,0);
+                             end.setDate(mon.getDate()+6);   end.setHours(23,59,59,999); }    /* Ve 14h → Di 23:59 */
+  else { end.setDate(mon.getDate()+6); end.setHours(23,59,59,999); }                          /* Lu → Di 23:59 */
+  return {start, end, key:isoWeek(refDate)};
+}
+/* la fenêtre hebdo est-elle active maintenant ? (pour l'affichage enfant) */
+function weekWindowActive(tsk, now){
+  now = now || new Date();
+  const dow = now.getDay();
+  const hm  = pad(now.getHours())+":"+pad(now.getMinutes());
+  const mode = tsk.weekMode||"week";
+  if(mode==="days")     return (tsk.weekDays||[]).includes(dow);
+  if(mode==="workweek") return dow>=1 && dow<=5;
+  if(mode==="weekend"){ if(dow===5) return hm>="14:00"; return dow===0||dow===6; }
+  return true; /* 1x/sem : disponible toute la semaine */
+}
+/* cooldown « 1x/sem » : après complétion, indisponible jusqu'à date de complétion + N jours */
+function weekCooldownActive(tsk, childId, now){
+  if((tsk.weekMode||"week")!=="week") return false;
+  const n = tsk.weekCooldown!=null ? tsk.weekCooldown : 4;
+  if(n<=0) return false;
+  const comps = state.completions.filter(x=>x.taskId===tsk.id && x.childId===childId);
+  if(!comps.length) return false;
+  const last  = comps.reduce((a,b)=> (b.approvedAt||b.createdAt) > (a.approvedAt||a.createdAt) ? b : a);
+  const avail = (last.approvedAt||last.createdAt) + n*86400000;
+  return (now?now.getTime():Date.now()) < avail;
+}
+/* faut-il afficher cette mission hebdo à l'enfant maintenant ? */
+function weekShow(tsk, childId){
+  if(tsk.freq!=="weekly") return true;
+  const st = taskStatusFor(tsk, childId);
+  if(st==="done" || st==="pending") return true;   /* montrer le statut en cours */
+  if(weekCooldownActive(tsk, childId)) return false;
+  return weekWindowActive(tsk);
+}
 
 /* ============ Logique ============ */
 function child(id){ return state.children.find(c=>c.id===id); }
@@ -696,7 +789,7 @@ function alldayPeriodId(){ const p=(state.periods||[]).find(x=>x.isAllDay); retu
 
 /* statut par enfant, valable pour tâche normale OU extrême partagée */
 function taskStatusFor(tsk, childId){
-  const pk = periodKey(tsk.freq);
+  const pk = taskPK(tsk);
   if(state.skips && state.skips.some(x=>x.taskId===tsk.id && x.childId===childId && x.periodKey===pk)) return "skipped";
   const c = state.completions.find(x=>x.taskId===tsk.id && x.childId===childId && x.periodKey===pk);
   if(!c) return "open";
@@ -704,7 +797,7 @@ function taskStatusFor(tsk, childId){
 }
 
 /* mission extrême « fermée » pour la période courante (compétitif remporté / collab terminé) */
-function extremeClosedKey(tsk){ return tsk.id + "|" + periodKey(tsk.freq); }
+function extremeClosedKey(tsk){ return tsk.id + "|" + taskPK(tsk); }
 function isExtremeClosed(tsk){ return !!(state.extremeClosed && state.extremeClosed[extremeClosedKey(tsk)]); }
 function closeExtreme(tsk){
   if(!state.extremeClosed) state.extremeClosed = {};
@@ -728,7 +821,7 @@ function extremeUnlocked(tsk, childId){
 }
 
 function taskStatus(t){
-  const pk = periodKey(t.freq);
+  const pk = taskPK(t);
   const c = state.completions.find(x=>x.taskId===t.id && x.childId===t.childId && x.periodKey===pk);
   if(!c) return "open";
   return c.status==="approved" ? "done" : "pending";
@@ -748,7 +841,7 @@ function markDone(taskId, childId){
   const t = task(taskId); if(!t) return;
   const cid = childId != null ? childId : t.childId;
   if(cid == null) return;
-  const pk = periodKey(t.freq);
+  const pk = taskPK(t);
   const exists = state.completions.find(c=>c.taskId===t.id && c.childId===cid && c.periodKey===pk);
   if(exists) return;
   /* pts ajustés si une réduction de report a été appliquée */
@@ -780,7 +873,7 @@ function approveExtremeComp(compId, finish){
   if(tsk.extremeMode === "competitive"){
     /* remporté : ferme pour tous, retire les autres complétions en attente */
     closeExtreme(tsk);
-    const pk = periodKey(tsk.freq);
+    const pk = taskPK(tsk);
     state.completions = state.completions.filter(x =>
       !(x.taskId===tsk.id && x.periodKey===pk && x.id!==c.id && x.status!=="approved")
     );
@@ -1006,6 +1099,13 @@ function renderChild(){
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
   const displayPeriods = [alldayP, ...otherPs].filter(Boolean);
 
+  /* mission hebdo « toute la journée » (non extrême) → boîte Semaine en haut */
+  function isWeekBoxTask(tsk){
+    if(tsk.freq!=="weekly" || isExtreme(tsk)) return false;
+    const p = allPeriods.find(x => x.id === tsk.periodId);
+    return !tsk.periodId || tsk.periodId==="allday" || !p || p.isAllDay;
+  }
+
   /* for carry-over: find period covering nowStr, else allday */
   function carryTargetId(){
     const hit = otherPs.find(p => nowStr >= p.startTime && nowStr <= p.endTime);
@@ -1024,6 +1124,8 @@ function renderChild(){
   const todayDow = new Date().getDay(); /* 0=Sun, 6=Sat */
   myTasks.forEach(tsk => {
     const st  = taskStatusFor(tsk, c.id);
+    if(isWeekBoxTask(tsk)) return; /* rendu dans la boîte Semaine */
+    if(tsk.freq === "weekly" && !weekShow(tsk, c.id)) return; /* hors fenêtre / cooldown */
     if(tsk.freq === "once" && st === "done") return;
     if(tsk.freq === "weekdays" && (todayDow===0||todayDow===6)) return;
     if(tsk.freq === "calendar" && !(tsk.calDates||[]).includes(todayStr())) return;
@@ -1047,6 +1149,42 @@ function renderChild(){
   /* render */
   let sections = "";
   let anyVisible = false;
+
+  /* Boîte « Semaine » : missions hebdo toute la journée, en haut */
+  const weekBoxTasks = myTasks.filter(tsk=>isWeekBoxTask(tsk) && weekShow(tsk, c.id)).sort((a,b)=>a.createdAt-b.createdAt);
+  if(weekBoxTasks.length){
+    anyVisible = true;
+    let rows = "";
+    weekBoxTasks.forEach(tsk => {
+      const st = taskStatusFor(tsk, c.id);
+      let action;
+      if(view.childEditMode && st==="skipped"){
+        action = `<button class="do" style="background:#ddd;color:#888;font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skipped")}</button>`;
+      } else if(view.childEditMode && st==="open"){
+        action = `<button class="do" style="background:var(--line);color:var(--ink-soft);font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skip")}</button>`;
+      } else if(st==="skipped"){
+        action = statusChip("status-chip", `✗ ${t("skipped")}`);
+      } else {
+        action = `<button class="do" data-action="do-task" data-id="${tsk.id}">${t("btnDone")}</button>`;
+        if(st==="pending") action = statusChip("waiting", t("statusPending"));
+        if(st==="done")    action = statusChip("done-chip", t("statusDone"));
+      }
+      rows += `
+        <div class="task" id="tc-${tsk.id}" style="${st==="skipped"?"opacity:.4":""}">
+          <span class="pts-badge" style="font-size:14px">+${tsk.points}</span>
+          <div class="meta">
+            <div class="t">${esc(tsk.title)}</div>
+            <div class="f" style="color:var(--ink-soft);font-size:12px">${weekValueLabel(tsk)}</div>
+          </div>
+          ${action}
+        </div>`;
+    });
+    sections += `
+      <div class="section-h" style="margin:6px 4px 12px">
+        <span style="font-size:22px;line-height:1">🗓️</span>
+        <h3 style="font-size:16px;color:var(--ink)">${t("wkBoxTitle")}</h3>
+      </div>${rows}`;
+  }
 
   displayPeriods.forEach(p => {
     const items = displayMap[p.id] || [];
@@ -1108,7 +1246,7 @@ function renderChild(){
         /* compteur X/N pour mode Tous */
         let allCounter = "";
         if(tsk.extremeMode === "all"){
-          const pk = periodKey(tsk.freq);
+          const pk = taskPK(tsk);
           const ids = taskChildIds(tsk);
           const done = ids.filter(cid =>
             state.completions.some(x=>x.taskId===tsk.id && x.childId===cid && x.periodKey===pk)
@@ -1165,7 +1303,8 @@ function renderChild(){
         <div class="task" id="tc-${tsk.id}" style="${wrapStyle}">
           ${ptsBadge}
           <div class="meta">
-            <div class="t" style="${greyed?"font-size:14px":""}">${esc(tsk.title)}</div>
+            <div class="t" style="${greyed?"font-size:14px":""}">${isWeekTask(tsk)?"🗓️ ":""}${esc(tsk.title)}</div>
+            ${isWeekTask(tsk) ? `<div class="f" style="color:var(--ink-soft);font-size:12px">${weekValueLabel(tsk)}</div>` : ""}
             ${carried ? `<div class="f" style="color:var(--wait);font-size:12px">↩ ${t("carriedOver")}</div>` : ""}
           </div>
           ${action}
@@ -1323,7 +1462,7 @@ function refreshParentBody(){
 
 /* mission « Tous » : prête à approuver seulement quand tous les enfants ciblés ont marqué terminé */
 function allModeReady(tsk){
-  const pk = periodKey(tsk.freq);
+  const pk = taskPK(tsk);
   const ids = taskChildIds(tsk);
   return ids.length>0 && ids.every(cid =>
     state.completions.some(x=>x.taskId===tsk.id && x.childId===cid && x.periodKey===pk));
@@ -2186,6 +2325,7 @@ function openBackupReminderModal(){
 
 /* ============ Formulaires ============ */
 let formState = {};
+let taskFormScroll = 0;
 /* sauvegarde les valeurs saisies avant un re-rendu du formulaire de mission
    (sinon un tap sur un enfant / le type efface le nom, les points, etc.) */
 function captureTaskForm(){
@@ -2194,6 +2334,7 @@ function captureTaskForm(){
   const pe=document.getElementById("f-period");            if(pe) formState.periodId=pe.value;
   const cp=document.getElementById("f-carry-penalty");     if(cp) formState.carryOnPenalty=cp.value;
   const ip=document.getElementById("f-incomplete-penalty");if(ip) formState.incompletePenalty=ip.value;
+  const md=document.querySelector("#modal-root .modal");   if(md) taskFormScroll=md.scrollTop;
 }
 function drawCalPicker(){
   const year = formState.calYear, month = formState.calMonth;
@@ -2238,6 +2379,7 @@ function drawTplForm(){
 }
 
 function taskForm(existing){
+  taskFormScroll = 0;
   const now = new Date();
   formState = existing
     ? {
@@ -2252,6 +2394,8 @@ function taskForm(existing){
         incompletePenalty:existing.incompletePenalty||0,
         calDates:[...(existing.calDates||[])],
         calYear:now.getFullYear(), calMonth:now.getMonth(), showCalPicker:false,
+        weekMode:existing.weekMode||null, weekDays:[...(existing.weekDays||[])],
+        weekCooldown:existing.weekCooldown!=null?existing.weekCooldown:4,
       }
     : {
         id:null, type:"mission", extremeMode:"solo", allDayRequired:false,
@@ -2259,10 +2403,53 @@ function taskForm(existing){
         childIds:state.children[0]?[state.children[0].id]:[],
         periodId:"allday", carryOn:false, carryOnPenalty:0, incompletePenalty:0,
         calDates:[], calYear:now.getFullYear(), calMonth:now.getMonth(), showCalPicker:false,
+        weekMode:null, weekDays:[], weekCooldown:4,
         addAsTemplate:false,
       };
   drawTaskForm();
 }
+/* Sous-panneau « Semaine » : 4 sous-modes + contenu conditionnel */
+function drawWeekPanel(f){
+  const abbr = t("calDays").split(",");
+  const modes = [
+    ["days",     t("wkModeDays")],
+    ["week",     t("wkModeWeek")],
+    ["workweek", t("wkModeWork")],
+    ["weekend",  t("wkModeWeekend")],
+  ];
+  const squares = modes.map(([m,label])=>
+    `<button class="wk-mode ${f.weekMode===m?"on":""}" data-action="pick-week-mode" data-m="${m}">${label}</button>`
+  ).join("");
+
+  let sub = "";
+  if(f.weekMode==="days"){
+    const sel = f.weekDays || [];
+    const cells = WEEK_DAY_ORDER.map((d,i)=>
+      `<button class="cal-day ${sel.includes(d)?"cal-sel":""}" data-action="toggle-wk-day" data-d="${d}">${abbr[i]}</button>`
+    ).join("");
+    sub = `<div class="wk-sub"><div class="wk-intro">${t("wkPickDays")}</div><div class="wk-days">${cells}</div></div>`;
+  } else if(f.weekMode==="week"){
+    const n = (f.weekCooldown!=null ? f.weekCooldown : 4);
+    sub = `<div class="wk-sub">
+      <div class="wk-intro">${t("wkWeekIntro")} :</div>
+      <div class="wk-cool-row">
+        <button data-action="wk-cool-dec">−</button>
+        <span>${n} ${t("wkDaysUnit")}</span>
+        <button data-action="wk-cool-inc">+</button>
+      </div>
+    </div>`;
+  } else if(f.weekMode==="workweek"){
+    sub = `<div class="wk-sub"><div class="wk-hint">${t("wkWorkHint")}</div></div>`;
+  } else if(f.weekMode==="weekend"){
+    sub = `<div class="wk-sub"><div class="wk-hint">${t("wkWeekendHint")}</div></div>`;
+  }
+
+  return `<div class="wk-panel">
+    <div class="wk-divider"></div>
+    <label class="fld">${t("wkSectionTitle")}</label>
+    <div class="wk-modes">${squares}</div>${sub}</div>`;
+}
+
 function drawTaskForm(){
   const f = formState;
   if(f.showCalPicker){ openModal(drawCalPicker()); return; }
@@ -2310,6 +2497,7 @@ function drawTaskForm(){
     <div class="seg">
       ${Object.keys(fl).map(fr=>`<button class="opt ${f.freq===fr?"on":""}" data-action="pick-freq" data-f="${fr}">${fl[fr]}</button>`).join("")}
     </div>
+    ${f.freq==="weekly" ? drawWeekPanel(f) : ""}
 
     <label class="fld">${t("fldPeriod")}</label>
     <select class="in" id="f-period">
@@ -2349,6 +2537,8 @@ function drawTaskForm(){
       <button class="btn btn-yes" data-action="save-task">${t("btnSave")}</button>
     </div>
   `);
+  const md=document.querySelector("#modal-root .modal");
+  if(md && taskFormScroll) md.scrollTop=taskFormScroll;
 }
 
 function rewardForm(existing){
@@ -2697,8 +2887,10 @@ document.addEventListener("click", (e)=>{
         childIds:state.children[0]?[state.children[0].id]:[],
         periodId:"allday", carryOn:false, carryOnPenalty:0, incompletePenalty:0,
         calDates:[], calYear:new Date().getFullYear(), calMonth:new Date().getMonth(),
+        weekMode:null, weekDays:[], weekCooldown:4,
         showCalPicker:false, addAsTemplate:false,
       };
+      taskFormScroll = 0;
       drawTaskForm();
       break;
     case "pick-task-type": captureTaskForm(); formState.type=el.dataset.type; drawTaskForm(); break;
@@ -2717,6 +2909,31 @@ document.addEventListener("click", (e)=>{
       formState.prevFreq = formState.freq;
       formState.freq = el.dataset.f;
       if(formState.freq === "calendar"){ formState.showCalPicker = true; }
+      drawTaskForm();
+      break;
+    case "pick-week-mode":
+      captureTaskForm();
+      formState.weekMode = el.dataset.m;
+      if(formState.weekMode==="days" && !formState.weekDays) formState.weekDays=[];
+      if(formState.weekMode==="week" && formState.weekCooldown==null) formState.weekCooldown=4;
+      drawTaskForm();
+      break;
+    case "toggle-wk-day": {
+      if(!formState.weekDays) formState.weekDays=[];
+      const d = parseInt(el.dataset.d,10);
+      const i = formState.weekDays.indexOf(d);
+      if(i===-1) formState.weekDays.push(d); else formState.weekDays.splice(i,1);
+      el.classList.toggle("cal-sel", i===-1);
+      break;
+    }
+    case "wk-cool-dec":
+      captureTaskForm();
+      formState.weekCooldown = Math.max(0, (formState.weekCooldown!=null?formState.weekCooldown:4) - 1);
+      drawTaskForm();
+      break;
+    case "wk-cool-inc":
+      captureTaskForm();
+      formState.weekCooldown = Math.min(5, (formState.weekCooldown!=null?formState.weekCooldown:4) + 1);
       drawTaskForm();
       break;
     case "cal-prev":
@@ -2773,24 +2990,29 @@ document.addEventListener("click", (e)=>{
       const allDayRequired = isExtremeT ? !!formState.allDayRequired : false;
       const isShared = isExtremeT && ["competitive","collab","all"].includes(formState.extremeMode);
       const calDates = formState.freq==="calendar" ? (formState.calDates||[]).slice().sort() : undefined;
+      const isWeekly = formState.freq==="weekly";
+      const weekMode = isWeekly ? (formState.weekMode||"week") : undefined;
+      const weekDays = (isWeekly && weekMode==="days") ? (formState.weekDays||[]).slice() : undefined;
+      const weekCooldown = (isWeekly && weekMode==="week") ? (formState.weekCooldown!=null?formState.weekCooldown:4) : undefined;
       if(formState.id){
         const tsk=task(formState.id);
         tsk.title=title; tsk.points=points; tsk.freq=formState.freq; tsk.type=formState.type;
         tsk.extremeMode=extremeMode; tsk.allDayRequired=allDayRequired;
         tsk.periodId=periodId; tsk.carryOn=carryOn; tsk.carryOnPenalty=carryOnPenalty; tsk.incompletePenalty=incompletePenalty;
         tsk.calDates=calDates;
+        tsk.weekMode=weekMode; tsk.weekDays=weekDays; tsk.weekCooldown=weekCooldown;
       } else if(isShared){
         state.tasks.push({
           id:uid(), type:"extreme", extremeMode, allDayRequired,
           title, points, freq:formState.freq, childIds:[...(formState.childIds||[])],
-          periodId, carryOn, carryOnPenalty, incompletePenalty, calDates, createdAt:Date.now(),
+          periodId, carryOn, carryOnPenalty, incompletePenalty, calDates, weekMode, weekDays, weekCooldown, createdAt:Date.now(),
         });
       } else {
         (formState.childIds||[]).forEach(cid=>{
           state.tasks.push({
             id:uid(), type:formState.type, extremeMode, allDayRequired,
             title, points, freq:formState.freq, childId:cid,
-            periodId, carryOn, carryOnPenalty, incompletePenalty, calDates, createdAt:Date.now(),
+            periodId, carryOn, carryOnPenalty, incompletePenalty, calDates, weekMode, weekDays, weekCooldown, createdAt:Date.now(),
           });
         });
       }
@@ -2999,7 +3221,7 @@ document.addEventListener("click", (e)=>{
     case "skip-task": {
       const taskId=id, childId=view.childId;
       const tsk=task(taskId); if(!tsk) break;
-      const pk=periodKey(tsk.freq);
+      const pk=taskPK(tsk);
       if(!state.skips) state.skips=[];
       const idx=state.skips.findIndex(x=>x.taskId===taskId && x.childId===childId && x.periodKey===pk);
       const nowSkipped = idx<0;
@@ -3198,11 +3420,15 @@ function applyPenalties(){
     if(!tsk.carryOnPenalty && !tsk.incompletePenalty) return;
     if(tsk.freq==="weekdays" && (todayDowP===0||todayDowP===6)) return;
     if(tsk.freq==="calendar" && !(tsk.calDates||[]).includes(today)) return;
+    if(tsk.freq==="weekly"){
+      if((tsk.weekMode||"week")!=="days") return;              /* week/workweek/weekend → Passe 3 */
+      if(!(tsk.weekDays||[]).includes(todayDowP)) return;      /* jour non sélectionné */
+    }
     const p = period(tsk.periodId);
     if(!p || p.isAllDay) return;       /* pas de limite horaire pour all-day */
     if(nowStr <= p.endTime) return;    /* période pas encore terminée */
 
-    const pk = periodKey(tsk.freq);
+    const pk = taskPK(tsk);
 
     taskChildIds(tsk).forEach(cid => {
       const st = taskStatusFor(tsk, cid);
@@ -3243,11 +3469,15 @@ function applyPenalties(){
       const prevDow = prevDate.getDay();
       if(tsk.freq==="weekdays" && (prevDow===0||prevDow===6)) return;
       if(tsk.freq==="calendar" && !(tsk.calDates||[]).includes(lastDay)) return;
+      if(tsk.freq==="weekly"){
+        if((tsk.weekMode||"week")!=="days") return;            /* week/workweek/weekend → Passe 3 */
+        if(!(tsk.weekDays||[]).includes(prevDow)) return;
+      }
       const p = period(tsk.periodId);
       if(!p || p.isAllDay) return;
 
-      const prevPk = periodKey(tsk.freq, prevDate);
-      const currPk = periodKey(tsk.freq);
+      const prevPk = taskPK(tsk, prevDate);
+      const currPk = taskPK(tsk);
       if(prevPk === currPk) return; /* même occurrence de fréquence → rien */
 
       taskChildIds(tsk).forEach(cid => {
@@ -3270,6 +3500,36 @@ function applyPenalties(){
     state.lastDayChecked = today;
     changed = true;
   }
+
+  /* — Passe 3 : pénalités de fin d'occurrence hebdo (1x/sem, 1x/sem travail, 1x/fds) — */
+  state.tasks.forEach(tsk => {
+    if(tsk.freq!=="weekly") return;
+    if((tsk.weekMode||"week")==="days") return;   /* géré comme quotidien (Passes 1-2) */
+    if(!tsk.incompletePenalty) return;
+
+    /* occurrence à vérifier : la plus récente dont la fenêtre est fermée */
+    let occ = weekWindow(tsk, now);
+    if(now <= occ.end) occ = weekWindow(tsk, new Date(now.getTime() - 7*86400000));
+    if(now <= occ.end) return;   /* rien de fermé */
+    if(tsk.createdAt && occ.start.getTime() < tsk.createdAt) return; /* occurrence antérieure à la création */
+
+    taskChildIds(tsk).forEach(cid => {
+      /* complétion (approuvée ou soumise) pour cette occurrence → exempt */
+      const done = state.completions.some(x =>
+        x.taskId===tsk.id && x.childId===cid && x.periodKey===occ.key);
+      if(done) return;
+      if(state.skips && state.skips.some(x=>x.taskId===tsk.id && x.childId===cid && x.periodKey===occ.key)) return;
+
+      const logKey = `${tsk.id}|${cid}|${occ.key}|wk-incomplete`;
+      if(!state.penaltyLog[logKey]){
+        state.penaltyLog[logKey] = today;
+        applyEvent("bomb",
+          esc(tsk.title) + " : " + t("incompleteSuffix"),
+          tsk.incompletePenalty, [cid]);
+        changed = true;
+      }
+    });
+  });
 
   if(changed) save();
 }
