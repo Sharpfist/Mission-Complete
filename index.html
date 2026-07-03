@@ -551,7 +551,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.29";
+const APP_VERSION = "v0.30";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1729,9 +1729,10 @@ function parentEvents(){
   etpls.forEach(tpl => {
     if(!evLive[tpl.id]) evLive[tpl.id] = { pts: tpl.points, childIds: [] };
   });
-  const tplCards = etpls.length === 0
+  const etplsSorted = [...etpls].sort((a,b) => (a.type==="powerup"?0:1) - (b.type==="powerup"?0:1));
+  const tplCards = etplsSorted.length === 0
     ? `<div class="empty"><span class="em">📋</span>${t("noEventTpls")}</div>`
-    : etpls.map(tpl => {
+    : etplsSorted.map(tpl => {
         const isPowerup = tpl.type === "powerup";
         const accentColor = isPowerup ? "#2BB673" : "#E74C3C";
         const live = evLive[tpl.id];
