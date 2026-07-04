@@ -235,7 +235,7 @@
   .mth-nth-cell{background:#fff;border:1.5px solid var(--line);border-radius:8px;padding:0;height:32px;font-size:11px;font-weight:700;color:var(--ink)}
   .mth-nth-cell.on{background:var(--ink);color:#fff;border-color:var(--ink)}
   .toast{
-    position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);opacity:0;
+    position:fixed;left:50%;top:20px;transform:translateX(-50%) translateY(-20px);opacity:0;
     background:var(--ink);color:#fff;font-weight:800;padding:13px 20px;border-radius:14px;z-index:80;
     box-shadow:var(--shadow);transition:all .25s ease;pointer-events:none;font-size:15px;text-align:center;max-width:90%;
   }
@@ -630,7 +630,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.43";
+const APP_VERSION = "v0.44";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
