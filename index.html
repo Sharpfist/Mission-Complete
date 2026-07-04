@@ -624,7 +624,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.38";
+const APP_VERSION = "v0.39";
 const KEY = "missions_recompenses_v1";
 const PAGE_LOAD_TIME = Date.now();
 let _mem = null;
@@ -1623,9 +1623,9 @@ function renderChild(){
     const updateAt = startAt + ((notif.type==="powerup"||notif.type==="investment") ? 1550 : 2550);
 
     setTimeout(() => {
-      if(notif.type==="powerup"){ showPowerUpAnim(c.color, notif.points); playPowerUpSound(); }
-      else if(notif.type==="investment"){ showPowerUpAnim(c.color, notif.points); playInvestmentSound(); }
-      else { showBombAnim(notif.points); playBombSound(); }
+      if(notif.type==="powerup"){ showPowerUpAnim(c.color, notif.points, notif.title); playPowerUpSound(); }
+      else if(notif.type==="investment"){ showPowerUpAnim(c.color, notif.points, notif.title); playInvestmentSound(); }
+      else { showBombAnim(notif.points, notif.title); playBombSound(); }
     }, startAt);
 
     setTimeout(() => {
@@ -2465,7 +2465,7 @@ function playInvestmentSound(){
 }
 
 /* ---- Animations visuelles ---- */
-function showPowerUpAnim(color, pts){
+function showPowerUpAnim(color, pts, title){
   const ov=document.createElement("div");
   ov.style.cssText="position:fixed;inset:0;z-index:500;pointer-events:none;overflow:hidden";
   const emojis=["⭐","✨","🌟","💫"];
@@ -2482,17 +2482,17 @@ function showPowerUpAnim(color, pts){
   const hero=document.querySelector(".hero");
   if(hero){ hero.style.animation="ev-hero-pulse 0.6s ease 0.1s"; setTimeout(()=>{ hero.style.animation=""; },900); }
   const badge=document.createElement("div");
-  badge.textContent=`+${pts}`;
+  badge.innerHTML=`<div style="font-size:30px;font-weight:900;line-height:1">+${pts}</div>${title?`<div style="font-size:13px;font-weight:700;opacity:.88;max-width:160px;line-height:1.25;margin-top:3px">${esc(title)}</div>`:""}`;
   const pv=document.getElementById("pts-val");
   const br=pv?pv.getBoundingClientRect():null;
   badge.style.cssText=`position:absolute;left:${br?br.right+6+"px":"50%"};top:${br?br.top+br.height/2+"px":"46%"};
-    font-size:30px;font-weight:900;color:#FFD700;text-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;
+    color:#FFD700;text-shadow:0 2px 10px rgba(0,0,0,.35);
     animation:ev-pts-up-side 1.8s ease-out 0.15s forwards;opacity:0`;
   ov.appendChild(badge);
   document.body.appendChild(ov);
   setTimeout(()=>ov.remove(), 2600);
 }
-function showBombAnim(pts){
+function showBombAnim(pts, title){
   const ov=document.createElement("div");
   ov.style.cssText="position:fixed;inset:0;z-index:500;pointer-events:none;overflow:hidden";
   const bomb=document.createElement("div");
@@ -2507,11 +2507,11 @@ function showBombAnim(pts){
   flash.style.cssText="position:absolute;inset:0;background:#FF2222;opacity:0;animation:ev-flash 0.35s ease-out 0.88s forwards";
   ov.appendChild(flash);
   const badge=document.createElement("div");
-  badge.textContent=`-${pts}`;
+  badge.innerHTML=`<div style="font-size:30px;font-weight:900;line-height:1">-${pts}</div>${title?`<div style="font-size:13px;font-weight:700;opacity:.88;max-width:160px;line-height:1.25;margin-top:3px">${esc(title)}</div>`:""}`;
   const pv2=document.getElementById("pts-val");
   const br2=pv2?pv2.getBoundingClientRect():null;
   badge.style.cssText=`position:absolute;left:${br2?br2.right+6+"px":"50%"};top:${br2?br2.top+br2.height/2+"px":"46%"};
-    font-size:30px;font-weight:900;color:#FF3333;text-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;
+    color:#FF3333;text-shadow:0 2px 10px rgba(0,0,0,.35);
     animation:ev-pts-down-side 1.8s ease-out 1.15s forwards;opacity:0`;
   ov.appendChild(badge);
   document.body.appendChild(ov);
