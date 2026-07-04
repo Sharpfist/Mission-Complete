@@ -451,6 +451,9 @@ const TRANSLATIONS = {
     rejectPenaltyLabel:"Points de pénalité (bombe, 0 = aucune)",
     btnConfirmReject:"Confirmé",notDoneSuffix:"non terminé",incompleteSuffix:"non complétée",
     sharedTag:"partagée",
+    quickApply:"Application rapide",qevTitlePh:"Nom de l'événement...",
+    qevApplyPowerup:"⚡ Appliquer Power-Up",qevApplyBomb:"💣 Appliquer Bombe",
+    qevReset:"Ré-initialiser",qevSaveTpl:"Sauvegarder comme modèle",qevTplSaved:"Ajouté comme modèle ✓",
     settingsPause:"🏖️ Mode Pause",settingsPauseDesc:"Suspend toutes les missions, pénalités et l'investissement. Parfait pour les vacances !",
     pauseActive:"Pause en cours · aucune mission aujourd'hui",toastPauseOn:"⏸ Mode pause activé",toastPauseOff:"▶ Mode actif",
     pauseChildBanner:"Reviens bientôt !",pauseChildSub:"Les missions reprennent à la fin de la pause.",
@@ -583,6 +586,9 @@ const TRANSLATIONS = {
     rejectPenaltyLabel:"Penalty points (bomb, 0 = none)",
     btnConfirmReject:"Confirm",notDoneSuffix:"not completed",incompleteSuffix:"not completed",
     sharedTag:"shared",
+    quickApply:"Quick apply",qevTitlePh:"Event name...",
+    qevApplyPowerup:"⚡ Apply Power-Up",qevApplyBomb:"💣 Apply Bomb",
+    qevReset:"Reset",qevSaveTpl:"Save as template",qevTplSaved:"Added as template ✓",
     settingsPause:"🏖️ Pause Mode",settingsPauseDesc:"Suspends all missions, penalties and investment. Great for vacation!",
     pauseActive:"Pause on · no missions today",toastPauseOn:"⏸ Pause mode on",toastPauseOff:"▶ Active mode on",
     pauseChildBanner:"Come back soon!",pauseChildSub:"Missions will resume when pause ends.",
@@ -624,7 +630,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.40";
+const APP_VERSION = "v0.41";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -2225,6 +2231,7 @@ function parentSettings(){
 
 /* ============ Événements (Power-Up / Bombe) ============ */
 let evLive = {};
+let evQuick = { type:"powerup", title:"", points:5, childIds:[] };
 let tplEditMode = false;
 let tplFormState = {idx:-1, title:"", points:5};
 function parentEvents(){
@@ -2233,41 +2240,67 @@ function parentEvents(){
     if(!evLive[tpl.id]) evLive[tpl.id] = { pts: tpl.points, childIds: [] };
   });
   const etplsSorted = [...etpls].sort((a,b) => (a.type==="powerup"?0:1) - (b.type==="powerup"?0:1));
-  const tplCards = etplsSorted.length === 0
-    ? `<div class="empty"><span class="em">📋</span>${t("noEventTpls")}</div>`
-    : etplsSorted.map(tpl => {
-        const isPowerup = tpl.type === "powerup";
-        const accentColor = isPowerup ? "#2BB673" : "#E74C3C";
-        const live = evLive[tpl.id];
-        return `
-          <div class="card ev-tpl-card ${tpl.type}" style="padding:14px 16px">
-            <div class="row" style="margin-bottom:10px;gap:10px">
-              <span style="font-size:24px;flex-shrink:0">${isPowerup?"⚡":"💣"}</span>
-              <div style="font-weight:800;font-size:16px;flex:1">${esc(tpl.title)}</div>
-              <button class="icon-btn" style="flex-shrink:0;font-size:18px" data-action="edit-event-tpl" data-id="${tpl.id}">✏️</button>
-            </div>
-            <div class="kid-pick" style="margin-bottom:12px">
-              ${state.children.map(k => {
-                const on = live.childIds.includes(k.id);
-                return `<button class="opt${on?" on":""}" data-action="ev-kid-tog" data-tpl="${tpl.id}" data-kid="${k.id}" style="color:${k.color}">${esc(k.emoji)} ${esc(k.name)}</button>`;
-              }).join("")}
-            </div>
-            <div style="display:flex;align-items:center;gap:10px">
-              <button class="icon-btn" style="width:32px;height:32px;background:var(--line);border-radius:9px;font-size:20px;font-weight:900;color:var(--ink)" data-action="ev-pts-down" data-id="${tpl.id}">−</button>
-              <span id="ev-pts-${tpl.id}" style="font-weight:900;font-size:18px;min-width:28px;text-align:center;color:${accentColor}">${live.pts}</span>
-              <button class="icon-btn" style="width:32px;height:32px;background:var(--line);border-radius:9px;font-size:20px;font-weight:900;color:var(--ink)" data-action="ev-pts-up" data-id="${tpl.id}">+</button>
-              <span style="color:var(--ink-soft);font-size:13px;font-weight:700">pts</span>
-              <button class="btn btn-yes" style="flex:1;margin-bottom:0" data-action="apply-ev-inline" data-id="${tpl.id}">
-                ${isPowerup?"⚡":"💣"} ${t("applyEvent")}
-              </button>
-            </div>
-          </div>`;
-      }).join("");
+  const isPowerup = evQuick.type === "powerup";
+  const accentQ = isPowerup ? "#2BB673" : "#E74C3C";
 
-  return `
-    <button class="add-btn" data-action="new-event">+ ${t("newEvent")}</button>
-    ${tplCards}
-  `;
+  const quickCard = `
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:14px">${t("quickApply")}</h3>
+      <div class="seg" style="margin-bottom:14px">
+        <button class="opt ${isPowerup?"on":""}" data-action="qev-type" data-v="powerup">${t("powerupLabel")}</button>
+        <button class="opt ${!isPowerup?"on":""}" data-action="qev-type" data-v="bomb">${t("bombLabel")}</button>
+      </div>
+      <input class="in" id="qev-title" value="${esc(evQuick.title)}" placeholder="${t("qevTitlePh")}">
+      ${state.children.length > 0 ? `
+      <div class="kid-pick" style="margin-bottom:14px">
+        ${state.children.map(k => {
+          const on = evQuick.childIds.includes(k.id);
+          return `<button class="opt${on?" on":""}" data-action="qev-kid-tog" data-id="${k.id}" style="${on?"":"color:"+k.color}">${esc(k.emoji)} ${esc(k.name)}</button>`;
+        }).join("")}
+      </div>` : ""}
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <button class="icon-btn" style="width:36px;height:36px;background:var(--line);border-radius:9px;font-size:22px;font-weight:900;color:var(--ink)" data-action="qev-pts-down">−</button>
+        <span id="qev-pts" style="font-weight:900;font-size:22px;min-width:36px;text-align:center;color:${accentQ}">${evQuick.points}</span>
+        <button class="icon-btn" style="width:36px;height:36px;background:var(--line);border-radius:9px;font-size:22px;font-weight:900;color:var(--ink)" data-action="qev-pts-up">+</button>
+        <span style="font-weight:700;font-size:14px;color:var(--ink-soft)">pts</span>
+      </div>
+      <button class="btn btn-ghost" style="width:100%;margin-bottom:8px" data-action="qev-save-tpl">${t("qevSaveTpl")}</button>
+      <button class="btn btn-yes" style="width:100%;font-size:17px;padding:16px;margin-bottom:8px" data-action="qev-apply">${isPowerup?t("qevApplyPowerup"):t("qevApplyBomb")}</button>
+      <button class="btn btn-ghost" style="width:100%" data-action="qev-reset">${t("qevReset")}</button>
+    </div>`;
+
+  const tplCards = etplsSorted.length === 0 ? "" : `
+    <div style="font-size:11px;font-weight:800;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.6px;margin:4px 2px 8px">${t("quickTemplates")}</div>
+    ${etplsSorted.map(tpl => {
+      const ipu = tpl.type === "powerup";
+      const ac = ipu ? "#2BB673" : "#E74C3C";
+      const live = evLive[tpl.id];
+      return `
+        <div class="card ev-tpl-card ${tpl.type}" style="padding:14px 16px">
+          <div class="row" style="margin-bottom:10px;gap:10px">
+            <span style="font-size:24px;flex-shrink:0">${ipu?"⚡":"💣"}</span>
+            <div style="font-weight:800;font-size:16px;flex:1">${esc(tpl.title)}</div>
+            <button class="icon-btn" style="flex-shrink:0;font-size:18px" data-action="edit-event-tpl" data-id="${tpl.id}">✏️</button>
+          </div>
+          <div class="kid-pick" style="margin-bottom:12px">
+            ${state.children.map(k => {
+              const on = live.childIds.includes(k.id);
+              return `<button class="opt${on?" on":""}" data-action="ev-kid-tog" data-tpl="${tpl.id}" data-kid="${k.id}" style="color:${k.color}">${esc(k.emoji)} ${esc(k.name)}</button>`;
+            }).join("")}
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <button class="icon-btn" style="width:32px;height:32px;background:var(--line);border-radius:9px;font-size:20px;font-weight:900;color:var(--ink)" data-action="ev-pts-down" data-id="${tpl.id}">−</button>
+            <span id="ev-pts-${tpl.id}" style="font-weight:900;font-size:18px;min-width:28px;text-align:center;color:${ac}">${live.pts}</span>
+            <button class="icon-btn" style="width:32px;height:32px;background:var(--line);border-radius:9px;font-size:20px;font-weight:900;color:var(--ink)" data-action="ev-pts-up" data-id="${tpl.id}">+</button>
+            <span style="color:var(--ink-soft);font-size:13px;font-weight:700">pts</span>
+            <button class="btn btn-yes" style="flex:1;margin-bottom:0" data-action="apply-ev-inline" data-id="${tpl.id}">
+              ${ipu?"⚡":"💣"} ${t("applyEvent")}
+            </button>
+          </div>
+        </div>`;
+    }).join("")}`;
+
+  return quickCard + tplCards;
 }
 
 function parentInvestissement(){
@@ -3466,6 +3499,58 @@ document.addEventListener("click", (e)=>{
 
     /* événements */
     case "new-event": newEventForm(); break;
+
+    /* application rapide d'événement */
+    case "qev-type": {
+      const ti=document.getElementById("qev-title"); if(ti) evQuick.title=ti.value;
+      evQuick.type=el.dataset.v;
+      const pb=document.getElementById("parent-body"); if(pb) pb.innerHTML=parentEvents();
+      break;
+    }
+    case "qev-pts-up": {
+      evQuick.points++;
+      const d=document.getElementById("qev-pts"); if(d) d.textContent=evQuick.points;
+      break;
+    }
+    case "qev-pts-down": {
+      evQuick.points=Math.max(1,evQuick.points-1);
+      const d2=document.getElementById("qev-pts"); if(d2) d2.textContent=evQuick.points;
+      break;
+    }
+    case "qev-kid-tog": {
+      const kid=el.dataset.id;
+      const idx=evQuick.childIds.indexOf(kid);
+      if(idx>=0) evQuick.childIds.splice(idx,1); else evQuick.childIds.push(kid);
+      el.classList.toggle("on", evQuick.childIds.includes(kid));
+      const c2=state.children.find(x=>x.id===kid);
+      if(c2) el.style.color=evQuick.childIds.includes(kid)?"":c2.color;
+      break;
+    }
+    case "qev-apply": {
+      const title=(document.getElementById("qev-title").value||"").trim();
+      if(!title){ toast(t("toastNeedTaskName")); break; }
+      applyEvent(evQuick.type, title, evQuick.points, evQuick.childIds);
+      toast(t(evQuick.type==="powerup"?"toastPowerUpApplied":"toastBombApplied"));
+      evQuick={type:"powerup",title:"",points:5,childIds:[]};
+      const pb2=document.getElementById("parent-body"); if(pb2) pb2.innerHTML=parentEvents();
+      break;
+    }
+    case "qev-save-tpl": {
+      const title2=(document.getElementById("qev-title").value||"").trim();
+      if(!title2){ toast(t("toastNeedTaskName")); break; }
+      if(!state.eventTemplates) state.eventTemplates=[];
+      state.eventTemplates.push({id:uid(), type:evQuick.type, title:title2, points:evQuick.points, childIds:[]});
+      save();
+      const pb3=document.getElementById("parent-body"); if(pb3) pb3.innerHTML=parentEvents();
+      toastColored(t("qevTplSaved"),"#5c2a85",2500);
+      break;
+    }
+    case "qev-reset": {
+      evQuick={type:"powerup",title:"",points:5,childIds:[]};
+      const pb4=document.getElementById("parent-body"); if(pb4) pb4.innerHTML=parentEvents();
+      break;
+    }
+
     case "pick-ev-type": {
       const ti=document.getElementById("ev-title"), pi=document.getElementById("ev-points");
       if(ti) eventFormState.title=ti.value;
