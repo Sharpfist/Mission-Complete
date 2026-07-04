@@ -111,6 +111,7 @@
     box-shadow:inset 0 -3px 0 rgba(0,0,0,.12);
   }
   .do:active{transform:translateY(1px)}
+  .do.waiting{font-size:12px;padding:8px 10px;white-space:normal;text-align:center;line-height:1.3;max-width:90px}
   .waiting,.done-chip,.status-chip{
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     border-radius:14px;padding:8px 12px;font-size:13px;font-weight:900;
@@ -211,13 +212,13 @@
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:14px}
   .cal-hd{text-align:center;font-size:11px;font-weight:700;color:var(--ink-soft);padding:3px 0}
   .cal-day{background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:0;height:38px;font-size:14px;font-weight:700;color:var(--ink)}
-  .cal-day.cal-sel{background:var(--accent,#007AFF);color:#fff;border-color:var(--accent,#007AFF)}
+  .cal-day.cal-sel{background:var(--ink);color:#fff;border-color:var(--ink)}
   .wk-panel{margin:2px 0 4px;animation:wkIn .25s ease}
   .wk-divider{border-top:1.5px solid var(--line);margin:16px 0 2px}
   @keyframes wkIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
   .wk-modes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
   .wk-mode{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:13px 8px;font-size:13px;font-weight:800;color:var(--ink);line-height:1.2}
-  .wk-mode.on{background:var(--accent,#007AFF);color:#fff;border-color:var(--accent,#007AFF)}
+  .wk-mode.on{background:var(--ink);color:#fff;border-color:var(--ink)}
   .wk-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:4px 0 6px}
   .wk-sub{background:var(--bg);border-radius:14px;padding:12px 14px;margin-top:4px}
   .wk-intro{font-size:12px;color:var(--ink-soft);line-height:1.35;margin-bottom:8px}
@@ -225,6 +226,14 @@
   .wk-cool-row{display:flex;align-items:center;justify-content:center;gap:14px}
   .wk-cool-row button{width:38px;height:38px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-size:20px;font-weight:900;color:var(--ink)}
   .wk-cool-row span{font-weight:800;font-size:15px;min-width:86px;text-align:center}
+  .mth-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:4px 0 6px}
+  .mth-day{background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:0;height:38px;font-size:13px;font-weight:700;color:var(--ink)}
+  .mth-day.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .mth-nth-grid{display:grid;grid-template-columns:46px repeat(7,1fr);gap:3px;margin:4px 0 6px}
+  .mth-nth-hd{font-size:10px;font-weight:800;color:var(--ink-soft);text-align:center;padding:3px 0}
+  .mth-nth-lbl{font-size:10px;font-weight:800;color:var(--ink-soft);display:flex;align-items:center;line-height:1.2}
+  .mth-nth-cell{background:#fff;border:1.5px solid var(--line);border-radius:8px;padding:0;height:32px;font-size:11px;font-weight:700;color:var(--ink)}
+  .mth-nth-cell.on{background:var(--ink);color:#fff;border-color:var(--ink)}
   .toast{
     position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);opacity:0;
     background:var(--ink);color:#fff;font-weight:800;padding:13px 20px;border-radius:14px;z-index:80;
@@ -323,13 +332,13 @@ const TRANSLATIONS = {
     heroSub:"Termine tes missions pour en gagner plus !",
     shopBtn:"🛒 Boutique des récompenses",
     groupToday:"Aujourd'hui",groupWeek:"Cette semaine",groupMonth:"Ce mois-ci",groupSpecial:"Missions spéciales",
-    btnDone:"J'ai fait ✓",statusPending:"⏳ En attente",statusDone:"✅ Bravo !",
+    btnDone:"J'ai fait ✓",statusPending:"⏳ En attente",statusDone:"✅ Bravo !",toastUndoTask:"Annulé ↩",
     noTasks:"Aucune mission pour l'instant.<br>Un parent peut en ajouter dans l'espace parent.",
     storeTitle:"🛒 Boutique",buyBtn:"Acheter — {cost} pts",buyLocked:"🔒 {cost} pts",
     storeNote:"Quand tu achètes, tes points baissent.<br>Va voir un parent pour recevoir ta surprise 😊",
     noRewards:"Aucune récompense pour l'instant.",
     tabApprove:"À valider",tabTasks:"Missions",tabStore:"Boutique",tabChildren:"Enfants",tabInvestment:"Investissement",tabSettings:"Réglages",
-    skip:"Ignorer",skipped:"Ignorée",parentalDone:"Terminé ✓",
+    skip:"Ignorer",skipped:"Ignorée",pushTomorrow:"Pousser à demain",pushedTomorrow:"Remise à demain",parentalDone:"Terminé ✓",
     noApprovals:"Rien à valider pour le moment.<br>Quand un enfant coche « J'ai fait », ça apparaît ici.",
     btnApprove:"✓ Valider (+{pts})",btnReject:"✗ Refuser",
     addTask:"＋ Nouvelle mission",quickTemplates:"⚡ Modèles rapides",
@@ -371,10 +380,17 @@ const TRANSLATIONS = {
     wkPickDays:"Choisis les jours",wkWeekIntro:"Une fois complétée, la mission redevient disponible la semaine prochaine ET après",wkDaysUnit:"jour(s)",
     wkWorkHint:"Lundi au vendredi 23h59",wkWeekendHint:"Vendredi 14h à dimanche 23h59",wkBoxTitle:"Semaine",
     wkValWeek:"1 fois / semaine",wkValWork:"Lundi au Vendredi",wkValWeekend:"Vendredi pm · Samedi · Dimanche",wkValDaysNone:"Aucun jour choisi",wkDayShort:"J",wkSectionTitle:"Semaine :",
+    mthModeDay:"Jour(s) spécifique(s)",mthModeMonth:"1x / mois",mthModeStart:"Début du mois",mthModeEnd:"Fin du mois",mthModeNthDay:"Journée(s) du mois",
+    mthPickDay:"Choisis le jour",mthMonthIntro:"Une fois complétée, la mission redevient disponible le mois prochain ET après",mthDaysUnit:"jour(s)",
+    mthStartHint:"Dans les premiers",mthEndHint:"Dans les derniers",mthDaysOfMonth:"jours du mois",
+    mthSectionTitle:"Mois :",mthBoxTitle:"Mois",
+    mthValDay:"Le",mthValMonth:"1 fois / mois",mthValStart:"Début du mois",mthValEnd:"Fin du mois",mthDayShort:"J",mthValNthDay:"Journées du mois",
+    mthNthRows:"1er,2e,3e,4e,Dernier",
     btnCancel:"Annuler",btnSave:"Enregistrer",btnOK:"OK",btnOther:"Autre…",
     toastSent:"Envoyé ! Un parent va valider 👍",toastNotEnoughPts:"Pas assez de points 🙈",
     toastBought:"Acheté ! Va voir un parent 🎉",toastWrongPin:"Code incorrect",
     toastApproved:"Points accordés ✅",toastRejected:"Refusé — la mission reste à faire",
+    toastForceUnlock:"🔓 Mission extrême débarrée pour la journée",toastForceLock:"🔒 Cadenas refermé",
     toastTaskSaved:"Mission enregistrée ✓",toastRewardSaved:"Récompense enregistrée ✓",
     toastChildSaved:"Enregistré ✓",toastChildDeleted:"Enfant supprimé",toastPinSaved:"Code enregistré 🔒",
     toastReset:"Réinitialisé",toastBackupDone:"Sauvegarde téléchargée 💾",toastRestored:"Sauvegarde restaurée ✓",
@@ -424,7 +440,8 @@ const TRANSLATIONS = {
     carriedOver:"reportée de la période précédente",
     extremeModeLabel:"Genre de mission extrême",
     modeSolo:"Solo",modeCompetitive:"Compétitif",modeCollab:"Collabore",modeAll:"Tous",
-    fldAllDayRequired:"Les tâches « Toute la journée » doivent aussi être complétées",
+    fldAllDayRequired:"Les missions « Toute la journée » doivent être terminées avant que la mission extrême soit disponible ?",
+    fldPeriodRequired:"Les missions de la période doivent être terminées avant que la mission extrême soit disponible ?",
     extremeSurplus:"⭐ Surplus",
     extremeLocked:"Termine d'abord tes tâches de la période",
     extremeWon:"❌ Déjà remportée",
@@ -444,13 +461,13 @@ const TRANSLATIONS = {
     heroSub:"Complete your missions to earn more!",
     shopBtn:"🛒 Rewards store",
     groupToday:"Today",groupWeek:"This week",groupMonth:"This month",groupSpecial:"Special missions",
-    btnDone:"Done ✓",statusPending:"⏳ Waiting",statusDone:"✅ Great!",
+    btnDone:"Done ✓",statusPending:"⏳ Waiting",statusDone:"✅ Great!",toastUndoTask:"Cancelled ↩",
     noTasks:"No missions yet.<br>A parent can add some in the parent area.",
     storeTitle:"🛒 Store",buyBtn:"Buy — {cost} pts",buyLocked:"🔒 {cost} pts",
     storeNote:"When you buy, your points go down.<br>See a parent to get your surprise 😊",
     noRewards:"No rewards yet.",
     tabApprove:"To approve",tabTasks:"Missions",tabStore:"Store",tabChildren:"Children",tabInvestment:"Investment",tabSettings:"Settings",
-    skip:"Skip",skipped:"Skipped",parentalDone:"Done ✓",
+    skip:"Skip",skipped:"Skipped",pushTomorrow:"Push to tomorrow",pushedTomorrow:"Pushed to tomorrow",parentalDone:"Done ✓",
     noApprovals:"Nothing to approve right now.<br>When a child taps « Done », it appears here.",
     btnApprove:"✓ Approve (+{pts})",btnReject:"✗ Reject",
     addTask:"＋ New mission",quickTemplates:"⚡ Quick templates",
@@ -492,10 +509,17 @@ const TRANSLATIONS = {
     wkPickDays:"Choose the days",wkWeekIntro:"Once completed, the mission becomes available again next week AND after",wkDaysUnit:"day(s)",
     wkWorkHint:"Monday to Friday 11:59pm",wkWeekendHint:"Friday 2pm to Sunday 11:59pm",wkBoxTitle:"Week",
     wkValWeek:"Once / week",wkValWork:"Monday to Friday",wkValWeekend:"Friday pm · Saturday · Sunday",wkValDaysNone:"No day chosen",wkDayShort:"d",wkSectionTitle:"Week:",
+    mthModeDay:"Specific day(s)",mthModeMonth:"1x / month",mthModeStart:"Start of month",mthModeEnd:"End of month",mthModeNthDay:"Day(s) of month",
+    mthPickDay:"Choose the day",mthMonthIntro:"Once completed, the mission becomes available again next month AND after",mthDaysUnit:"day(s)",
+    mthStartHint:"In the first",mthEndHint:"In the last",mthDaysOfMonth:"days of the month",
+    mthSectionTitle:"Month:",mthBoxTitle:"Month",
+    mthValDay:"The",mthValMonth:"Once / month",mthValStart:"Start of month",mthValEnd:"End of month",mthDayShort:"d",mthValNthDay:"Days of month",
+    mthNthRows:"1st,2nd,3rd,4th,Last",
     btnCancel:"Cancel",btnSave:"Save",btnOK:"OK",btnOther:"Other…",
     toastSent:"Sent! A parent will approve 👍",toastNotEnoughPts:"Not enough points 🙈",
     toastBought:"Bought! Go see a parent 🎉",toastWrongPin:"Wrong PIN",
     toastApproved:"Points awarded ✅",toastRejected:"Rejected — mission stays to do",
+    toastForceUnlock:"🔓 Extreme mission unlocked for the day",toastForceLock:"🔒 Lock closed",
     toastTaskSaved:"Mission saved ✓",toastRewardSaved:"Reward saved ✓",
     toastChildSaved:"Saved ✓",toastChildDeleted:"Child removed",toastPinSaved:"PIN saved 🔒",
     toastReset:"Reset",toastBackupDone:"Backup downloaded 💾",toastRestored:"Backup restored ✓",
@@ -545,7 +569,8 @@ const TRANSLATIONS = {
     carriedOver:"carried over from previous period",
     extremeModeLabel:"Extreme mission kind",
     modeSolo:"Solo",modeCompetitive:"Competitive",modeCollab:"Collaborate",modeAll:"Everyone",
-    fldAllDayRequired:"« All day » tasks must also be completed",
+    fldAllDayRequired:"« All day » missions must be completed before the extreme mission is available?",
+    fldPeriodRequired:"Period missions must be completed before the extreme mission is available?",
     extremeSurplus:"⭐ Surplus",
     extremeLocked:"Finish your period tasks first",
     extremeWon:"❌ Already won",
@@ -593,8 +618,9 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.34";
+const APP_VERSION = "v0.35";
 const KEY = "missions_recompenses_v1";
+const PAGE_LOAD_TIME = Date.now();
 let _mem = null;
 function load(){
   try { const r = localStorage.getItem(KEY); if(r) return JSON.parse(r); } catch(e){}
@@ -659,6 +685,8 @@ function defaults(){
     ],
     notifications:[],
     skips:[],
+    pushes:[],
+    forceUnlocked:[],
     investment:{enabled:true, rate:2, freq:"daily"},
     lastInvestmentApplied:"",
     lastBackupAt:null,
@@ -679,7 +707,9 @@ if(!state.periods) {
 }
 if(!state.notifications) { state.notifications = []; save(); }
 if(!state.purchases) { state.purchases = []; save(); }
-if(!state.skips) { state.skips = []; save(); }
+if(!state.skips)         { state.skips         = []; save(); }
+if(!state.pushes)        { state.pushes        = []; save(); }
+if(!state.forceUnlocked) { state.forceUnlocked = []; save(); }
 if(!state.investment) { state.investment = {enabled:true, rate:2, freq:"daily"}; save(); }
 if(state.lastInvestmentApplied === undefined) { state.lastInvestmentApplied = ""; save(); }
 if(!state.eventTemplates){
@@ -695,6 +725,7 @@ if(!state.eventTemplates){
 /* ============ Outils de période ============ */
 function pad(n){ return String(n).padStart(2,"0"); }
 function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+function yesterdayStr(){ const d=new Date(); d.setDate(d.getDate()-1); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
 function isoWeek(d){
   const x = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   const day = x.getUTCDay() || 7;
@@ -716,7 +747,8 @@ function periodKey(freq, d){
 /* clé d'occurrence tenant compte du sous-mode Semaine :
    « Journée(s) spécifique(s) » = une occurrence par jour ; les autres modes = par semaine ISO */
 function taskPK(tsk, d){
-  if(tsk && tsk.freq==="weekly" && tsk.weekMode==="days") return periodKey("daily", d);
+  if(tsk && tsk.freq==="weekly"  && tsk.weekMode==="days")  return periodKey("daily", d);
+  if(tsk && tsk.freq==="monthly" && (tsk.monthMode==="day"||tsk.monthMode==="nthday")) return periodKey("daily", d);
   return periodKey(tsk ? tsk.freq : "once", d);
 }
 /* lundi 00:00 de la semaine contenant d */
@@ -769,6 +801,111 @@ function weekShow(tsk, childId){
   return weekWindowActive(tsk);
 }
 
+/* ============ Logique Mensuelle ============ */
+function isMonthTask(tsk){ return tsk && tsk.freq==="monthly"; }
+/* jours effectifs du mois (rétrograde si mois court) */
+function effectiveMonthDays(tsk, refDate){
+  refDate = refDate || new Date();
+  const daysInMonth = new Date(refDate.getFullYear(), refDate.getMonth()+1, 0).getDate();
+  return (tsk.monthDays||[tsk.monthDay||1]).map(d=>Math.min(d,daysInMonth));
+}
+/* résout les sélections {week,dow} en numéros de jours du mois (dédupliqués) */
+function resolveMonthWeekdays(tsk, refDate){
+  refDate = refDate || new Date();
+  const y = refDate.getFullYear(), m = refDate.getMonth();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const sels = tsk.monthWeekdays || [];
+  const dateSet = new Set();
+  sels.forEach(({week, dow}) => {
+    if(week === "last"){
+      for(let d = daysInMonth; d >= 1; d--){
+        if(new Date(y, m, d).getDay() === dow){ dateSet.add(d); break; }
+      }
+    } else {
+      let count = 0;
+      for(let d = 1; d <= daysInMonth; d++){
+        if(new Date(y, m, d).getDay() === dow){
+          count++;
+          if(count === week){ dateSet.add(d); break; }
+        }
+      }
+    }
+  });
+  return [...dateSet].sort((a,b)=>a-b);
+}
+
+/* fenêtre [start,end] de l'occurrence mensuelle contenant refDate */
+function monthWindow(tsk, refDate){
+  refDate = refDate || new Date();
+  const y = refDate.getFullYear(), m = refDate.getMonth();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const mode = tsk.monthMode || "month";
+  let start, end;
+  if(mode==="day"){
+    const days = effectiveMonthDays(tsk, refDate).sort((a,b)=>a-b);
+    const first = days[0]||1, last = days[days.length-1]||1;
+    start = new Date(y, m, first, 0, 0, 0, 0);
+    end   = new Date(y, m, last,  23, 59, 59, 999);
+  } else if(mode==="start"){
+    const w = tsk.monthWindow!=null ? tsk.monthWindow : 7;
+    start = new Date(y, m, 1, 0, 0, 0, 0);
+    end   = new Date(y, m, Math.min(w, daysInMonth), 23, 59, 59, 999);
+  } else if(mode==="end"){
+    const w = tsk.monthWindow!=null ? tsk.monthWindow : 7;
+    start = new Date(y, m, Math.max(1, daysInMonth - w + 1), 0, 0, 0, 0);
+    end   = new Date(y, m, daysInMonth, 23, 59, 59, 999);
+  } else { /* 1x/mois : tout le mois */
+    start = new Date(y, m, 1, 0, 0, 0, 0);
+    end   = new Date(y, m, daysInMonth, 23, 59, 59, 999);
+  }
+  const key = y + "-" + pad(m+1);
+  return {start, end, key};
+}
+function monthWindowActive(tsk, now){
+  now = now || new Date();
+  const mode = tsk.monthMode || "month";
+  if(mode==="day")    return effectiveMonthDays(tsk, now).includes(now.getDate());
+  if(mode==="nthday") return resolveMonthWeekdays(tsk, now).includes(now.getDate());
+  const win = monthWindow(tsk, now);
+  return now >= win.start && now <= win.end;
+}
+function monthCooldownActive(tsk, childId, now){
+  if((tsk.monthMode||"month")!=="month") return false;
+  const n = tsk.monthCooldown!=null ? tsk.monthCooldown : 14;
+  if(n<=0) return false;
+  const comps = state.completions.filter(x=>x.taskId===tsk.id && x.childId===childId);
+  if(!comps.length) return false;
+  const last  = comps.reduce((a,b)=> (b.approvedAt||b.createdAt) > (a.approvedAt||a.createdAt) ? b : a);
+  const avail = (last.approvedAt||last.createdAt) + n*86400000;
+  return (now?now.getTime():Date.now()) < avail;
+}
+function monthShow(tsk, childId){
+  if(tsk.freq!=="monthly") return true;
+  const st = taskStatusFor(tsk, childId);
+  if(st==="done" || st==="pending") return true;
+  if(monthCooldownActive(tsk, childId)) return false;
+  return monthWindowActive(tsk);
+}
+/* étiquette grise pour les missions mensuelles */
+function monthValueLabel(tsk){
+  const mode = tsk.monthMode || "month";
+  if(mode==="day"){
+    const days = (tsk.monthDays||(tsk.monthDay?[tsk.monthDay]:[])).slice().sort((a,b)=>a-b);
+    return days.length ? t("mthValDay") + " " + days.join(", ") : t("mthValDay") + " —";
+  }
+  if(mode==="nthday") return t("mthValNthDay") + " (" + ((tsk.monthWeekdays||[]).length) + ")";
+  if(mode==="start") return t("mthValStart") + " (" + (tsk.monthWindow!=null?tsk.monthWindow:7) + " " + t("mthDaysUnit") + ")";
+  if(mode==="end")   return t("mthValEnd")   + " (" + (tsk.monthWindow!=null?tsk.monthWindow:7) + " " + t("mthDaysUnit") + ")";
+  const n = tsk.monthCooldown!=null ? tsk.monthCooldown : 14;
+  return t("mthValMonth") + ", +" + n + t("mthDayShort");
+}
+function isMonthBoxTask(tsk){
+  if(tsk.freq!=="monthly" || isExtreme(tsk)) return false;
+  const periods = state.periods || [];
+  const p = periods.find(x=>x.id===tsk.periodId);
+  return !tsk.periodId || tsk.periodId==="allday" || !p || p.isAllDay;
+}
+
 /* ============ Logique ============ */
 function child(id){ return state.children.find(c=>c.id===id); }
 function reward(id){ return state.rewards.find(r=>r.id===id); }
@@ -796,6 +933,10 @@ function taskStatusFor(tsk, childId){
   return c.status==="approved" ? "done" : "pending";
 }
 
+function isPushedTomorrow(tsk, childId){
+  return !!(state.pushes && state.pushes.some(x=>x.taskId===tsk.id && x.childId===childId && x.pushedDate===todayStr()));
+}
+
 /* mission extrême « fermée » pour la période courante (compétitif remporté / collab terminé) */
 function extremeClosedKey(tsk){ return tsk.id + "|" + taskPK(tsk); }
 function isExtremeClosed(tsk){ return !!(state.extremeClosed && state.extremeClosed[extremeClosedKey(tsk)]); }
@@ -809,7 +950,8 @@ function closeExtreme(tsk){
 function extremeUnlocked(tsk, childId){
   const alldayId = alldayPeriodId();
   const pid = tsk.periodId || alldayId;
-  const gatingIds = new Set([pid]);
+  const gatingIds = new Set();
+  if(tsk.periodRequired !== false) gatingIds.add(pid);
   if(tsk.allDayRequired) gatingIds.add(alldayId);
   const gating = state.tasks.filter(x =>
     !isExtreme(x) &&
@@ -837,6 +979,15 @@ function pendingCount(){
   return tasks + purchases;
 }
 
+function undoTask(taskId, childId){
+  const t = task(taskId); if(!t) return;
+  const cid = childId != null ? childId : t.childId;
+  const pk = taskPK(t);
+  state.completions = state.completions.filter(c =>
+    !(c.taskId===taskId && c.childId===cid && c.periodKey===pk && c.status==="pending")
+  );
+  save();
+}
 function markDone(taskId, childId){
   const t = task(taskId); if(!t) return;
   const cid = childId != null ? childId : t.childId;
@@ -1054,7 +1205,7 @@ function renderChild(){
     n.childId !== c.id || !n.viewedAt || (nowMs - n.viewedAt) < THIRTY_MIN
   );
   const myNotifs    = (state.notifications||[]).filter(n => n.childId === c.id);
-  const newlyViewed = myNotifs.filter(n => !n.viewedAt);
+  const newlyViewed = myNotifs.filter(n => !n.viewedAt && n.createdAt >= PAGE_LOAD_TIME);
 
   /* capturer displayPts AVANT de poser viewedAt : lockDisplayPts soustrait les deltas
      des notifications non vues, donnant la valeur "avant animation" correcte */
@@ -1125,7 +1276,9 @@ function renderChild(){
   myTasks.forEach(tsk => {
     const st  = taskStatusFor(tsk, c.id);
     if(isWeekBoxTask(tsk)) return; /* rendu dans la boîte Semaine */
-    if(tsk.freq === "weekly" && !weekShow(tsk, c.id)) return; /* hors fenêtre / cooldown */
+    if(isMonthBoxTask(tsk)) return; /* rendu dans la boîte Mois */
+    if(tsk.freq === "weekly"  && !weekShow(tsk, c.id))  return;
+    if(tsk.freq === "monthly" && !monthShow(tsk, c.id)) return;
     if(tsk.freq === "once" && st === "done") return;
     if(tsk.freq === "weekdays" && (todayDow===0||todayDow===6)) return;
     if(tsk.freq === "calendar" && !(tsk.calDates||[]).includes(todayStr())) return;
@@ -1157,20 +1310,26 @@ function renderChild(){
     let rows = "";
     weekBoxTasks.forEach(tsk => {
       const st = taskStatusFor(tsk, c.id);
+      const isPushed = isPushedTomorrow(tsk, c.id);
       let action;
       if(view.childEditMode && st==="skipped"){
         action = `<button class="do" style="background:#ddd;color:#888;font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skipped")}</button>`;
       } else if(view.childEditMode && st==="open"){
-        action = `<button class="do" style="background:var(--line);color:var(--ink-soft);font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skip")}</button>`;
+        action = `<div style="display:flex;flex-direction:column;gap:4px">
+          <button class="do" style="background:var(--line);color:var(--ink-soft);font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skip")}</button>
+          <button class="do" style="background:${isPushed?"#ddd":"var(--line)"};color:${isPushed?"#888":"var(--ink-soft)"};font-size:11px;font-weight:700;white-space:normal;text-align:center;line-height:1.2;padding:6px 8px" data-action="push-task" data-id="${tsk.id}">${isPushed?t("pushedTomorrow"):t("pushTomorrow")}</button>
+        </div>`;
       } else if(st==="skipped"){
         action = statusChip("status-chip", `✗ ${t("skipped")}`);
+      } else if(isPushed){
+        action = statusChip("status-chip", `↷ ${t("pushedTomorrow")}`);
       } else {
         action = `<button class="do" data-action="do-task" data-id="${tsk.id}">${t("btnDone")}</button>`;
-        if(st==="pending") action = statusChip("waiting", t("statusPending"));
+        if(st==="pending") action = `<button class="do waiting" data-action="undo-task" data-id="${tsk.id}">${t("statusPending")}</button>`;
         if(st==="done")    action = statusChip("done-chip", t("statusDone"));
       }
       rows += `
-        <div class="task" id="tc-${tsk.id}" style="${st==="skipped"?"opacity:.4":""}">
+        <div class="task" id="tc-${tsk.id}" style="${(st==="skipped"||isPushed)?"opacity:.4":""}">
           <span class="pts-badge" style="font-size:14px">+${tsk.points}</span>
           <div class="meta">
             <div class="t">${esc(tsk.title)}</div>
@@ -1185,6 +1344,63 @@ function renderChild(){
         <h3 style="font-size:16px;color:var(--ink)">${t("wkBoxTitle")}</h3>
       </div>${rows}`;
   }
+
+  /* Boîte « Mois » : missions mensuelles toute la journée, en haut */
+  const monthBoxTasks = myTasks.filter(tsk=>isMonthBoxTask(tsk) && monthShow(tsk, c.id)).sort((a,b)=>a.createdAt-b.createdAt);
+  if(monthBoxTasks.length){
+    anyVisible = true;
+    let rows = "";
+    monthBoxTasks.forEach(tsk => {
+      const st = taskStatusFor(tsk, c.id);
+      const isPushed = isPushedTomorrow(tsk, c.id);
+      let action;
+      if(view.childEditMode && st==="skipped"){
+        action = `<button class="do" style="background:#ddd;color:#888;font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skipped")}</button>`;
+      } else if(view.childEditMode && st==="open"){
+        action = `<div style="display:flex;flex-direction:column;gap:4px">
+          <button class="do" style="background:var(--line);color:var(--ink-soft);font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skip")}</button>
+          <button class="do" style="background:${isPushed?"#ddd":"var(--line)"};color:${isPushed?"#888":"var(--ink-soft)"};font-size:11px;font-weight:700;white-space:normal;text-align:center;line-height:1.2;padding:6px 8px" data-action="push-task" data-id="${tsk.id}">${isPushed?t("pushedTomorrow"):t("pushTomorrow")}</button>
+        </div>`;
+      } else if(st==="skipped"){
+        action = statusChip("status-chip", `✗ ${t("skipped")}`);
+      } else if(isPushed){
+        action = statusChip("status-chip", `↷ ${t("pushedTomorrow")}`);
+      } else {
+        action = `<button class="do" data-action="do-task" data-id="${tsk.id}">${t("btnDone")}</button>`;
+        if(st==="pending") action = `<button class="do waiting" data-action="undo-task" data-id="${tsk.id}">${t("statusPending")}</button>`;
+        if(st==="done")    action = statusChip("done-chip", t("statusDone"));
+      }
+      rows += `
+        <div class="task" id="tc-${tsk.id}" style="${(st==="skipped"||isPushed)?"opacity:.4":""}">
+          <span class="pts-badge" style="font-size:14px">+${tsk.points}</span>
+          <div class="meta">
+            <div class="t">📅 ${esc(tsk.title)}</div>
+            <div class="f" style="color:var(--ink-soft);font-size:12px">${monthValueLabel(tsk)}</div>
+          </div>
+          ${action}
+        </div>`;
+    });
+    sections += `
+      <div class="section-h" style="margin:6px 4px 12px">
+        <span style="font-size:22px;line-height:1">📅</span>
+        <h3 style="font-size:16px;color:var(--ink)">${t("mthBoxTitle")}</h3>
+      </div>${rows}`;
+  }
+
+  /* inject tasks pushed from yesterday that don't appear naturally today */
+  const yStr = yesterdayStr();
+  (state.pushes||[]).filter(pr => pr.pushedDate === yStr).forEach(pr => {
+    const tsk = task(pr.taskId); if(!tsk) return;
+    if(!taskChildIds(tsk).includes(c.id)) return;
+    const alreadyVisible =
+      Object.values(displayMap).some(a => a.some(x => x.tsk.id === tsk.id)) ||
+      weekBoxTasks.some(t => t.id === tsk.id) ||
+      monthBoxTasks.some(t => t.id === tsk.id);
+    if(!alreadyVisible){
+      const pid = tsk.periodId || (alldayP ? alldayP.id : null);
+      addToMap(pid, {tsk, carried:false, greyed:false, ex:isExtreme(tsk)});
+    }
+  });
 
   displayPeriods.forEach(p => {
     const items = displayMap[p.id] || [];
@@ -1221,43 +1437,70 @@ function renderChild(){
       const st = taskStatusFor(tsk, c.id);
 
       if(ex){
-        const unlocked = extremeUnlocked(tsk, c.id);
+        const naturallyUnlocked = extremeUnlocked(tsk, c.id);
+        const exPk = taskPK(tsk);
+        const isForceUnlocked = !!(state.forceUnlocked && state.forceUnlocked.some(x=>x.taskId===tsk.id && x.childId===c.id && x.unlockedDate===todayStr()));
+        const unlocked = naturallyUnlocked || isForceUnlocked;
         const closed   = isExtremeClosed(tsk);
         const modeEmoji= extremeEmoji(tsk);
+        const isPushedEx = isPushedTomorrow(tsk, c.id);
+        const exSkipBtn = (skLbl) => `<button class="do" style="background:${skLbl===t("skipped")?"#ddd":"var(--line)"};color:${skLbl===t("skipped")?"#888":"var(--ink-soft)"};font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${skLbl}</button>`;
+        const exPushBtn = (pushed) => `<button class="do" style="background:${pushed?"#ddd":"var(--line)"};color:${pushed?"#888":"var(--ink-soft)"};font-size:11px;font-weight:700;white-space:normal;text-align:center;line-height:1.2;padding:6px 8px" data-action="push-task" data-id="${tsk.id}">${pushed?t("pushedTomorrow"):t("pushTomorrow")}</button>`;
+        const lockToggleBtn = (forced) => `<button class="do" style="background:${forced?"#E6F7EE":"var(--line)"};font-size:14px;padding:6px 8px" data-action="toggle-extreme-lock" data-id="${tsk.id}">${forced?"🔓":"🔒"}</button>`;
         let action, locked=false;
         if(st === "done"){
           action = statusChip("done-chip", t("statusDone"));
         } else if(st === "pending"){
-          action = statusChip("waiting", tsk.extremeMode==="all"
+          const pendingLabel = tsk.extremeMode==="all"
             ? (allModeReady(tsk) ? t("statusWaitApproval") : t("statusWaitOthers"))
-            : t("statusPending"));
+            : t("statusPending");
+          action = `<button class="do waiting" data-action="undo-task" data-id="${tsk.id}">${pendingLabel}</button>`;
+        } else if(st === "skipped"){
+          action = view.childEditMode
+            ? `<div style="display:flex;flex-direction:column;gap:4px">${exSkipBtn(t("skipped"))}${exPushBtn(false)}</div>`
+            : statusChip("status-chip", `✗ ${t("skipped")}`);
+        } else if(isPushedEx){
+          action = view.childEditMode
+            ? `<div style="display:flex;flex-direction:column;gap:4px">${exSkipBtn(t("skip"))}${exPushBtn(true)}</div>`
+            : statusChip("status-chip", `↷ ${t("pushedTomorrow")}`);
         } else if(closed){
           action = statusChip("status-chip", t("extremeWon"));
           locked = true;
-        } else if(!unlocked){
-          action = `<span style="font-size:16px;padding:6px 10px;background:var(--line);border-radius:10px">🔒</span>`;
-          locked = true;
+        } else if(!naturallyUnlocked){
+          /* locked (conditions not met) — may be force-unlocked */
+          if(view.childEditMode){
+            action = `<div style="display:flex;flex-direction:column;gap:4px">${lockToggleBtn(isForceUnlocked)}${exSkipBtn(t("skip"))}${exPushBtn(false)}</div>`;
+            /* no opacity in editMode */
+          } else if(isForceUnlocked){
+            action = `<button class="do" data-action="do-task" data-id="${tsk.id}">${t("btnDone")}</button>`;
+          } else {
+            action = `<span style="font-size:16px;padding:6px 10px;background:var(--line);border-radius:10px">🔒</span>`;
+            locked = true;
+          }
+        } else if(view.childEditMode){
+          action = `<div style="display:flex;flex-direction:column;gap:4px">${exSkipBtn(t("skip"))}${exPushBtn(false)}</div>`;
         } else {
           action = `<button class="do" data-action="do-task" data-id="${tsk.id}">${t("btnDone")}</button>`;
         }
-        const wrapStyle = locked
-          ? "opacity:.55;border:2px dashed var(--line);border-radius:16px"
-          : "border:2px solid #FFCF5C;background:linear-gradient(135deg,#FFF9E9,#FFF1CC);border-radius:16px";
+        const wrapStyle = (st==="skipped"||isPushedEx)
+          ? "opacity:.4;border:2px dashed var(--line);border-radius:16px"
+          : locked
+            ? "opacity:.55;border:2px dashed var(--line);border-radius:16px"
+            : "border:2px solid #FFCF5C;background:linear-gradient(135deg,#FFF9E9,#FFF1CC);border-radius:16px";
         /* compteur X/N pour mode Tous */
         let allCounter = "";
         if(tsk.extremeMode === "all"){
-          const pk = taskPK(tsk);
           const ids = taskChildIds(tsk);
           const done = ids.filter(cid =>
-            state.completions.some(x=>x.taskId===tsk.id && x.childId===cid && x.periodKey===pk)
+            state.completions.some(x=>x.taskId===tsk.id && x.childId===cid && x.periodKey===exPk)
           ).length;
           allCounter = ` · <b>${done}/${ids.length}</b>`;
         }
-        const subLine = (!unlocked && !closed && st==="open")
+        const subLine = (!unlocked && !closed && st==="open" && !isPushedEx)
           ? `${t("extremeSurplus")}${allCounter} · ${t("extremeLocked")}`
           : `${t("extremeSurplus")}${allCounter}`;
         sections += `
-          <div class="task" style="${wrapStyle}">
+          <div class="task" id="tc-${tsk.id}" style="${wrapStyle}">
             <span class="pts-badge" style="background:#FFB020;color:#4a2d00">+${tsk.points}</span>
             <div class="meta">
               <div class="t">${modeEmoji} ${esc(tsk.title)}</div>
@@ -1268,23 +1511,29 @@ function renderChild(){
         return;
       }
 
+      const isPushed = isPushedTomorrow(tsk, c.id);
       let action;
       if(view.childEditMode && st === "skipped"){
         action = `<button class="do" style="background:#ddd;color:#888;font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skipped")}</button>`;
       } else if(view.childEditMode && st === "open" && !greyed){
-        action = `<button class="do" style="background:var(--line);color:var(--ink-soft);font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skip")}</button>`;
+        action = `<div style="display:flex;flex-direction:column;gap:4px">
+          <button class="do" style="background:var(--line);color:var(--ink-soft);font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skip")}</button>
+          <button class="do" style="background:${isPushed?"#ddd":"var(--line)"};color:${isPushed?"#888":"var(--ink-soft)"};font-size:11px;font-weight:700;white-space:normal;text-align:center;line-height:1.2;padding:6px 8px" data-action="push-task" data-id="${tsk.id}">${isPushed?t("pushedTomorrow"):t("pushTomorrow")}</button>
+        </div>`;
       } else if(st === "skipped"){
         action = statusChip("status-chip", `✗ ${t("skipped")}`);
+      } else if(isPushed){
+        action = statusChip("status-chip", `↷ ${t("pushedTomorrow")}`);
       } else if(greyed && st === "open"){
         action = `<span style="font-size:12px;font-weight:700;color:var(--ink-soft);padding:6px 10px;background:var(--line);border-radius:10px">—</span>`;
       } else {
         action = `<button class="do" data-action="do-task" data-id="${tsk.id}">${t("btnDone")}</button>`;
-        if(st === "pending") action = statusChip("waiting",   t("statusPending"));
+        if(st === "pending") action = `<button class="do waiting" data-action="undo-task" data-id="${tsk.id}">${t("statusPending")}</button>`;
         if(st === "done")    action = statusChip("done-chip", t("statusDone"));
       }
 
       const wrapStyle = [
-        (greyed || st === "skipped") ? "opacity:.4" : "",
+        (greyed || st === "skipped" || isPushed) ? "opacity:.4" : "",
         carried ? "border-left:3px solid var(--wait);padding-left:13px" : "",
       ].filter(Boolean).join(";");
 
@@ -1303,8 +1552,9 @@ function renderChild(){
         <div class="task" id="tc-${tsk.id}" style="${wrapStyle}">
           ${ptsBadge}
           <div class="meta">
-            <div class="t" style="${greyed?"font-size:14px":""}">${isWeekTask(tsk)?"🗓️ ":""}${esc(tsk.title)}</div>
-            ${isWeekTask(tsk) ? `<div class="f" style="color:var(--ink-soft);font-size:12px">${weekValueLabel(tsk)}</div>` : ""}
+            <div class="t" style="${greyed?"font-size:14px":""}">${isWeekTask(tsk)?"🗓️ ":isMonthTask(tsk)?"📅 ":""}${esc(tsk.title)}</div>
+            ${isWeekTask(tsk)  ? `<div class="f" style="color:var(--ink-soft);font-size:12px">${weekValueLabel(tsk)}</div>`  : ""}
+            ${isMonthTask(tsk) ? `<div class="f" style="color:var(--ink-soft);font-size:12px">${monthValueLabel(tsk)}</div>` : ""}
             ${carried ? `<div class="f" style="color:var(--wait);font-size:12px">↩ ${t("carriedOver")}</div>` : ""}
           </div>
           ${action}
@@ -2253,9 +2503,15 @@ function shade(hex, percent){
 let toastTimer=null;
 function toast(msg){
   const el=document.getElementById("toast");
-  el.textContent=msg; el.classList.add("show");
+  el.textContent=msg; el.style.background=""; el.classList.add("show");
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>el.classList.remove("show"),1800);
+}
+function toastColored(msg, bg, duration){
+  const el=document.getElementById("toast");
+  el.textContent=msg; el.style.background=bg||""; el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{ el.classList.remove("show"); el.style.background=""; }, duration||2500);
 }
 
 /* ============ Modale ============ */
@@ -2386,6 +2642,7 @@ function taskForm(existing){
         id:existing.id, type:existing.type||"mission",
         extremeMode:existing.extremeMode||"solo",
         allDayRequired:!!existing.allDayRequired,
+        periodRequired:existing.periodRequired !== false,
         title:existing.title, points:existing.points, freq:existing.freq,
         childIds:taskChildIds(existing),
         periodId:existing.periodId||"allday",
@@ -2396,18 +2653,94 @@ function taskForm(existing){
         calYear:now.getFullYear(), calMonth:now.getMonth(), showCalPicker:false,
         weekMode:existing.weekMode||null, weekDays:[...(existing.weekDays||[])],
         weekCooldown:existing.weekCooldown!=null?existing.weekCooldown:4,
+        monthMode:existing.monthMode||null, monthDays:[...(existing.monthDays||(existing.monthDay?[existing.monthDay]:[]))],
+        monthWeekdays:[...(existing.monthWeekdays||[])],
+        monthCooldown:existing.monthCooldown!=null?existing.monthCooldown:14,
+        monthWindow:existing.monthWindow!=null?existing.monthWindow:7,
       }
     : {
-        id:null, type:"mission", extremeMode:"solo", allDayRequired:false,
+        id:null, type:"mission", extremeMode:"solo", allDayRequired:false, periodRequired:true,
         title:"", points:5, freq:"daily",
         childIds:state.children[0]?[state.children[0].id]:[],
         periodId:"allday", carryOn:false, carryOnPenalty:0, incompletePenalty:0,
         calDates:[], calYear:now.getFullYear(), calMonth:now.getMonth(), showCalPicker:false,
         weekMode:null, weekDays:[], weekCooldown:4,
+        monthMode:null, monthDays:[], monthCooldown:14, monthWindow:7, monthWeekdays:[],
         addAsTemplate:false,
       };
   drawTaskForm();
 }
+/* Sous-panneau « Mois » : 4 sous-modes + contenu conditionnel */
+function drawMonthPanel(f){
+  const btn = (m,label) => `<button class="wk-mode ${f.monthMode===m?"on":""}" data-action="pick-month-mode" data-m="${m}">${label}</button>`;
+  const row1 = `<div class="wk-modes">${btn("day",t("mthModeDay"))}${btn("nthday",t("mthModeNthDay"))}</div>`;
+  const row2 = `<div class="wk-modes" style="grid-template-columns:1fr 1fr 1fr">${btn("month",t("mthModeMonth"))}${btn("start",t("mthModeStart"))}${btn("end",t("mthModeEnd"))}</div>`;
+  const squares = row1 + row2;
+
+  let sub = "";
+  if(f.monthMode==="day"){
+    const sel = f.monthDays || [];
+    let cells = "";
+    for(let d=1; d<=30; d++){
+      cells += `<button class="mth-day ${sel.includes(d)?"on":""}" data-action="pick-month-day" data-d="${d}">${d}</button>`;
+    }
+    sub = `<div class="wk-sub"><div class="wk-intro">${t("mthPickDay")}</div><div class="mth-days">${cells}</div></div>`;
+  } else if(f.monthMode==="month"){
+    const n = (f.monthCooldown!=null ? f.monthCooldown : 14);
+    sub = `<div class="wk-sub">
+      <div class="wk-intro">${t("mthMonthIntro")} :</div>
+      <div class="wk-cool-row">
+        <button data-action="mth-cool-dec">−</button>
+        <span>${n} ${t("mthDaysUnit")}</span>
+        <button data-action="mth-cool-inc">+</button>
+      </div>
+    </div>`;
+  } else if(f.monthMode==="start"){
+    const w = (f.monthWindow!=null ? f.monthWindow : 7);
+    sub = `<div class="wk-sub">
+      <div class="wk-intro">${t("mthStartHint")} :</div>
+      <div class="wk-cool-row">
+        <button data-action="mth-win-dec">−</button>
+        <span>${w} ${t("mthDaysOfMonth")}</span>
+        <button data-action="mth-win-inc">+</button>
+      </div>
+    </div>`;
+  } else if(f.monthMode==="end"){
+    const w = (f.monthWindow!=null ? f.monthWindow : 7);
+    sub = `<div class="wk-sub">
+      <div class="wk-intro">${t("mthEndHint")} :</div>
+      <div class="wk-cool-row">
+        <button data-action="mth-win-dec">−</button>
+        <span>${w} ${t("mthDaysOfMonth")}</span>
+        <button data-action="mth-win-inc">+</button>
+      </div>
+    </div>`;
+  }
+
+  if(f.monthMode==="nthday"){
+    const sels = f.monthWeekdays || [];
+    const isSelected = (week,dow) => sels.some(s=>s.week===week && s.dow===dow);
+    const rowKeys  = [1,2,3,4,"last"];
+    const rowLabels = t("mthNthRows").split(",");
+    const dowOrder = [1,2,3,4,5,6,0]; /* Lu→Di */
+    const dayAbbr  = t("calDays").split(",");
+    let hdr = `<div class="mth-nth-hd"></div>` +
+      dowOrder.map((_,i)=>`<div class="mth-nth-hd">${dayAbbr[i]}</div>`).join("");
+    let rows2 = rowKeys.map((week,ri)=> {
+      const cells = dowOrder.map(dow=>
+        `<button class="mth-nth-cell ${isSelected(week,dow)?"on":""}" data-action="toggle-mth-weekday" data-week="${week}" data-dow="${dow}"></button>`
+      ).join("");
+      return `<div class="mth-nth-lbl">${rowLabels[ri]}</div>${cells}`;
+    }).join("");
+    sub = `<div class="wk-sub"><div class="mth-nth-grid">${hdr}${rows2}</div></div>`;
+  }
+
+  return `<div class="wk-panel">
+    <div class="wk-divider"></div>
+    <label class="fld">${t("mthSectionTitle")}</label>
+    ${squares}${sub}</div>`;
+}
+
 /* Sous-panneau « Semaine » : 4 sous-modes + contenu conditionnel */
 function drawWeekPanel(f){
   const abbr = t("calDays").split(",");
@@ -2479,10 +2812,9 @@ function drawTaskForm(){
     <div class="seg" style="flex-wrap:wrap">
       ${["solo","competitive","collab","all"].map(m=>`<button class="opt ${f.extremeMode===m?"on":""}" data-action="pick-extreme-mode" data-mode="${m}" style="flex:1 1 46%">${EXTREME_EMOJI[m]} ${t("mode"+m.charAt(0).toUpperCase()+m.slice(1))}</button>`).join("")}
     </div>
-    <label class="fld">${t("fldAllDayRequired")}</label>
-    <div class="seg">
-      <button class="opt ${f.allDayRequired?"on":""}" data-action="pick-allday-req" data-v="true">${t("yesLabel")}</button>
-      <button class="opt ${!f.allDayRequired?"on":""}" data-action="pick-allday-req" data-v="false">${t("noLabel")}</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0 4px">
+      <span style="font-weight:700;font-size:14px;line-height:1.3;flex:1">${t("fldAllDayRequired")}</span>
+      <button class="toggle-sw ${f.allDayRequired?"on":""}" data-action="pick-allday-req"></button>
     </div>` : ""}
 
     <label class="fld">${t("fldTaskName")}</label>
@@ -2497,17 +2829,22 @@ function drawTaskForm(){
     <div class="seg">
       ${Object.keys(fl).map(fr=>`<button class="opt ${f.freq===fr?"on":""}" data-action="pick-freq" data-f="${fr}">${fl[fr]}</button>`).join("")}
     </div>
-    ${f.freq==="weekly" ? drawWeekPanel(f) : ""}
+    ${f.freq==="weekly"  ? drawWeekPanel(f)  : ""}
+    ${f.freq==="monthly" ? drawMonthPanel(f) : ""}
 
     <label class="fld">${t("fldPeriod")}</label>
-    <select class="in" id="f-period">
+    <select class="in" id="f-period" onchange="(function(s){formState.periodId=s.value;var r=document.getElementById('period-req-row');if(r){var a=s.value==='allday';r.style.maxHeight=a?'0':'80px';r.style.opacity=a?'0':'1';}})(this)">
       ${periods.map(p=>`<option value="${p.id}" ${f.periodId===p.id?"selected":""}>${p.isAllDay?t("allDayLabel"):esc(p.name)}</option>`).join("")}
     </select>
+    ${f.type==="extreme" ? `
+    <div id="period-req-row" style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0 4px;overflow:hidden;max-height:${f.periodId!=="allday"?"80px":"0"};opacity:${f.periodId!=="allday"?"1":"0"};transition:max-height .25s ease,opacity .25s ease">
+      <span style="font-weight:700;font-size:14px;line-height:1.3;flex:1">${t("fldPeriodRequired")}</span>
+      <button class="toggle-sw ${f.periodRequired?"on":""}" data-action="pick-period-req"></button>
+    </div>` : ""}
 
-    <label class="fld">${t("fldCarryOn")}</label>
-    <div class="seg">
-      <button class="opt ${f.carryOn?"on":""}" data-action="pick-carry-on" data-v="true">${t("yesLabel")}</button>
-      <button class="opt ${!f.carryOn?"on":""}" data-action="pick-carry-on" data-v="false">${t("noLabel")}</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0 4px">
+      <span style="font-weight:700;font-size:14px;line-height:1.3;flex:1">${t("fldCarryOn")}</span>
+      <button class="toggle-sw ${f.carryOn?"on":""}" data-action="pick-carry-on"></button>
     </div>
 
     <div id="carry-penalty-section" style="overflow:hidden;max-height:${f.carryOn?"150px":"0"};opacity:${f.carryOn?"1":"0"};transition:max-height .25s ease,opacity .25s ease">
@@ -2741,6 +3078,11 @@ document.addEventListener("click", (e)=>{
       toast(t("toastSent"));
       render();
       break;
+    case "undo-task":
+      undoTask(id, view.childId);
+      toast(t("toastUndoTask"));
+      render();
+      break;
     case "buy": {
       const r = reward(id); const k = child(el.dataset.child);
       if(k.points < r.cost){ toast(t("toastNotEnoughPts")); break; }
@@ -2882,12 +3224,13 @@ document.addEventListener("click", (e)=>{
     }
     case "tpl":
       formState = {
-        id:null, type:"mission", extremeMode:"solo", allDayRequired:false,
+        id:null, type:"mission", extremeMode:"solo", allDayRequired:false, periodRequired:true,
         title:el.dataset.title, points:parseInt(el.dataset.points,10), freq:"daily",
         childIds:state.children[0]?[state.children[0].id]:[],
         periodId:"allday", carryOn:false, carryOnPenalty:0, incompletePenalty:0,
         calDates:[], calYear:new Date().getFullYear(), calMonth:new Date().getMonth(),
         weekMode:null, weekDays:[], weekCooldown:4,
+        monthMode:null, monthDays:[], monthCooldown:14, monthWindow:7, monthWeekdays:[],
         showCalPicker:false, addAsTemplate:false,
       };
       taskFormScroll = 0;
@@ -2895,7 +3238,8 @@ document.addEventListener("click", (e)=>{
       break;
     case "pick-task-type": captureTaskForm(); formState.type=el.dataset.type; drawTaskForm(); break;
     case "pick-extreme-mode": captureTaskForm(); formState.extremeMode=el.dataset.mode; drawTaskForm(); break;
-    case "pick-allday-req": captureTaskForm(); formState.allDayRequired=(el.dataset.v==="true"); drawTaskForm(); break;
+    case "pick-allday-req": formState.allDayRequired = !formState.allDayRequired; el.classList.toggle("on", formState.allDayRequired); break;
+    case "pick-period-req": formState.periodRequired = !formState.periodRequired; el.classList.toggle("on", formState.periodRequired); break;
     case "pick-kid": {
       if(formState.id) break;
       captureTaskForm();
@@ -2936,6 +3280,52 @@ document.addEventListener("click", (e)=>{
       formState.weekCooldown = Math.min(5, (formState.weekCooldown!=null?formState.weekCooldown:4) + 1);
       drawTaskForm();
       break;
+    case "pick-month-mode":
+      captureTaskForm();
+      formState.monthMode = el.dataset.m;
+      if(formState.monthMode==="day"    && !formState.monthDays)    formState.monthDays=[];
+      if(formState.monthMode==="nthday" && !formState.monthWeekdays) formState.monthWeekdays=[];
+      if(formState.monthMode==="month" && formState.monthCooldown==null) formState.monthCooldown=14;
+      if((formState.monthMode==="start"||formState.monthMode==="end") && formState.monthWindow==null) formState.monthWindow=7;
+      drawTaskForm();
+      break;
+    case "toggle-mth-weekday": {
+      if(!formState.monthWeekdays) formState.monthWeekdays=[];
+      const week = el.dataset.week==="last" ? "last" : parseInt(el.dataset.week,10);
+      const dow  = parseInt(el.dataset.dow,10);
+      const idx  = formState.monthWeekdays.findIndex(s=>s.week===week && s.dow===dow);
+      if(idx===-1) formState.monthWeekdays.push({week,dow}); else formState.monthWeekdays.splice(idx,1);
+      el.classList.toggle("on", idx===-1);
+      break;
+    }
+    case "pick-month-day": {
+      if(!formState.monthDays) formState.monthDays=[];
+      const dv = parseInt(el.dataset.d, 10);
+      const di = formState.monthDays.indexOf(dv);
+      if(di===-1) formState.monthDays.push(dv); else formState.monthDays.splice(di,1);
+      el.classList.toggle("on", di===-1);
+      break;
+    }
+    case "mth-cool-dec":
+      captureTaskForm();
+      formState.monthCooldown = Math.max(0, (formState.monthCooldown!=null?formState.monthCooldown:14) - 1);
+      drawTaskForm();
+      break;
+    case "mth-cool-inc":
+      captureTaskForm();
+      formState.monthCooldown = Math.min(28, (formState.monthCooldown!=null?formState.monthCooldown:14) + 1);
+      drawTaskForm();
+      break;
+    case "mth-win-dec":
+      captureTaskForm();
+      formState.monthWindow = Math.max(1, (formState.monthWindow!=null?formState.monthWindow:7) - 1);
+      drawTaskForm();
+      break;
+    case "mth-win-inc":
+      captureTaskForm();
+      formState.monthWindow = Math.min(15, (formState.monthWindow!=null?formState.monthWindow:7) + 1);
+      drawTaskForm();
+      break;
     case "cal-prev":
       formState.calMonth--; if(formState.calMonth<0){ formState.calMonth=11; formState.calYear--; }
       openModal(drawCalPicker()); break;
@@ -2964,16 +3354,13 @@ document.addEventListener("click", (e)=>{
       el.classList.toggle("on", formState.addAsTemplate);
       break;
     case "pick-carry-on": {
-      const newVal = el.dataset.v === "true";
-      formState.carryOn = newVal;
-      document.querySelectorAll("[data-action='pick-carry-on']").forEach(btn => {
-        btn.classList.toggle("on", btn.dataset.v === String(newVal));
-      });
+      formState.carryOn = !formState.carryOn;
+      el.classList.toggle("on", formState.carryOn);
       const sec = document.getElementById("carry-penalty-section");
       if(sec) {
         sec.style.transition = "max-height .75s ease, opacity .75s ease";
-        sec.style.maxHeight = newVal ? "150px" : "0";
-        sec.style.opacity = newVal ? "1" : "0";
+        sec.style.maxHeight = formState.carryOn ? "150px" : "0";
+        sec.style.opacity = formState.carryOn ? "1" : "0";
       }
       break;
     }
@@ -2988,31 +3375,39 @@ document.addEventListener("click", (e)=>{
       const isExtremeT = formState.type==="extreme";
       const extremeMode = isExtremeT ? formState.extremeMode : undefined;
       const allDayRequired = isExtremeT ? !!formState.allDayRequired : false;
+      const periodRequired = isExtremeT ? (formState.periodRequired !== false) : undefined;
       const isShared = isExtremeT && ["competitive","collab","all"].includes(formState.extremeMode);
       const calDates = formState.freq==="calendar" ? (formState.calDates||[]).slice().sort() : undefined;
       const isWeekly = formState.freq==="weekly";
       const weekMode = isWeekly ? (formState.weekMode||"week") : undefined;
       const weekDays = (isWeekly && weekMode==="days") ? (formState.weekDays||[]).slice() : undefined;
       const weekCooldown = (isWeekly && weekMode==="week") ? (formState.weekCooldown!=null?formState.weekCooldown:4) : undefined;
+      const isMonthly = formState.freq==="monthly";
+      const monthMode = isMonthly ? (formState.monthMode||"month") : undefined;
+      const monthDays = (isMonthly && monthMode==="day") ? (formState.monthDays||[]).slice().sort((a,b)=>a-b) : undefined;
+      const monthWeekdays = (isMonthly && monthMode==="nthday") ? (formState.monthWeekdays||[]).slice() : undefined;
+      const monthCooldown = (isMonthly && monthMode==="month") ? (formState.monthCooldown!=null?formState.monthCooldown:14) : undefined;
+      const monthWindow   = (isMonthly && (monthMode==="start"||monthMode==="end")) ? (formState.monthWindow!=null?formState.monthWindow:7) : undefined;
       if(formState.id){
         const tsk=task(formState.id);
         tsk.title=title; tsk.points=points; tsk.freq=formState.freq; tsk.type=formState.type;
-        tsk.extremeMode=extremeMode; tsk.allDayRequired=allDayRequired;
+        tsk.extremeMode=extremeMode; tsk.allDayRequired=allDayRequired; tsk.periodRequired=periodRequired;
         tsk.periodId=periodId; tsk.carryOn=carryOn; tsk.carryOnPenalty=carryOnPenalty; tsk.incompletePenalty=incompletePenalty;
         tsk.calDates=calDates;
         tsk.weekMode=weekMode; tsk.weekDays=weekDays; tsk.weekCooldown=weekCooldown;
+        tsk.monthMode=monthMode; tsk.monthDays=monthDays; tsk.monthCooldown=monthCooldown; tsk.monthWindow=monthWindow; tsk.monthWeekdays=monthWeekdays;
       } else if(isShared){
         state.tasks.push({
-          id:uid(), type:"extreme", extremeMode, allDayRequired,
+          id:uid(), type:"extreme", extremeMode, allDayRequired, periodRequired,
           title, points, freq:formState.freq, childIds:[...(formState.childIds||[])],
-          periodId, carryOn, carryOnPenalty, incompletePenalty, calDates, weekMode, weekDays, weekCooldown, createdAt:Date.now(),
+          periodId, carryOn, carryOnPenalty, incompletePenalty, calDates, weekMode, weekDays, weekCooldown, monthMode, monthDays, monthCooldown, monthWindow, monthWeekdays, createdAt:Date.now(),
         });
       } else {
         (formState.childIds||[]).forEach(cid=>{
           state.tasks.push({
-            id:uid(), type:formState.type, extremeMode, allDayRequired,
+            id:uid(), type:formState.type, extremeMode, allDayRequired, periodRequired,
             title, points, freq:formState.freq, childId:cid,
-            periodId, carryOn, carryOnPenalty, incompletePenalty, calDates, weekMode, weekDays, weekCooldown, createdAt:Date.now(),
+            periodId, carryOn, carryOnPenalty, incompletePenalty, calDates, weekMode, weekDays, weekCooldown, monthMode, monthDays, monthCooldown, monthWindow, monthWeekdays, createdAt:Date.now(),
           });
         });
       }
@@ -3211,7 +3606,7 @@ document.addEventListener("click", (e)=>{
     case "add-task-child": {
       const preChild = child(id);
       formState = {
-        id:null, type:"mission", extremeMode:"solo", allDayRequired:false,
+        id:null, type:"mission", extremeMode:"solo", allDayRequired:false, periodRequired:true,
         title:"", points:5, freq:"daily",
         childIds: preChild ? [preChild.id] : (state.children[0]?[state.children[0].id]:[]),
         periodId:"allday", carryOn:false, carryOnPenalty:0, incompletePenalty:0,
@@ -3223,10 +3618,18 @@ document.addEventListener("click", (e)=>{
       const tsk=task(taskId); if(!tsk) break;
       const pk=taskPK(tsk);
       if(!state.skips) state.skips=[];
+      /* shared extremes affect all children; solo/regular affect only this child */
+      const affectedIds = (isExtreme(tsk) && tsk.childIds) ? taskChildIds(tsk) : [childId];
       const idx=state.skips.findIndex(x=>x.taskId===taskId && x.childId===childId && x.periodKey===pk);
       const nowSkipped = idx<0;
-      if(idx>=0) state.skips.splice(idx,1);
-      else state.skips.push({id:uid(), taskId, childId, periodKey:pk, skippedAt:Date.now()});
+      if(nowSkipped){
+        affectedIds.forEach(cid=>{
+          if(!state.skips.some(x=>x.taskId===taskId && x.childId===cid && x.periodKey===pk))
+            state.skips.push({id:uid(), taskId, childId:cid, periodKey:pk, skippedAt:Date.now()});
+        });
+      } else {
+        state.skips = state.skips.filter(x=>!(x.taskId===taskId && affectedIds.includes(x.childId) && x.periodKey===pk));
+      }
       save();
       const card=document.getElementById("tc-"+taskId);
       if(card){
@@ -3238,6 +3641,52 @@ document.addEventListener("click", (e)=>{
           btn.style.color = nowSkipped ? "#888" : "var(--ink-soft)";
         }
       }
+      break;
+    }
+
+    case "push-task": {
+      const taskId=id, childId=view.childId;
+      const tsk=task(taskId); if(!tsk) break;
+      const today=todayStr();
+      if(!state.pushes) state.pushes=[];
+      /* shared extremes affect all children; solo/regular affect only this child */
+      const affectedIds = (isExtreme(tsk) && tsk.childIds) ? taskChildIds(tsk) : [childId];
+      const idx=state.pushes.findIndex(x=>x.taskId===taskId && x.childId===childId && x.pushedDate===today);
+      const nowPushed = idx<0;
+      if(nowPushed){
+        affectedIds.forEach(cid=>{
+          if(!state.pushes.some(x=>x.taskId===taskId && x.childId===cid && x.pushedDate===today))
+            state.pushes.push({id:uid(), taskId, childId:cid, pushedDate:today});
+        });
+      } else {
+        state.pushes = state.pushes.filter(x=>!(x.taskId===taskId && affectedIds.includes(x.childId) && x.pushedDate===today));
+      }
+      save();
+      const card=document.getElementById("tc-"+taskId);
+      if(card){
+        card.style.opacity = nowPushed ? "0.4" : "";
+        const pushBtn=card.querySelector("[data-action='push-task']");
+        if(pushBtn){
+          pushBtn.textContent = nowPushed ? t("pushedTomorrow") : t("pushTomorrow");
+          pushBtn.style.background = nowPushed ? "#ddd" : "var(--line)";
+          pushBtn.style.color = nowPushed ? "#888" : "var(--ink-soft)";
+        }
+      }
+      break;
+    }
+
+    case "toggle-extreme-lock": {
+      const taskId=id, childId=view.childId;
+      const tsk=task(taskId); if(!tsk) break;
+      const today=todayStr();
+      if(!state.forceUnlocked) state.forceUnlocked=[];
+      const idx=state.forceUnlocked.findIndex(x=>x.taskId===taskId && x.childId===childId && x.unlockedDate===today);
+      const nowForced = idx<0;
+      if(idx>=0) state.forceUnlocked.splice(idx,1);
+      else state.forceUnlocked.push({id:uid(), taskId, childId, unlockedDate:today});
+      save(); render();
+      if(nowForced) toastColored(t("toastForceUnlock"), "#5c2a85", 2500);
+      else toastColored(t("toastForceLock"), "#444", 1800);
       break;
     }
 
@@ -3414,6 +3863,21 @@ function applyPenalties(){
   const today  = todayStr();
   let changed  = false;
 
+  /* prune push records older than yesterday (no longer needed) */
+  if(state.pushes){
+    const yStr = yesterdayStr();
+    const before = state.pushes.length;
+    state.pushes = state.pushes.filter(p => p.pushedDate === today || p.pushedDate === yStr);
+    if(state.pushes.length !== before) changed = true;
+  }
+
+  /* prune forceUnlocked records older than today */
+  if(state.forceUnlocked && state.forceUnlocked.length){
+    const before2 = state.forceUnlocked.length;
+    state.forceUnlocked = state.forceUnlocked.filter(x => x.unlockedDate === today);
+    if(state.forceUnlocked.length !== before2) changed = true;
+  }
+
   const todayDowP = now.getDay();
   /* — Passe 1 : pénalités de fin de période — */
   state.tasks.forEach(tsk => {
@@ -3422,7 +3886,12 @@ function applyPenalties(){
     if(tsk.freq==="calendar" && !(tsk.calDates||[]).includes(today)) return;
     if(tsk.freq==="weekly"){
       if((tsk.weekMode||"week")!=="days") return;              /* week/workweek/weekend → Passe 3 */
-      if(!(tsk.weekDays||[]).includes(todayDowP)) return;      /* jour non sélectionné */
+    }
+    if(tsk.freq==="monthly"){
+      const mm = tsk.monthMode||"month";
+      if(mm!=="day" && mm!=="nthday") return;   /* month/start/end → Passe 4 */
+      const activeDays = mm==="nthday" ? resolveMonthWeekdays(tsk,now) : effectiveMonthDays(tsk,now);
+      if(!activeDays.includes(now.getDate())) return;
     }
     const p = period(tsk.periodId);
     if(!p || p.isAllDay) return;       /* pas de limite horaire pour all-day */
@@ -3432,7 +3901,7 @@ function applyPenalties(){
 
     taskChildIds(tsk).forEach(cid => {
       const st = taskStatusFor(tsk, cid);
-      if(st === "done" || st === "pending" || st === "skipped") return; /* complété, soumis ou ignoré → exempt */
+      if(st === "done" || st === "pending" || st === "skipped" || isPushedTomorrow(tsk, cid)) return; /* complété, soumis, ignoré ou remis → exempt */
 
       /* réduction de report : modifie les pts de la tâche pour cet enfant, une fois */
       if(tsk.carryOn && tsk.carryOnPenalty > 0){
@@ -3472,6 +3941,13 @@ function applyPenalties(){
       if(tsk.freq==="weekly"){
         if((tsk.weekMode||"week")!=="days") return;            /* week/workweek/weekend → Passe 3 */
         if(!(tsk.weekDays||[]).includes(prevDow)) return;
+      }
+      if(tsk.freq==="monthly"){
+        if((tsk.monthMode||"month")!=="day") return;           /* month/start/end → Passe 4 */
+        const mmP = tsk.monthMode||"month";
+        if(mmP!=="day" && mmP!=="nthday") return;
+        const activeDaysP = mmP==="nthday" ? resolveMonthWeekdays(tsk,prevDate) : effectiveMonthDays(tsk,prevDate);
+        if(!activeDaysP.includes(prevDate.getDate())) return;
       }
       const p = period(tsk.periodId);
       if(!p || p.isAllDay) return;
@@ -3518,9 +3994,41 @@ function applyPenalties(){
       const done = state.completions.some(x =>
         x.taskId===tsk.id && x.childId===cid && x.periodKey===occ.key);
       if(done) return;
-      if(state.skips && state.skips.some(x=>x.taskId===tsk.id && x.childId===cid && x.periodKey===occ.key)) return;
+      if(state.skips  && state.skips.some( x=>x.taskId===tsk.id && x.childId===cid && x.periodKey===occ.key)) return;
 
       const logKey = `${tsk.id}|${cid}|${occ.key}|wk-incomplete`;
+      if(!state.penaltyLog[logKey]){
+        state.penaltyLog[logKey] = today;
+        applyEvent("bomb",
+          esc(tsk.title) + " : " + t("incompleteSuffix"),
+          tsk.incompletePenalty, [cid]);
+        changed = true;
+      }
+    });
+  });
+
+  /* — Passe 4 : pénalités de fin d'occurrence mensuelle (1x/mois, début, fin) — */
+  state.tasks.forEach(tsk => {
+    if(tsk.freq!=="monthly") return;
+    if((tsk.monthMode||"month")==="day") return;   /* géré comme quotidien (Passes 1-2) */
+    if(!tsk.incompletePenalty) return;
+
+    /* occurrence à vérifier : le mois le plus récent dont la fenêtre est fermée */
+    let occ = monthWindow(tsk, now);
+    if(now <= occ.end){
+      const prevMonth = new Date(now.getFullYear(), now.getMonth()-1, 15);
+      occ = monthWindow(tsk, prevMonth);
+    }
+    if(now <= occ.end) return;
+    if(tsk.createdAt && occ.start.getTime() < tsk.createdAt) return;
+
+    taskChildIds(tsk).forEach(cid => {
+      const done = state.completions.some(x =>
+        x.taskId===tsk.id && x.childId===cid && x.periodKey===occ.key);
+      if(done) return;
+      if(state.skips  && state.skips.some( x=>x.taskId===tsk.id && x.childId===cid && x.periodKey===occ.key)) return;
+
+      const logKey = `${tsk.id}|${cid}|${occ.key}|mth-incomplete`;
       if(!state.penaltyLog[logKey]){
         state.penaltyLog[logKey] = today;
         applyEvent("bomb",
