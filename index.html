@@ -630,7 +630,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.42";
+const APP_VERSION = "v0.43";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -3544,7 +3544,7 @@ document.addEventListener("click", (e)=>{
       state.eventTemplates.push({id:uid(), type:evQuick.type, title:title2, points:evQuick.points, childIds:[]});
       save();
       const pb3=document.getElementById("parent-body"); if(pb3) pb3.innerHTML=parentEvents();
-      toastColored(t("qevTplSaved"),"#5c2a85",2500);
+      toastColored(t("qevTplSaved"),"#23214A",2500);
       break;
     }
     case "qev-reset": {
