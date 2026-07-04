@@ -624,7 +624,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.37";
+const APP_VERSION = "v0.38";
 const KEY = "missions_recompenses_v1";
 const PAGE_LOAD_TIME = Date.now();
 let _mem = null;
@@ -1214,13 +1214,16 @@ function renderChild(){
   );
   const myNotifs    = (state.notifications||[]).filter(n => n.childId === c.id);
   const newlyViewed = myNotifs.filter(n => !n.viewedAt && n.createdAt >= PAGE_LOAD_TIME);
+  /* vieilles notifs non vues (session précédente) : les rejeter silencieusement sans animation */
+  const staleUnviewed = myNotifs.filter(n => !n.viewedAt && n.createdAt < PAGE_LOAD_TIME);
 
   /* capturer displayPts AVANT de poser viewedAt : lockDisplayPts soustrait les deltas
      des notifications non vues, donnant la valeur "avant animation" correcte */
   const displayPts = lockDisplayPts(c);
 
+  staleUnviewed.forEach(n => { n.viewedAt = nowMs; });
   newlyViewed.forEach(n => { n.viewedAt = nowMs; });
-  if(newlyViewed.length > 0 || state.notifications.length !== beforeLen) save();
+  if(newlyViewed.length > 0 || staleUnviewed.length > 0 || state.notifications.length !== beforeLen) save();
 
   /* events panel — bonuses first, bombs second */
   const sortedNotifs = [...myNotifs].sort((a,b)=>{
