@@ -624,7 +624,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.36";
+const APP_VERSION = "v0.37";
 const KEY = "missions_recompenses_v1";
 const PAGE_LOAD_TIME = Date.now();
 let _mem = null;
@@ -1291,6 +1291,8 @@ function renderChild(){
     if(tsk.freq === "weekdays" && (todayDow===0||todayDow===6)) return;
     if(tsk.freq === "calendar" && !(tsk.calDates||[]).includes(todayStr())) return;
     const ex = isExtreme(tsk);
+    /* mission extrême "une seule fois" déjà remportée : disparaît complètement sauf si l'enfant a une approbation en attente */
+    if(tsk.freq === "once" && ex && isExtremeClosed(tsk) && st !== "pending") return;
 
     const pid = tsk.periodId || (alldayP ? alldayP.id : null);
     const p   = allPeriods.find(x => x.id === pid);
