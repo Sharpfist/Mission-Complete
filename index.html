@@ -451,6 +451,9 @@ const TRANSLATIONS = {
     rejectPenaltyLabel:"Points de pénalité (bombe, 0 = aucune)",
     btnConfirmReject:"Confirmé",notDoneSuffix:"non terminé",incompleteSuffix:"non complétée",
     sharedTag:"partagée",
+    settingsPause:"🏖️ Mode Pause",settingsPauseDesc:"Suspend toutes les missions, pénalités et l'investissement. Parfait pour les vacances !",
+    pauseActive:"Pause en cours · aucune mission aujourd'hui",toastPauseOn:"⏸ Mode pause activé",toastPauseOff:"▶ Mode actif",
+    pauseChildBanner:"Reviens bientôt !",pauseChildSub:"Les missions reprennent à la fin de la pause.",
   },
   en: {
     appTitle:"Mission Rewards",
@@ -580,6 +583,9 @@ const TRANSLATIONS = {
     rejectPenaltyLabel:"Penalty points (bomb, 0 = none)",
     btnConfirmReject:"Confirm",notDoneSuffix:"not completed",incompleteSuffix:"not completed",
     sharedTag:"shared",
+    settingsPause:"🏖️ Pause Mode",settingsPauseDesc:"Suspends all missions, penalties and investment. Great for vacation!",
+    pauseActive:"Pause on · no missions today",toastPauseOn:"⏸ Pause mode on",toastPauseOff:"▶ Active mode on",
+    pauseChildBanner:"Come back soon!",pauseChildSub:"Missions will resume when pause ends.",
   }
 };
 
@@ -618,7 +624,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.35";
+const APP_VERSION = "v0.36";
 const KEY = "missions_recompenses_v1";
 const PAGE_LOAD_TIME = Date.now();
 let _mem = null;
@@ -687,6 +693,7 @@ function defaults(){
     skips:[],
     pushes:[],
     forceUnlocked:[],
+    paused:false,
     investment:{enabled:true, rate:2, freq:"daily"},
     lastInvestmentApplied:"",
     lastBackupAt:null,
@@ -710,6 +717,7 @@ if(!state.purchases) { state.purchases = []; save(); }
 if(!state.skips)         { state.skips         = []; save(); }
 if(!state.pushes)        { state.pushes        = []; save(); }
 if(!state.forceUnlocked) { state.forceUnlocked = []; save(); }
+if(state.paused === undefined) { state.paused = false; save(); }
 if(!state.investment) { state.investment = {enabled:true, rate:2, freq:"daily"}; save(); }
 if(state.lastInvestmentApplied === undefined) { state.lastInvestmentApplied = ""; save(); }
 if(!state.eventTemplates){
@@ -1562,7 +1570,13 @@ function renderChild(){
     });
   });
 
-  if(!anyVisible){
+  if(state.paused){
+    sections = `<div class="card" style="text-align:center;padding:36px 20px;border:2px dashed #F59E0B;background:linear-gradient(135deg,#FFFBEB,#FEF3C7)">
+      <div style="font-size:52px;margin-bottom:12px">🏖️</div>
+      <div style="font-weight:800;font-size:20px;margin-bottom:6px;color:#92400E">${t("pauseChildBanner")}</div>
+      <div class="muted">${t("pauseChildSub")}</div>
+    </div>`;
+  } else if(!anyVisible){
     sections = `<div class="empty"><span class="em">🗒️</span>${t("noTasks")}</div>`;
   }
 
@@ -2158,6 +2172,16 @@ function fmtDate(ts){
 function parentSettings(){
   const lastBackup = fmtDate(state.lastBackupAt);
   return `
+    <div class="card" style="${state.paused?"border:2px solid #F59E0B;background:linear-gradient(135deg,#FFFBEB,#FEF3C7)":""}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:14px">
+        <div style="flex:1">
+          <h3 style="font-size:15px;margin-bottom:4px">${t("settingsPause")}</h3>
+          <div class="muted">${t("settingsPauseDesc")}</div>
+          ${state.paused ? `<div style="margin-top:8px;font-weight:800;font-size:12px;color:#B45309">⏸ ${t("pauseActive")}</div>` : ""}
+        </div>
+        <button class="toggle-sw ${state.paused?"on":""}" data-action="toggle-pause"></button>
+      </div>
+    </div>
     <div class="card">
       <h3 style="font-size:15px;margin-bottom:8px">${t("settingsBackup")}</h3>
       <div class="muted" style="margin-bottom:12px">
@@ -3785,6 +3809,12 @@ document.addEventListener("click", (e)=>{
       state.lastMondayReminderDate=todayStr(); save(); closeModal(); exportBackup(); break;
 
     /* réglages */
+    case "toggle-pause": {
+      state.paused = !state.paused;
+      save(); render();
+      toast(t(state.paused ? "toastPauseOn" : "toastPauseOff"));
+      break;
+    }
     case "export-backup": exportBackup(); break;
     case "trigger-import": document.getElementById("restore-input").click(); break;
     case "set-pin": pinPrompt("set"); break;
@@ -3820,6 +3850,7 @@ document.addEventListener("click", (e)=>{
    "pending" (soumis, attente approbation) = exempt.
 ============================================================ */
 function applyInvestment(){
+  if(state.paused) return;
   if(!state.investment) state.investment = {enabled:true, rate:2, freq:"daily"};
   const inv = state.investment;
   if(!inv.enabled) return;
@@ -3855,6 +3886,7 @@ function applyInvestment(){
 }
 
 function applyPenalties(){
+  if(state.paused) return;
   if(!state.penaltyLog)    state.penaltyLog    = {};
   if(!state.carryPenalties) state.carryPenalties = {};
 
