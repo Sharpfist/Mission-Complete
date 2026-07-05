@@ -386,7 +386,7 @@ const TRANSLATIONS = {
     wkModeDays:"Journée(s) spécifique(s)",wkModeWeek:"1x /sem",wkModeWork:"1x / sem de travail",wkModeWeekend:"1x / fds",
     wkPickDays:"Choisis les jours",wkWeekIntro:"Une fois complétée, la mission redevient disponible la semaine prochaine ET après",wkDaysUnit:"jour(s)",
     wkWorkHint:"Lundi au vendredi 23h59",wkWeekendHint:"Vendredi 14h à dimanche 23h59",wkBoxTitle:"Semaine",
-    wkValWeek:"1 fois / semaine",wkValWork:"Lundi au Vendredi",wkValWeekend:"Vendredi pm · Samedi · Dimanche",wkValDaysNone:"Aucun jour choisi",wkDayShort:"J",wkSectionTitle:"Semaine :",
+    wkValWeek:"1 fois / semaine",wkValWork:"Lundi au Vendredi",wkValWeekend:"Vendredi pm · Samedi · Dimanche",wkValDaysNone:"Aucun jour choisi",wkDayShort:"J",wkSectionTitle:"Semaine :",wkBeforeRepeat:"avant répétition",
     mthModeDay:"Jour(s) spécifique(s)",mthModeMonth:"1x / mois",mthModeStart:"Début du mois",mthModeEnd:"Fin du mois",mthModeNthDay:"Journée(s) du mois",
     mthPickDay:"Choisis le jour",mthMonthIntro:"Une fois complétée, la mission redevient disponible le mois prochain ET après",mthDaysUnit:"jour(s)",
     mthStartHint:"Dans les premiers",mthEndHint:"Dans les derniers",mthDaysOfMonth:"jours du mois",
@@ -526,7 +526,7 @@ const TRANSLATIONS = {
     wkModeDays:"Specific day(s)",wkModeWeek:"1x /wk",wkModeWork:"1x /work week",wkModeWeekend:"1x /weekend",
     wkPickDays:"Choose the days",wkWeekIntro:"Once completed, the mission becomes available again next week AND after",wkDaysUnit:"day(s)",
     wkWorkHint:"Monday to Friday 11:59pm",wkWeekendHint:"Friday 2pm to Sunday 11:59pm",wkBoxTitle:"Week",
-    wkValWeek:"Once / week",wkValWork:"Monday to Friday",wkValWeekend:"Friday pm · Saturday · Sunday",wkValDaysNone:"No day chosen",wkDayShort:"d",wkSectionTitle:"Week:",
+    wkValWeek:"Once / week",wkValWork:"Monday to Friday",wkValWeekend:"Friday pm · Saturday · Sunday",wkValDaysNone:"No day chosen",wkDayShort:"d",wkSectionTitle:"Week:",wkBeforeRepeat:"before repeat",
     mthModeDay:"Specific day(s)",mthModeMonth:"1x / month",mthModeStart:"Start of month",mthModeEnd:"End of month",mthModeNthDay:"Day(s) of month",
     mthPickDay:"Choose the day",mthMonthIntro:"Once completed, the mission becomes available again next month AND after",mthDaysUnit:"day(s)",
     mthStartHint:"In the first",mthEndHint:"In the last",mthDaysOfMonth:"days of the month",
@@ -635,7 +635,7 @@ function weekValueLabel(tsk){
   if(mode==="workweek") return t("wkValWork");
   if(mode==="weekend")  return t("wkValWeekend");
   const n = tsk.weekCooldown!=null ? tsk.weekCooldown : 4;
-  return t("wkModeWeek") + ", +" + n + t("wkDayShort");
+  return t("wkModeWeek") + ", +" + n + t("wkDayShort") + " " + t("wkBeforeRepeat");
 }
 function isWeekTask(tsk){ return tsk && tsk.freq==="weekly"; }
 function calFreqLabel(tsk){
@@ -646,7 +646,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.55";
+const APP_VERSION = "v0.56";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1398,7 +1398,12 @@ function renderChild(){
       }
       rows += `
         <div class="task" id="tc-${tsk.id}" style="${(st==="skipped"||isPushed)?"opacity:.4":""}">
-          <span class="pts-badge" style="font-size:14px">+${tsk.points}</span>
+          ${tsk.incompletePenalty > 0
+            ? `<div style="align-self:flex-start;margin-top:4px">
+                 <span class="pts-badge" style="display:block;font-size:14px;position:relative;z-index:1">+${tsk.points}</span>
+                 <div style="background:#FFDAD6;color:#c0392b;font-size:11px;font-weight:800;border-radius:9px;padding:15px 0px 4px;margin-top:-14px;margin-left:4px;margin-right:4px;text-align:center;white-space:nowrap">−${tsk.incompletePenalty}</div>
+               </div>`
+            : `<span class="pts-badge" style="align-self:flex-start;margin-top:4px;font-size:14px">+${tsk.points}</span>`}
           <div class="meta">
             <div class="t">${esc(tsk.title)}</div>
             <div class="f" style="color:var(--ink-soft);font-size:12px">${weekValueLabel(tsk)}</div>
@@ -1440,7 +1445,12 @@ function renderChild(){
       }
       rows += `
         <div class="task" id="tc-${tsk.id}" style="${(st==="skipped"||isPushed)?"opacity:.4":""}">
-          <span class="pts-badge" style="font-size:14px">+${tsk.points}</span>
+          ${tsk.incompletePenalty > 0
+            ? `<div style="align-self:flex-start;margin-top:4px">
+                 <span class="pts-badge" style="display:block;font-size:14px;position:relative;z-index:1">+${tsk.points}</span>
+                 <div style="background:#FFDAD6;color:#c0392b;font-size:11px;font-weight:800;border-radius:9px;padding:15px 0px 4px;margin-top:-14px;margin-left:4px;margin-right:4px;text-align:center;white-space:nowrap">−${tsk.incompletePenalty}</div>
+               </div>`
+            : `<span class="pts-badge" style="align-self:flex-start;margin-top:4px;font-size:14px">+${tsk.points}</span>`}
           <div class="meta">
             <div class="t">📅 ${esc(tsk.title)}</div>
             <div class="f" style="color:var(--ink-soft);font-size:12px">${monthValueLabel(tsk)}</div>
@@ -1609,12 +1619,22 @@ function renderChild(){
       const cpKey2 = `${tsk.id}|${c.id}`;
       const adjPts2 = (state.carryPenalties && state.carryPenalties[cpKey2] != null)
         ? state.carryPenalties[cpKey2] : null;
+      const _hasPen = tsk.incompletePenalty > 0;
+      const _penDiv = `<div style="background:#FFDAD6;color:#c0392b;font-size:11px;font-weight:800;border-radius:9px;padding:15px 0px 4px;margin-top:-14px;margin-left:4px;margin-right:4px;text-align:center;white-space:nowrap">−${tsk.incompletePenalty}</div>`;
       const ptsBadge = adjPts2 != null
-        ? `<span style="display:flex;flex-direction:column;align-items:center;gap:1px">
-             <span class="pts-badge" style="font-size:11px;opacity:.55;text-decoration:line-through;padding:3px 8px">+${tsk.points}</span>
-             <span class="pts-badge" style="background:#FFDAD6;color:#c0392b;font-size:14px">+${adjPts2}</span>
-           </span>`
-        : `<span class="pts-badge" style="font-size:${greyed?"12px":"14px"}">${greyed?"":"+"}${tsk.points}</span>`;
+        ? `<div style="align-self:flex-start;margin-top:4px">
+             <div style="display:flex;flex-direction:column;align-items:center;gap:1px;position:relative;z-index:1">
+               <span class="pts-badge" style="font-size:11px;opacity:.55;text-decoration:line-through;padding:3px 8px">+${tsk.points}</span>
+               <span class="pts-badge" style="background:#FFDAD6;color:#c0392b;font-size:14px">+${adjPts2}</span>
+             </div>
+             ${_hasPen ? _penDiv : ""}
+           </div>`
+        : _hasPen
+          ? `<div style="align-self:flex-start;margin-top:4px">
+               <span class="pts-badge" style="display:block;font-size:${greyed?"12px":"14px"};position:relative;z-index:1">${greyed?"":"+"}${tsk.points}</span>
+               ${_penDiv}
+             </div>`
+          : `<span class="pts-badge" style="align-self:flex-start;margin-top:4px;font-size:${greyed?"12px":"14px"}">${greyed?"":"+"}${tsk.points}</span>`;
 
       sections += `
         <div class="task" id="tc-${tsk.id}" style="${wrapStyle}">
@@ -1786,6 +1806,7 @@ function renderParent(){
     </div>
   `;
   if(view.tab === "enfants") setTimeout(setupChildDrag, 0);
+  setTimeout(setupTabsFade, 0);
 }
 
 /* re-render du corps de l'espace parent sans reset du scroll (pour l'expansion refus) */
@@ -2106,6 +2127,26 @@ function parentChildren(){
         <button data-action="pts-custom" data-id="${k.id}">${t("btnOther")}</button>
       </div>
     </div>`).join("")}`;
+}
+
+function setupTabsFade(){
+  const el = document.querySelector(".tabs");
+  if(!el) return;
+  const update = () => {
+    const atStart = el.scrollLeft <= 2;
+    const atEnd = el.scrollLeft >= el.scrollWidth - el.clientWidth - 2;
+    let mask;
+    if(atStart && atEnd)  mask = "none";
+    else if(atStart)      mask = "linear-gradient(to right, black calc(100% - 60px), transparent 100%)";
+    else if(atEnd)        mask = "linear-gradient(to right, transparent 0, black 60px)";
+    else                  mask = "linear-gradient(to right, transparent 0, black 60px, black calc(100% - 60px), transparent 100%)";
+    el.style.webkitMaskImage = mask;
+    el.style.maskImage = mask;
+  };
+  update();
+  el.removeEventListener("scroll", el._fadeHandler);
+  el._fadeHandler = update;
+  el.addEventListener("scroll", update, { passive: true });
 }
 
 function setupChildDrag(){
