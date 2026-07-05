@@ -630,7 +630,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.44";
+const APP_VERSION = "v0.45";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -3531,6 +3531,7 @@ document.addEventListener("click", (e)=>{
     case "qev-apply": {
       const title=(document.getElementById("qev-title").value||"").trim();
       if(!title){ toast(t("toastNeedTaskName")); break; }
+      if(evQuick.childIds.length===0){ toast(t("toastSelectChild")); break; }
       applyEvent(evQuick.type, title, evQuick.points, evQuick.childIds);
       toast(t(evQuick.type==="powerup"?"toastPowerUpApplied":"toastBombApplied"));
       evQuick={type:"powerup",title:"",points:5,childIds:[]};
