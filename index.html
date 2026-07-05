@@ -638,7 +638,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.50";
+const APP_VERSION = "v0.51";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -3233,7 +3233,7 @@ document.addEventListener("click", (e)=>{
     case "version-tap": {
       _versionTapCount++;
       if(_versionTapTimer) clearTimeout(_versionTapTimer);
-      _versionTapTimer = setTimeout(()=>{ _versionTapCount=0; }, 3000);
+      _versionTapTimer = setTimeout(()=>{ _versionTapCount=0; }, 4000);
       if(_versionTapCount >= 10){ _versionTapCount=0; clearTimeout(_versionTapTimer); emergencyUnlockParent(); }
       break;
     }
