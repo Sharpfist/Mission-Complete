@@ -285,8 +285,8 @@
   }
   @keyframes ev-explode{
     0%{font-size:0;opacity:0}
-    25%{font-size:110px;opacity:1}
-    100%{font-size:170px;opacity:0}
+    25%{font-size:165px;opacity:1}
+    100%{font-size:255px;opacity:0}
   }
   @keyframes ev-flash{0%{opacity:0.6}100%{opacity:0}}
   @keyframes ev-pts-up-side{
@@ -300,6 +300,12 @@
     12%{opacity:1;transform:translateY(-50%)}
     70%{opacity:1;transform:translateY(calc(-50% + 38px))}
     100%{opacity:0;transform:translateY(calc(-50% + 58px))}
+  }
+  @keyframes ev-center-star{
+    0%{transform:translate(-50%,-50%) scale(0.5);opacity:0}
+    12%{transform:translate(-50%,-50%) scale(1);opacity:1}
+    61%{transform:translate(-50%,-50%) scale(1);opacity:1}
+    100%{transform:translate(-50%,-50%) scale(1);opacity:0}
   }
   @keyframes ev-hero-pulse{
     0%{transform:scale(1)}40%{transform:scale(1.06)}70%{transform:scale(0.97)}100%{transform:scale(1)}
@@ -339,6 +345,7 @@ const TRANSLATIONS = {
     noRewards:"Aucune récompense pour l'instant.",
     tabApprove:"À valider",tabTasks:"Missions",tabStore:"Boutique",tabChildren:"Enfants",tabInvestment:"Investissement",tabSettings:"Réglages",
     skip:"Ignorer",skipped:"Ignorée",pushTomorrow:"Pousser à demain",pushedTomorrow:"Remise à demain",parentalDone:"Terminé ✓",
+    ignoreEvt:"Ignorer",ignoredEvt:"Fut ignoré",evIgnoredTag:"fut ignoré",
     noApprovals:"Rien à valider pour le moment.<br>Quand un enfant coche « J'ai fait », ça apparaît ici.",
     btnApprove:"✓ Valider (+{pts})",btnReject:"✗ Refuser",
     addTask:"＋ Nouvelle mission",quickTemplates:"⚡ Modèles rapides",
@@ -355,7 +362,7 @@ const TRANSLATIONS = {
     sectionPurchases:"🛒 Achats boutique",btnApprovePurchase:"✓ Approuver",btnRefusePurchase:"✗ Refuser",
     formNewReward:"Nouvelle récompense",formEditReward:"Modifier la récompense",
     fldEmoji:"Émoji",fldRewardName:"Nom de la récompense",fldRewardNamePh:"Ex. 30 min d'écran",fldCost:"Coût en points",
-    addChild:"＋ Ajouter un enfant",adjustPoints:"Ajuster les points à la main :",
+    addChild:"＋ Ajouter un enfant",adjustPoints:"Ajuster les points à la main",adjustPointsAnim:"avec animation",
     formNewChild:"Nouvel enfant",formEditChild:"Modifier l'enfant",
     fldChildEmoji:"Émoji / avatar",fldChildName:"Prénom",fldColor:"Couleur",
     settingsBackup:"💾 Sauvegarde",lastBackupLabel:"Dernière sauvegarde : ",noBackupYet:"Aucune sauvegarde téléchargée encore.",
@@ -478,6 +485,7 @@ const TRANSLATIONS = {
     noRewards:"No rewards yet.",
     tabApprove:"To approve",tabTasks:"Missions",tabStore:"Store",tabChildren:"Children",tabInvestment:"Investment",tabSettings:"Settings",
     skip:"Skip",skipped:"Skipped",pushTomorrow:"Push to tomorrow",pushedTomorrow:"Pushed to tomorrow",parentalDone:"Done ✓",
+    ignoreEvt:"Ignore",ignoredEvt:"Was ignored",evIgnoredTag:"was ignored",
     noApprovals:"Nothing to approve right now.<br>When a child taps « Done », it appears here.",
     btnApprove:"✓ Approve (+{pts})",btnReject:"✗ Reject",
     addTask:"＋ New mission",quickTemplates:"⚡ Quick templates",
@@ -494,7 +502,7 @@ const TRANSLATIONS = {
     sectionPurchases:"🛒 Store purchases",btnApprovePurchase:"✓ Approve",btnRefusePurchase:"✗ Refuse",
     formNewReward:"New reward",formEditReward:"Edit reward",
     fldEmoji:"Emoji",fldRewardName:"Reward name",fldRewardNamePh:"e.g. 30 min screen time",fldCost:"Cost in points",
-    addChild:"＋ Add a child",adjustPoints:"Manually adjust points:",
+    addChild:"＋ Add a child",adjustPoints:"Manually adjust points",adjustPointsAnim:"with animation",
     formNewChild:"New child",formEditChild:"Edit child",
     fldChildEmoji:"Emoji / avatar",fldChildName:"First name",fldColor:"Color",
     settingsBackup:"💾 Backup",lastBackupLabel:"Last backup: ",noBackupYet:"No backup downloaded yet.",
@@ -638,7 +646,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.54";
+const APP_VERSION = "v0.55";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -659,6 +667,7 @@ function defaults(){
     lang:"fr",
     parentPin:"",
     emergencyPinReset:null,
+    ptsAnimation:true,
     children:[
       {id:"c1", name:"Enfant 1", emoji:"🦊", color:"#FF6B6B", points:0},
       {id:"c2", name:"Enfant 2", emoji:"🐸", color:"#1FB6A6", points:0},
@@ -733,6 +742,7 @@ if(!state.pushes)        { state.pushes        = []; save(); }
 if(!state.forceUnlocked) { state.forceUnlocked = []; save(); }
 if(state.paused === undefined) { state.paused = false; save(); }
 if(state.emergencyPinReset === undefined) { state.emergencyPinReset = null; save(); }
+if(state.ptsAnimation === undefined) { state.ptsAnimation = true; save(); }
 if(!state.investment) { state.investment = {enabled:true, rate:2, freq:"daily"}; save(); }
 if(state.lastInvestmentApplied === undefined) { state.lastInvestmentApplied = ""; save(); }
 if(!state.eventTemplates){
@@ -1084,6 +1094,23 @@ function adjustPoints(childId, delta){
   k.points = Math.max(0, k.points + delta);
   save();
 }
+function triggerPtsAnim(childId, delta){
+  const k = child(childId); if(!k) return;
+  const abs = Math.abs(delta);
+  state.notifications.push({id:uid(), childId, type:delta>0?"powerup":"bomb", points:abs, delta, title:k.name, createdAt:Date.now()});
+  save();
+  /* chiffre flottant simple — pas d'étoiles ni de son en espace parent */
+  const ov = document.createElement("div");
+  ov.style.cssText = "position:fixed;inset:0;z-index:500;pointer-events:none;overflow:hidden";
+  const badge = document.createElement("div");
+  badge.textContent = (delta > 0 ? "+" : "") + delta;
+  badge.style.cssText = `position:absolute;left:50%;top:50%;font-size:52px;font-weight:900;
+    color:${delta>0?"#2BB673":"#E74C3C"};text-shadow:0 2px 12px rgba(0,0,0,.3);
+    animation:ev-pts-float 1.4s ease-out forwards`;
+  ov.appendChild(badge);
+  document.body.appendChild(ov);
+  setTimeout(()=>ov.remove(), 1500);
+}
 function deleteChild(id){
   state.children = state.children.filter(c=>c.id!==id);
   /* retire l'enfant des missions partagées ; supprime la mission si plus aucun enfant */
@@ -1096,6 +1123,8 @@ function deleteChild(id){
 
 /* ============ Routeur de vue ============ */
 let view = { name:"lock", childId:null, tab:"approbations" };
+let pendingIgnores = {};
+let pendingNewEvents = [];
 let rejectingComp = null; /* id de complétion en cours de refus avec pénalité */
 function go(name, opts){ view = Object.assign({name}, opts||{}); render(); }
 
@@ -1246,12 +1275,26 @@ function renderChild(){
   const evPanel = sortedNotifs.length === 0 ? "" : `
     <div style="margin:0 0 10px;background:#fff;border-radius:18px;padding:14px 18px;box-shadow:var(--shadow)">
       <div style="font-size:11px;font-weight:800;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">${state.lang==="fr"?"Événements":"Events"}</div>
-      ${sortedNotifs.map((n,i)=>`
-        <div style="display:flex;align-items:center;gap:10px;padding:7px 0${i<sortedNotifs.length-1?";border-bottom:1px solid var(--line)":""}">
-          <span style="font-size:18px">${n.type==="powerup"?"⚡":n.type==="investment"?"💰":"💣"}</span>
+      ${sortedNotifs.map((n,i)=>{
+        const isPU = n.type==="powerup"||n.type==="investment";
+        const isIgnored = !!n.ignored;
+        const isPending = !!pendingIgnores[n.id];
+        const sep = i<sortedNotifs.length-1 ? ";border-bottom:1px solid var(--line)" : "";
+        const rowStyle = `display:flex;align-items:center;gap:10px;padding:7px 0${sep}${isIgnored?";opacity:.38":""}`;
+        const ignBtn = view.childEditMode && !isIgnored ? `
+          <button data-action="toggle-ignore-notif" data-id="${n.id}"
+            style="font-size:12px;font-weight:700;padding:4px 9px;border-radius:8px;flex-shrink:0;
+              background:${isPending?"#F59E0B":"var(--line)"};color:${isPending?"#fff":"var(--ink-soft)"}">
+            ${isPending?t("ignoredEvt"):t("ignoreEvt")}
+          </button>` : "";
+        const ignoredTag = isIgnored ? `<span style="font-size:12px;font-weight:700;color:var(--ink-soft);flex-shrink:0">${t("evIgnoredTag")}</span>` : "";
+        return `<div style="${rowStyle}">
+          <span style="font-size:18px">${isPU?"⚡":n.type==="investment"?"💰":"💣"}</span>
           <div style="flex:1;font-weight:700;font-size:15px">${esc(n.title)}</div>
-          <span style="font-weight:900;font-size:16px;color:${(n.type==="powerup"||n.type==="investment")?"#2BB673":"#E74C3C"}">${(n.type==="powerup"||n.type==="investment")?"+":"-"}${n.points}</span>
-        </div>`).join("")}
+          <span style="font-weight:900;font-size:16px;color:${isPU?"#2BB673":"#E74C3C"}">${isPU?"+":"-"}${n.points}</span>
+          ${ignBtn}${ignoredTag}
+        </div>`;
+      }).join("")}
     </div>`;
 
   const now = new Date();
@@ -1618,7 +1661,20 @@ function renderChild(){
     </div>
     ${view.childEditMode ? `
       <div class="parental-edit-panel" style="margin-bottom:10px">
+        <button class="add-btn" data-action="new-event-child" data-id="${c.id}">＋ ${state.lang==="en"?"New event":"Nouvel événement"}</button>
         <button class="add-btn" data-action="add-task-child" data-id="${c.id}">${t("addTask")}</button>
+        ${pendingNewEvents.length > 0 ? `
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
+            ${pendingNewEvents.map((ev,i)=>`
+              <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--line);border-radius:10px;opacity:.75">
+                <span style="font-size:16px">${ev.type==="powerup"?"⭐":"💣"}</span>
+                <span style="flex:1;font-size:14px;font-weight:600;color:var(--ink)">${esc(ev.title)}</span>
+                <span style="font-size:13px;font-weight:700;color:${ev.type==="powerup"?"#2BB673":"#E74C3C"}">${ev.type==="powerup"?"+":"−"}${ev.points}</span>
+                <button class="icon-btn" style="font-size:16px;color:var(--ink-soft)" data-action="cancel-pending-ev" data-idx="${i}">✕</button>
+              </div>
+            `).join("")}
+          </div>
+        ` : ""}
       </div>
     ` : ""}
     <button class="add-btn" data-action="open-store" data-id="${c.id}">${t("shopBtn")}</button>
@@ -2036,7 +2092,10 @@ function parentChildren(){
           </button>
         </div>
       </div>
-      <div class="muted" style="margin-bottom:6px">${t("adjustPoints")}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+        <div class="muted">${t("adjustPoints")} · <em>${t("adjustPointsAnim")}</em></div>
+        <button class="toggle-sw ${state.ptsAnimation?"on":""}" data-action="toggle-pts-anim" data-id="${k.id}"></button>
+      </div>
       <div class="mini">
         <button data-action="pts" data-id="${k.id}" data-d="1">+1</button>
         <button data-action="pts" data-id="${k.id}" data-d="5">+5</button>
@@ -2262,41 +2321,48 @@ let evLive = {};
 let evQuick = { type:"powerup", title:"", points:5, childIds:[] };
 let tplEditMode = false;
 let tplFormState = {idx:-1, title:"", points:5};
+function isModalOpen(){
+  const mr = document.getElementById("modal-root");
+  return !!(mr && mr.innerHTML.trim());
+}
+function quickApplyInnerHTML(){
+  const isPU = evQuick.type === "powerup";
+  const ac = isPU ? "#2BB673" : "#E74C3C";
+  return `
+    <div class="seg" style="margin-bottom:14px">
+      <button class="opt ${isPU?"on":""}" data-action="qev-type" data-v="powerup">${t("powerupLabel")}</button>
+      <button class="opt ${!isPU?"on":""}" data-action="qev-type" data-v="bomb">${t("bombLabel")}</button>
+    </div>
+    <input class="in" id="qev-title" value="${esc(evQuick.title)}" placeholder="${t("qevTitlePh")}" style="margin-bottom:14px">
+    ${state.children.length > 0 ? `
+    <div class="kid-pick" style="margin-bottom:14px">
+      ${state.children.map(k=>{
+        const on = evQuick.childIds.includes(k.id);
+        return `<button class="opt${on?" on":""}" data-action="qev-kid-tog" data-id="${k.id}" style="${on?"":"color:"+k.color}">${esc(k.emoji)} ${esc(k.name)}</button>`;
+      }).join("")}
+    </div>` : ""}
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <button class="icon-btn" style="width:36px;height:36px;background:var(--line);border-radius:9px;font-size:22px;font-weight:900;color:var(--ink)" data-action="qev-pts-down">−</button>
+      <span id="qev-pts" style="font-weight:900;font-size:22px;min-width:36px;text-align:center;color:${ac}">${evQuick.points}</span>
+      <button class="icon-btn" style="width:36px;height:36px;background:var(--line);border-radius:9px;font-size:22px;font-weight:900;color:var(--ink)" data-action="qev-pts-up">+</button>
+      <span style="font-weight:700;font-size:14px;color:var(--ink-soft)">pts</span>
+      <button class="btn btn-yes" style="flex:1;margin-bottom:0;padding:10px 12px;font-size:14px" data-action="qev-apply">${isPU?t("qevApplyPowerup"):t("qevApplyBomb")}</button>
+    </div>
+    <button class="btn btn-ghost" style="width:100%" data-action="qev-save-tpl">${t("qevSaveTpl")}</button>`;
+}
 function parentEvents(){
   const etpls = state.eventTemplates || [];
   etpls.forEach(tpl => {
     if(!evLive[tpl.id]) evLive[tpl.id] = { pts: tpl.points, childIds: [] };
   });
   const etplsSorted = [...etpls].sort((a,b) => (a.type==="powerup"?0:1) - (b.type==="powerup"?0:1));
-  const isPowerup = evQuick.type === "powerup";
-  const accentQ = isPowerup ? "#2BB673" : "#E74C3C";
-
   const quickCard = `
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <h3 style="font-size:15px;margin:0">${t("quickApply")}</h3>
         <button class="icon-btn" style="font-size:20px;color:var(--ink-soft)" data-action="qev-reset" title="${t("qevReset")}">↺</button>
       </div>
-      <div class="seg" style="margin-bottom:14px">
-        <button class="opt ${isPowerup?"on":""}" data-action="qev-type" data-v="powerup">${t("powerupLabel")}</button>
-        <button class="opt ${!isPowerup?"on":""}" data-action="qev-type" data-v="bomb">${t("bombLabel")}</button>
-      </div>
-      <input class="in" id="qev-title" value="${esc(evQuick.title)}" placeholder="${t("qevTitlePh")}">
-      ${state.children.length > 0 ? `
-      <div class="kid-pick" style="margin-bottom:14px">
-        ${state.children.map(k => {
-          const on = evQuick.childIds.includes(k.id);
-          return `<button class="opt${on?" on":""}" data-action="qev-kid-tog" data-id="${k.id}" style="${on?"":"color:"+k.color}">${esc(k.emoji)} ${esc(k.name)}</button>`;
-        }).join("")}
-      </div>` : ""}
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-        <button class="icon-btn" style="width:36px;height:36px;background:var(--line);border-radius:9px;font-size:22px;font-weight:900;color:var(--ink)" data-action="qev-pts-down">−</button>
-        <span id="qev-pts" style="font-weight:900;font-size:22px;min-width:36px;text-align:center;color:${accentQ}">${evQuick.points}</span>
-        <button class="icon-btn" style="width:36px;height:36px;background:var(--line);border-radius:9px;font-size:22px;font-weight:900;color:var(--ink)" data-action="qev-pts-up">+</button>
-        <span style="font-weight:700;font-size:14px;color:var(--ink-soft)">pts</span>
-        <button class="btn btn-yes" style="flex:1;margin-bottom:0;padding:10px 12px;font-size:14px" data-action="qev-apply">${isPowerup?t("qevApplyPowerup"):t("qevApplyBomb")}</button>
-      </div>
-      <button class="btn btn-ghost" style="width:100%" data-action="qev-save-tpl">${t("qevSaveTpl")}</button>
+      ${quickApplyInnerHTML()}
     </div>`;
 
   const tplCards = etplsSorted.length === 0 ? "" : `
@@ -2541,28 +2607,48 @@ function playInvestmentSound(){
 }
 
 /* ---- Animations visuelles ---- */
+function showSimplePtsAnim(delta, title){
+  const ov = document.createElement("div");
+  ov.style.cssText = "position:fixed;inset:0;z-index:500;pointer-events:none;overflow:hidden";
+  const isUp = delta > 0;
+  const badge = document.createElement("div");
+  badge.innerHTML = `<div style="font-size:38px;font-weight:900;line-height:1">${isUp?"+":""}${delta}</div>`
+    + (title ? `<div style="font-size:14px;font-weight:700;opacity:.9;max-width:220px;line-height:1.3;margin-top:4px">${esc(title)} ${t("evIgnoredTag")}</div>` : "");
+  const pv = document.getElementById("pts-val");
+  const br = pv ? pv.getBoundingClientRect() : null;
+  badge.style.cssText = `position:absolute;left:${br?br.right+6+"px":"50%"};top:${br?br.top+br.height/2+"px":"46%"};
+    color:${isUp?"#2BB673":"#E74C3C"};text-shadow:0 2px 12px rgba(0,0,0,.3);
+    animation:${isUp?"ev-pts-up-side":"ev-pts-down-side"} 1.8s ease-out 0.1s forwards;opacity:0`;
+  ov.appendChild(badge);
+  document.body.appendChild(ov);
+  setTimeout(()=>ov.remove(), 2200);
+}
 function showPowerUpAnim(color, pts, title){
   const ov=document.createElement("div");
   ov.style.cssText="position:fixed;inset:0;z-index:500;pointer-events:none;overflow:hidden";
   const emojis=["⭐","✨","🌟","💫"];
-  for(let i=0;i<14;i++){
+  for(let i=0;i<20;i++){
     const s=document.createElement("span");
-    const ang=(i/14)*360+Math.random()*22;
-    const dist=90+Math.random()*90;
+    const ang=(i/20)*360+Math.random()*22;
+    const dist=135+Math.random()*135;
     s.textContent=emojis[i%4];
-    s.style.cssText=`position:absolute;left:50%;top:46%;font-size:${18+Math.random()*16}px;
+    s.style.cssText=`position:absolute;left:50%;top:46%;font-size:${27+Math.random()*24}px;
       --dx:${Math.cos(ang*Math.PI/180)*dist}px;--dy:${Math.sin(ang*Math.PI/180)*dist}px;
       animation:ev-star-out ${0.8+Math.random()*0.5}s ease-out ${Math.random()*0.3}s forwards`;
     ov.appendChild(s);
   }
+  const centerStar=document.createElement("span");
+  centerStar.textContent="⭐";
+  centerStar.style.cssText="position:absolute;left:50%;top:46%;font-size:130px;animation:ev-center-star 1.8s ease-out forwards";
+  ov.appendChild(centerStar);
   const hero=document.querySelector(".hero");
   if(hero){ hero.style.animation="ev-hero-pulse 0.6s ease 0.1s"; setTimeout(()=>{ hero.style.animation=""; },900); }
   const badge=document.createElement("div");
-  badge.innerHTML=`<div style="font-size:30px;font-weight:900;line-height:1">+${pts}</div>${title?`<div style="font-size:13px;font-weight:700;opacity:.88;max-width:160px;line-height:1.25;margin-top:3px">${esc(title)}</div>`:""}`;
+  badge.innerHTML=`<div style="font-size:46px;font-weight:900;line-height:1">+${pts}</div>${title?`<div style="font-size:19px;font-weight:700;opacity:.88;max-width:240px;line-height:1.25;margin-top:4px">${esc(title)}</div>`:""}`;
   const pv=document.getElementById("pts-val");
   const br=pv?pv.getBoundingClientRect():null;
   badge.style.cssText=`position:absolute;left:${br?br.right+6+"px":"50%"};top:${br?br.top+br.height/2+"px":"46%"};
-    color:#FFD700;text-shadow:0 2px 10px rgba(0,0,0,.35);
+    color:#FFD700;text-shadow:0 2px 14px rgba(0,0,0,.35);
     animation:ev-pts-up-side 1.8s ease-out 0.15s forwards;opacity:0`;
   ov.appendChild(badge);
   document.body.appendChild(ov);
@@ -2573,7 +2659,7 @@ function showBombAnim(pts, title){
   ov.style.cssText="position:fixed;inset:0;z-index:500;pointer-events:none;overflow:hidden";
   const bomb=document.createElement("div");
   bomb.textContent="💣";
-  bomb.style.cssText="position:absolute;left:50%;top:46%;font-size:72px;animation:ev-bomb-fall 0.95s ease-in forwards";
+  bomb.style.cssText="position:absolute;left:50%;top:46%;font-size:108px;animation:ev-bomb-fall 0.95s ease-in forwards";
   ov.appendChild(bomb);
   const expl=document.createElement("div");
   expl.textContent="💥";
@@ -2583,11 +2669,11 @@ function showBombAnim(pts, title){
   flash.style.cssText="position:absolute;inset:0;background:#FF2222;opacity:0;animation:ev-flash 0.35s ease-out 0.88s forwards";
   ov.appendChild(flash);
   const badge=document.createElement("div");
-  badge.innerHTML=`<div style="font-size:30px;font-weight:900;line-height:1">-${pts}</div>${title?`<div style="font-size:13px;font-weight:700;opacity:.88;max-width:160px;line-height:1.25;margin-top:3px">${esc(title)}</div>`:""}`;
+  badge.innerHTML=`<div style="font-size:46px;font-weight:900;line-height:1">-${pts}</div>${title?`<div style="font-size:19px;font-weight:700;opacity:.88;max-width:240px;line-height:1.25;margin-top:4px">${esc(title)}</div>`:""}`;
   const pv2=document.getElementById("pts-val");
   const br2=pv2?pv2.getBoundingClientRect():null;
   badge.style.cssText=`position:absolute;left:${br2?br2.right+6+"px":"50%"};top:${br2?br2.top+br2.height/2+"px":"46%"};
-    color:#FF3333;text-shadow:0 2px 10px rgba(0,0,0,.35);
+    color:#FF3333;text-shadow:0 2px 14px rgba(0,0,0,.35);
     animation:ev-pts-down-side 1.8s ease-out 1.15s forwards;opacity:0`;
   ov.appendChild(badge);
   document.body.appendChild(ov);
@@ -3095,7 +3181,7 @@ function pinPrompt(purpose){
   openModal(`
     <h3>${purpose==="set" ? t("modalSetPin") : t("modalEnterPin")}</h3>
     <label class="fld">${purpose==="set" ? t("fldNewPin") : t("fldEnterPin")}</label>
-    <input class="in" id="pin-in" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="text-align:center;letter-spacing:8px;font-size:24px">
+    <input class="in" id="pin-in" type="${purpose==="set"?"number":"password"}" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="text-align:center;letter-spacing:8px;font-size:24px">
     <div class="modal-actions">
       <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
       <button class="btn btn-yes" data-action="${purpose==="set"?"save-pin":"check-pin"}">${t("btnOK")}</button>
@@ -3597,12 +3683,17 @@ document.addEventListener("click", (e)=>{
 
     /* événements */
     case "new-event": newEventForm(); break;
+    case "new-event-child":
+      evQuick = {type:"powerup", title:"", points:5, childIds:[id]};
+      openModal(`<h3 style="margin-bottom:14px">${t("quickApply")}</h3>${quickApplyInnerHTML()}`);
+      break;
 
-    /* application rapide d'événement */
+    /* application rapide d'événement — fonctionne en inline (parent/events) ET en modal (enfant/réglage) */
     case "qev-type": {
       const ti=document.getElementById("qev-title"); if(ti) evQuick.title=ti.value;
       evQuick.type=el.dataset.v;
-      const pb=document.getElementById("parent-body"); if(pb) pb.innerHTML=parentEvents();
+      if(isModalOpen()){ openModal(`<h3 style="margin-bottom:14px">${t("quickApply")}</h3>${quickApplyInnerHTML()}`); }
+      else { const pb=document.getElementById("parent-body"); if(pb) pb.innerHTML=parentEvents(); }
       break;
     }
     case "qev-pts-up": {
@@ -3628,10 +3719,16 @@ document.addEventListener("click", (e)=>{
       const title=(document.getElementById("qev-title").value||"").trim();
       if(!title){ toast(t("toastNeedTaskName")); break; }
       if(evQuick.childIds.length===0){ toast(t("toastSelectChild")); break; }
-      applyEvent(evQuick.type, title, evQuick.points, evQuick.childIds);
-      toast(t(evQuick.type==="powerup"?"toastPowerUpApplied":"toastBombApplied"));
-      evQuick={type:"powerup",title:"",points:5,childIds:[]};
-      const pb2=document.getElementById("parent-body"); if(pb2) pb2.innerHTML=parentEvents();
+      if(isModalOpen()){
+        pendingNewEvents.push({type:evQuick.type, title, points:evQuick.points, childIds:[...evQuick.childIds]});
+        evQuick={type:"powerup",title:"",points:5,childIds:[view.childId].filter(Boolean)};
+        closeModal(); render();
+      } else {
+        applyEvent(evQuick.type, title, evQuick.points, evQuick.childIds);
+        toast(t(evQuick.type==="powerup"?"toastPowerUpApplied":"toastBombApplied"));
+        evQuick={type:"powerup",title:"",points:5,childIds:[]};
+        const pb2=document.getElementById("parent-body"); if(pb2) pb2.innerHTML=parentEvents();
+      }
       break;
     }
     case "qev-save-tpl": {
@@ -3640,7 +3737,7 @@ document.addEventListener("click", (e)=>{
       if(!state.eventTemplates) state.eventTemplates=[];
       state.eventTemplates.push({id:uid(), type:evQuick.type, title:title2, points:evQuick.points, childIds:[]});
       save();
-      const pb3=document.getElementById("parent-body"); if(pb3) pb3.innerHTML=parentEvents();
+      if(!isModalOpen()){ const pb3=document.getElementById("parent-body"); if(pb3) pb3.innerHTML=parentEvents(); }
       toastColored(t("qevTplSaved"),"#23214A",2500);
       break;
     }
@@ -3788,12 +3885,21 @@ document.addEventListener("click", (e)=>{
 
     /* enfants */
     /* mode édition parental depuis l'écran enfant */
+    case "toggle-ignore-notif": {
+      if(pendingIgnores[id]) delete pendingIgnores[id]; else pendingIgnores[id]=true;
+      const isPending = !!pendingIgnores[id];
+      el.textContent = isPending ? t("ignoredEvt") : t("ignoreEvt");
+      el.style.background = isPending ? "#F59E0B" : "var(--line)";
+      el.style.color = isPending ? "#fff" : "var(--ink-soft)";
+      break;
+    }
     case "child-edit-gear": {
+      pendingIgnores = {};
       if(state.parentPin){
         openModal(`
           <h3>⚙️ ${state.lang==="en"?"Parental access":"Accès parental"}</h3>
           <label class="fld">${t("fldEnterPin")}</label>
-          <input class="in" id="gear-pin-in" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="text-align:center;letter-spacing:8px;font-size:24px">
+          <input class="in" id="gear-pin-in" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="text-align:center;letter-spacing:8px;font-size:24px">
           <div class="modal-actions">
             <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
             <button class="btn btn-yes" data-action="gear-pin-confirm">${t("btnOK")}</button>
@@ -3801,17 +3907,50 @@ document.addEventListener("click", (e)=>{
         `);
         setTimeout(()=>{ const inp=document.getElementById("gear-pin-in"); if(inp) inp.focus(); },50);
       } else {
-        view.childEditMode = true; render();
+        pendingNewEvents = []; view.childEditMode = true; render();
       }
       break;
     }
     case "gear-pin-confirm": {
       const v=(document.getElementById("gear-pin-in")||{}).value||"";
-      if(v===state.parentPin){ view.childEditMode=true; closeModal(); render(); }
+      if(v===state.parentPin){ pendingIgnores={}; pendingNewEvents=[]; view.childEditMode=true; closeModal(); render(); }
       else { toast(t("toastWrongPin")); }
       break;
     }
-    case "child-edit-done": { view.childEditMode=false; render(); break; }
+    case "child-edit-done": {
+      const toIgnore = Object.keys(pendingIgnores);
+      const toApply = [...pendingNewEvents];
+      pendingIgnores = {};
+      pendingNewEvents = [];
+      view.childEditMode = false;
+      if(toIgnore.length === 0 && toApply.length === 0){ render(); break; }
+      const c2 = child(view.childId);
+      let delay = 0;
+      /* ignores : inverser les points */
+      toIgnore.forEach((nid, i)=>{
+        const notif = (state.notifications||[]).find(n=>n.id===nid);
+        if(!notif || !c2) return;
+        const isPU = notif.type==="powerup"||notif.type==="investment";
+        const reverseDelta = isPU ? -notif.points : notif.points;
+        c2.points = Math.max(0, c2.points + reverseDelta);
+        notif.ignored = true;
+        setTimeout(()=>{ showSimplePtsAnim(reverseDelta, notif.title); }, delay);
+        delay += 1800;
+      });
+      /* nouveaux événements : appliquer points (l'animation se déclenche via newlyViewed au render) */
+      toApply.forEach((ev)=>{
+        applyEvent(ev.type, ev.title, ev.points, ev.childIds);
+      });
+      save();
+      render();
+      break;
+    }
+    case "cancel-pending-ev": {
+      const idx = parseInt(el.dataset.idx, 10);
+      if(!isNaN(idx)) pendingNewEvents.splice(idx, 1);
+      render();
+      break;
+    }
     case "add-task-child": {
       const preChild = child(id);
       formState = {
@@ -3957,10 +4096,24 @@ document.addEventListener("click", (e)=>{
       save(); closeModal(); render(); toast(t("toastChildSaved"));
       break;
     }
-    case "pts": adjustPoints(id, parseInt(el.dataset.d,10)); render(); break;
+    case "toggle-pts-anim":
+      state.ptsAnimation = !state.ptsAnimation; save();
+      el.classList.toggle("on", state.ptsAnimation);
+      break;
+    case "pts": {
+      const delta = parseInt(el.dataset.d,10);
+      adjustPoints(id, delta);
+      if(state.ptsAnimation){ triggerPtsAnim(id, delta); }
+      render();
+      break;
+    }
     case "pts-custom": {
       const v=prompt(t("promptCustomPts"));
-      if(v!==null){ const n=parseInt(v,10); if(!isNaN(n)){ adjustPoints(id,n); render(); } }
+      if(v!==null){ const n=parseInt(v,10); if(!isNaN(n)){
+        adjustPoints(id,n);
+        if(state.ptsAnimation){ triggerPtsAnim(id, n); }
+        render();
+      }}
       break;
     }
 
@@ -4041,7 +4194,7 @@ document.addEventListener("click", (e)=>{
       openModal(`
         <h3>${t("modalRemovePin")}</h3>
         <label class="fld">${t("fldEnterPin")}</label>
-        <input class="in" id="remove-pin-in" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="text-align:center;letter-spacing:8px;font-size:24px">
+        <input class="in" id="remove-pin-in" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="text-align:center;letter-spacing:8px;font-size:24px">
         <div class="modal-actions">
           <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
           <button class="btn btn-no" data-action="confirm-remove-pin">${t("btnRemovePin")}</button>
@@ -4328,6 +4481,23 @@ if(new Date().getDay()===1 && state.lastMondayReminderDate!==todayStr()){
   checkSundayReload();
   document.addEventListener("visibilitychange", () => { if(!document.hidden) checkSundayReload(); });
 })();
+
+/* ---- Touche Entrée sur ordi ---- */
+document.addEventListener("keydown", e => {
+  if(e.key !== "Enter") return;
+  const modalRoot = document.getElementById("modal-root");
+  const modalOpen = modalRoot && modalRoot.innerHTML.trim() !== "";
+  if(modalOpen){
+    const yes = modalRoot.querySelector(".btn-yes") || modalRoot.querySelector(".btn-no");
+    if(yes){ e.preventDefault(); yes.click(); }
+    return;
+  }
+  /* Pas de modal — ne pas interférer si l'utilisateur tape dans un champ */
+  if(e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
+  /* Bouton Terminé visible (mode édition enfant) */
+  const done = document.querySelector("[data-action='child-edit-done']");
+  if(done){ done.click(); return; }
+});
 </script>
 </body>
 </html>
