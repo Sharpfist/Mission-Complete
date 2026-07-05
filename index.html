@@ -646,7 +646,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.56";
+const APP_VERSION = "v0.57";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1177,6 +1177,7 @@ function renderLock(){
     </div>
     <button class="parent-btn" data-action="open-parent">${t("parentBtn")}</button>
     <p class="footer-note">${t("lockTip")}<br><span data-action="version-tap" style="opacity:.5;font-size:10px;-webkit-user-select:none;cursor:default">${APP_VERSION}</span></p>
+    <p style="text-align:center;font-size:10px;color:var(--ink-soft);opacity:.4;margin-top:10px;font-weight:600">Créé par Sharpfist · Tous droits réservés</p>
     <div style="display:flex;justify-content:center;gap:10px;margin-top:18px">
       <button class="lang-btn" data-action="refresh-app" title="Actualiser">🔄</button>
       <button class="lang-btn" data-action="toggle-lang">${state.lang==="fr"?"🇫🇷 FR":"🇬🇧 EN"}</button>
@@ -1838,11 +1839,26 @@ function allModeReady(tsk){
 
 function parentApprovals(){
   const fs = freqShort();
-  const pend = state.completions.filter(c=>c.status==="pending").sort((a,b)=>a.createdAt-b.createdAt);
+  const pend = state.completions.filter(c=>c.status==="pending");
   const visible = pend.filter(c=>{
     const tsk = task(c.taskId);
     if(tsk && isExtreme(tsk) && tsk.extremeMode==="all") return allModeReady(tsk);
     return true;
+  });
+
+  /* trier par ordre d'apparition des enfants, puis par heure de complétion */
+  const childOrder = cid => { const i=state.children.findIndex(k=>k.id===cid); return i===-1?999:i; };
+  visible.sort((a,b)=>{
+    const oc=childOrder(a.childId)-childOrder(b.childId);
+    return oc!==0 ? oc : a.createdAt-b.createdAt;
+  });
+
+  /* grouper par enfant (ordre déjà garanti) */
+  const groups=[];
+  visible.forEach(c=>{
+    if(!groups.length || groups[groups.length-1].childId!==c.childId)
+      groups.push({childId:c.childId, items:[]});
+    groups[groups.length-1].items.push(c);
   });
 
   /* purchases section — pending + approved (waiting for "mark given") */
@@ -1877,7 +1893,15 @@ function parentApprovals(){
   if(visible.length===0 && pendingPurchases.length===0){
     return `<div class="empty"><span class="em">✅</span>${t("noApprovals")}</div>`;
   }
-  return purchasesHtml + visible.map(c=>approvalCard(c, fs)).join("");
+
+  let missionsHtml = "";
+  groups.forEach(g=>{
+    const k=child(g.childId); if(!k) return;
+    missionsHtml += `<div style="font-weight:800;font-size:17px;color:${k.color};margin:14px 2px 6px;display:flex;align-items:center;gap:6px">${esc(k.emoji)} ${esc(k.name)}</div>`;
+    missionsHtml += g.items.map(c=>approvalCard(c,fs)).join("");
+  });
+
+  return purchasesHtml + missionsHtml;
 }
 
 function fmtCompletedAt(ts){
@@ -1945,15 +1969,14 @@ function approvalCard(c, fs){
       </div>`;
   }
 
+  const modeStr = ex ? ` · ${extremeEmoji(tsk)} ${t("typeExtreme")}` : "";
   return `
     <div class="card approve-card">
-      <div class="who-line">
-        <span class="who-chip" style="background:${k.color}">${esc(k.emoji)} ${esc(k.name)}</span>
-        <span class="muted">${fs[tsk.freq]}</span>
-        ${modeTag}
-      </div>
       <div class="row">
-        <div class="grow"><div class="t" style="font-weight:800;font-size:17px">${ex?extremeEmoji(tsk)+" ":""}${esc(tsk.title)}<span style="font-size:12px;font-weight:500;color:var(--ink-soft);margin-left:8px;white-space:nowrap">${fmtCompletedAt(c.createdAt)}</span></div></div>
+        <div class="grow">
+          <div class="t" style="font-weight:800;font-size:17px">${ex?extremeEmoji(tsk)+" ":""}${esc(tsk.title)}</div>
+          <div class="muted" style="font-size:12px;margin-top:3px">${fmtCompletedAt(c.createdAt)} · ${fs[tsk.freq]||tsk.freq} · ${taskPeriodName(tsk)}${modeStr}</div>
+        </div>
         ${ptsDisplay}
       </div>
       ${buttons}
@@ -3528,7 +3551,7 @@ document.addEventListener("click", (e)=>{
       captureTaskForm();
       const arr=[...(formState.childIds||[])];
       const idx=arr.indexOf(id);
-      if(idx===-1){ arr.push(id); } else if(arr.length>1){ arr.splice(idx,1); }
+      if(idx===-1){ arr.push(id); } else { arr.splice(idx,1); }
       formState.childIds=arr; drawTaskForm(); break;
     }
     case "pick-freq":
