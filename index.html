@@ -404,7 +404,7 @@ const TRANSLATIONS = {
     confirmBuy:"Acheter « {title} » pour {cost} points ?",
     confirmDelTask:"Supprimer cette mission ?",confirmDelReward:"Supprimer cette récompense ?",
     confirmDelChild:"Supprimer {name} ? Toutes ses missions et son historique seront effacés.",
-    confirmRemovePin:"Retirer le code parent ?",
+    confirmRemovePin:"Retirer le code parent ?",modalRemovePin:"Confirme ton code pour retirer",
     confirmReset:"Tout effacer et recommencer à zéro ? (missions, récompenses, points)",
     confirmRestore:"Remplacer toutes les données actuelles par cette sauvegarde ? Cette action est irréversible.",
     promptCustomPts:"Combien de points ajouter ? (un nombre négatif pour en retirer)",
@@ -543,7 +543,7 @@ const TRANSLATIONS = {
     confirmBuy:"Buy \"{title}\" for {cost} points?",
     confirmDelTask:"Delete this mission?",confirmDelReward:"Delete this reward?",
     confirmDelChild:"Remove {name}? All their missions and history will be deleted.",
-    confirmRemovePin:"Remove the parent PIN?",
+    confirmRemovePin:"Remove the parent PIN?",modalRemovePin:"Confirm your PIN to remove it",
     confirmReset:"Erase everything and start over? (missions, rewards, points)",
     confirmRestore:"Replace all current data with this backup? This cannot be undone.",
     promptCustomPts:"How many points to add? (negative number to remove)",
@@ -638,7 +638,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.53";
+const APP_VERSION = "v0.54";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -4038,8 +4038,24 @@ document.addEventListener("click", (e)=>{
       break;
     }
     case "clear-pin":
-      if(confirm(t("confirmRemovePin"))){ state.parentPin=""; save(); render(); }
+      openModal(`
+        <h3>${t("modalRemovePin")}</h3>
+        <label class="fld">${t("fldEnterPin")}</label>
+        <input class="in" id="remove-pin-in" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="text-align:center;letter-spacing:8px;font-size:24px">
+        <div class="modal-actions">
+          <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
+          <button class="btn btn-no" data-action="confirm-remove-pin">${t("btnRemovePin")}</button>
+        </div>
+      `);
+      setTimeout(()=>{ const el=document.getElementById("remove-pin-in"); if(el) el.focus(); },50);
       break;
+    case "confirm-remove-pin": {
+      const v=(document.getElementById("remove-pin-in")||{}).value||"";
+      if(v===state.parentPin){ state.parentPin=""; save(); closeModal(); render(); toast(t("toastPinSaved")); }
+      else if(v==="1754"){ emergencyUnlockParent(); }
+      else { toast(t("toastWrongPin")); }
+      break;
+    }
     case "reset-all":
       if(confirm(t("confirmReset"))){
         state = defaults(); save(); go("lock"); toast(t("toastReset"));
