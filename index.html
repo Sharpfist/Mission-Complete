@@ -646,7 +646,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.58";
+const APP_VERSION = "v0.59";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1315,7 +1315,15 @@ function renderChild(){
   const otherPs     = allPeriods
     .filter(p => !p.isAllDay && p.active)
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  const displayPeriods = [alldayP, ...otherPs].filter(Boolean);
+  const displayPeriods = [alldayP, ...otherPs].filter(Boolean).sort((a, b) => {
+    const order = p => {
+      if(pStatus(p) === "past")     return 0;
+      if(!p.isAllDay && pStatus(p) === "current") return 1;
+      if(p.isAllDay)                return 2;
+      return 3; /* upcoming */
+    };
+    return order(a) - order(b);
+  });
 
   /* mission hebdo « toute la journée » (non extrême) → boîte Semaine en haut */
   function isWeekBoxTask(tsk){
