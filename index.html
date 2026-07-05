@@ -400,7 +400,7 @@ const TRANSLATIONS = {
     toastEmergencyUnlock:"🔓 Code parent supprimé — méthode d'urgence",
     emergencyPinBanner:"⚠️ Suppression du code parent par méthode d'urgence",
     emergencyPinHintTitle:"Code de secours 🔑",
-    emergencyPinHint:"Si tu oublies ton code, clique dix fois sur « {version} » sur la page principale — ceci effacera le code parent.",
+    emergencyPinHint:"Si tu oublies ton code, clique dix fois sur « {version} » <em>en 4 secondes ou moins</em> sur la page principale — ceci effacera le code parent.",
     confirmBuy:"Acheter « {title} » pour {cost} points ?",
     confirmDelTask:"Supprimer cette mission ?",confirmDelReward:"Supprimer cette récompense ?",
     confirmDelChild:"Supprimer {name} ? Toutes ses missions et son historique seront effacés.",
@@ -539,7 +539,7 @@ const TRANSLATIONS = {
     toastEmergencyUnlock:"🔓 Parent PIN removed — emergency method",
     emergencyPinBanner:"⚠️ Parent PIN removed using the emergency method",
     emergencyPinHintTitle:"Backup access 🔑",
-    emergencyPinHint:"If you forget your PIN, tap « {version} » ten times on the main screen — this will erase the parent PIN.",
+    emergencyPinHint:"If you forget your PIN, tap « {version} » ten times <em>within 4 seconds</em> on the main screen — this will erase the parent PIN.",
     confirmBuy:"Buy \"{title}\" for {cost} points?",
     confirmDelTask:"Delete this mission?",confirmDelReward:"Delete this reward?",
     confirmDelChild:"Remove {name}? All their missions and history will be deleted.",
@@ -638,7 +638,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.52";
+const APP_VERSION = "v0.53";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
