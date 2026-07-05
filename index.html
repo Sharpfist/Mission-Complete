@@ -646,7 +646,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.59";
+const APP_VERSION = "v0.60";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1125,6 +1125,7 @@ function deleteChild(id){
 let view = { name:"lock", childId:null, tab:"approbations" };
 let pendingIgnores = {};
 let pendingNewEvents = [];
+let expandedDonePeriods = new Set();
 let rejectingComp = null; /* id de complétion en cours de refus avec pénalité */
 function go(name, opts){ view = Object.assign({name}, opts||{}); render(); }
 
@@ -1520,7 +1521,7 @@ function renderChild(){
     /* missions extrêmes (surplus) en dernier dans la période */
     items.sort((a,b)=> (a.ex?1:0) - (b.ex?1:0));
 
-    items.forEach(({tsk, carried, greyed, ex}) => {
+    const renderTaskHtml = ({tsk, carried, greyed, ex}) => {
       const st = taskStatusFor(tsk, c.id);
 
       if(ex){
@@ -1586,7 +1587,7 @@ function renderChild(){
         const subLine = (!unlocked && !closed && st==="open" && !isPushedEx)
           ? `${t("extremeSurplus")}${allCounter} · ${t("extremeLocked")}`
           : `${t("extremeSurplus")}${allCounter}`;
-        sections += `
+        return `
           <div class="task" id="tc-${tsk.id}" style="${wrapStyle}">
             <span class="pts-badge" style="background:#FFB020;color:#4a2d00">+${tsk.points}</span>
             <div class="meta">
@@ -1595,7 +1596,6 @@ function renderChild(){
             </div>
             ${action}
           </div>`;
-        return;
       }
 
       const isPushed = isPushedTomorrow(tsk, c.id);
@@ -1645,7 +1645,7 @@ function renderChild(){
              </div>`
           : `<span class="pts-badge" style="align-self:flex-start;margin-top:4px;font-size:${greyed?"12px":"14px"}">${greyed?"":"+"}${tsk.points}</span>`;
 
-      sections += `
+      return `
         <div class="task" id="tc-${tsk.id}" style="${wrapStyle}">
           ${ptsBadge}
           <div class="meta">
@@ -1656,7 +1656,34 @@ function renderChild(){
           </div>
           ${action}
         </div>`;
-    });
+    };
+
+    const doneItems   = items.filter(({tsk}) => { const s=taskStatusFor(tsk,c.id); return s==="done"||s==="pending"; });
+    const activeItems = items.filter(({tsk}) => { const s=taskStatusFor(tsk,c.id); return s!=="done"&&s!=="pending"; });
+
+    activeItems.forEach(item => { sections += renderTaskHtml(item); });
+
+    if(doneItems.length >= 3){
+      const nApproved = doneItems.filter(({tsk}) => taskStatusFor(tsk,c.id)==="done").length;
+      const isExp = expandedDonePeriods.has(p.id);
+      const groupLabel = state.lang==="fr"
+        ? `Missions Complétées · ${nApproved}/${doneItems.length} acceptées`
+        : `Completed Missions · ${nApproved}/${doneItems.length} accepted`;
+      sections += `
+        <button data-action="toggle-done-group" data-pid="${p.id}"
+          style="display:flex;align-items:center;justify-content:space-between;width:100%;
+                 background:var(--line);border-radius:12px;padding:10px 14px;margin:6px 0 2px;
+                 font-weight:700;font-size:13px;color:var(--ink-soft);border:none;cursor:pointer">
+          <span>${groupLabel}</span>
+          <span id="done-arrow-${p.id}" style="font-size:16px;line-height:1">${isExp?"▴":"▾"}</span>
+        </button>
+        <div id="done-group-${p.id}"
+          style="max-height:${isExp?"3000px":"0"};overflow:hidden;transition:max-height 0.38s ease;padding-left:10px">
+          ${doneItems.map(renderTaskHtml).join("")}
+        </div>`;
+    } else {
+      doneItems.forEach(item => { sections += renderTaskHtml(item); });
+    }
   });
 
   if(state.paused){
@@ -3377,6 +3404,24 @@ document.addEventListener("click", (e)=>{
     case "open-child": go("child",{childId:id}); break;
     case "open-store": case "open-store2": go("store",{childId:id}); break;
     case "lock": go("lock"); break;
+
+    case "toggle-done-group": {
+      const pid = el.dataset.pid;
+      const container = document.getElementById(`done-group-${pid}`);
+      const arrow = document.getElementById(`done-arrow-${pid}`);
+      if(!container) break;
+      if(expandedDonePeriods.has(pid)){
+        expandedDonePeriods.delete(pid);
+        container.style.maxHeight = container.scrollHeight + "px";
+        requestAnimationFrame(() => { container.style.maxHeight = "0"; });
+        if(arrow) arrow.textContent = "▾";
+      } else {
+        expandedDonePeriods.add(pid);
+        container.style.maxHeight = container.scrollHeight + "px";
+        if(arrow) arrow.textContent = "▴";
+      }
+      break;
+    }
 
     /* enfant */
     case "do-task":
