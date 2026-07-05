@@ -630,7 +630,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.46";
+const APP_VERSION = "v0.47";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -2966,6 +2966,26 @@ function rewardForm(existing){
   `);
 }
 
+const CHILD_EMOJIS = [
+  "😀","😁","😂","🤣","😊","😎","🥳","😜",
+  "🤩","😍","🥰","😇","🤠","😋","🙃","😏",
+  "👦","👧","🧒","👶","👑","🦸","🧙","🤖",
+  "🐶","🐱","🐹","🐰","🦊","🐻","🐼","🐨",
+  "🐯","🦁","🐸","🐧","🦄","🐲","🦋","🐝",
+  "⭐","🌟","💫","✨","🔥","🌈","❤️","💙",
+  "🎮","⚽","🏀","🎨","🎵","🏆","🚀","☀️"
+];
+function emojiPickerHTML(current, inputId){
+  return `
+    <input type="hidden" id="${inputId}" value="${esc(current)}">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <div id="${inputId}-preview" style="font-size:38px;width:56px;height:56px;display:flex;align-items:center;justify-content:center;background:var(--line);border-radius:14px">${esc(current)}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px">
+      ${CHILD_EMOJIS.map(em=>`<button style="font-size:22px;padding:5px;border-radius:8px;background:${em===current?"var(--ink)":"transparent"};color:${em===current?"#fff":""};line-height:1" data-action="pick-child-emoji" data-target="${inputId}" data-v="${em}">${em}</button>`).join("")}
+    </div>`;
+}
+
 function childSelfEditForm(c){
   formState = {id:c.id, name:c.name, emoji:c.emoji, color:c.color};
   const f = formState;
@@ -2973,7 +2993,7 @@ function childSelfEditForm(c){
   openModal(`
     <h3 style="color:${f.color}">${esc(f.emoji)} ${esc(f.name)}</h3>
     <label class="fld">${t("fldChildEmoji")}</label>
-    <input class="in" id="k-emoji-self" value="${esc(f.emoji)}" maxlength="4" style="width:90px;text-align:center;font-size:28px">
+    ${emojiPickerHTML(f.emoji, "k-emoji-self")}
     <label class="fld">${t("fldColor")}</label>
     <div class="seg" id="k-color-self" style="margin-bottom:20px">
       ${palette.map(col=>`<button class="opt ${f.color.toLowerCase()===col.toLowerCase()?"on":""}" data-action="pick-color-self" data-c="${col}" style="background:${col};color:#fff;min-width:54px">${f.color.toLowerCase()===col.toLowerCase()?"✓":"&nbsp;"}</button>`).join("")}
@@ -2994,7 +3014,7 @@ function childForm(existing){
   openModal(`
     <h3>${f.id ? t("formEditChild") : t("formNewChild")}</h3>
     <label class="fld">${t("fldChildEmoji")}</label>
-    <input class="in" id="k-emoji" value="${esc(f.emoji)}" maxlength="4" style="width:90px;text-align:center;font-size:24px">
+    ${emojiPickerHTML(f.emoji, "k-emoji")}
     <label class="fld">${t("fldChildName")}</label>
     <input class="in" id="k-name" value="${esc(f.name)}">
     <label class="fld">${t("fldColor")}</label>
@@ -3814,6 +3834,18 @@ document.addEventListener("click", (e)=>{
     case "new-child": childForm(null); break;
     case "edit-child": childForm(child(id)); break;
     case "child-edit-self": { const k=child(id); if(k) childSelfEditForm(k); break; }
+    case "pick-child-emoji": {
+      const v=el.dataset.v, tgt=el.dataset.target;
+      formState.emoji=v;
+      const inp=document.getElementById(tgt); if(inp) inp.value=v;
+      const prev=document.getElementById(tgt+"-preview"); if(prev) prev.textContent=v;
+      document.querySelectorAll(`[data-action="pick-child-emoji"][data-target="${tgt}"]`).forEach(btn=>{
+        const on=btn.dataset.v===v;
+        btn.style.background=on?"var(--ink)":"transparent";
+        btn.style.color=on?"#fff":"";
+      });
+      break;
+    }
     case "pick-color-self": {
       formState.color = el.dataset.c;
       document.querySelectorAll("#k-color-self .opt").forEach(btn=>{
