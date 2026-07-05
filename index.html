@@ -397,6 +397,10 @@ const TRANSLATIONS = {
     toastInvalidBackup:"Ce fichier n'est pas une sauvegarde valide",toastNeedTaskName:"Donne un nom à la mission",
     toastNeedRewardName:"Donne un nom à la récompense",toastNeedChildName:"Donne un prénom à l'enfant",
     toastNeedPin:"Il faut 4 chiffres",
+    toastEmergencyUnlock:"🔓 Code parent supprimé — méthode d'urgence",
+    emergencyPinBanner:"⚠️ Suppression du code parent par méthode d'urgence",
+    emergencyPinHintTitle:"Code de secours 🔑",
+    emergencyPinHint:"Si tu oublies ton code, clique dix fois sur « {version} » sur la page principale — ceci effacera le code parent.",
     confirmBuy:"Acheter « {title} » pour {cost} points ?",
     confirmDelTask:"Supprimer cette mission ?",confirmDelReward:"Supprimer cette récompense ?",
     confirmDelChild:"Supprimer {name} ? Toutes ses missions et son historique seront effacés.",
@@ -532,6 +536,10 @@ const TRANSLATIONS = {
     toastInvalidBackup:"This file is not a valid backup",toastNeedTaskName:"Give the mission a name",
     toastNeedRewardName:"Give the reward a name",toastNeedChildName:"Give the child a name",
     toastNeedPin:"Must be 4 digits",
+    toastEmergencyUnlock:"🔓 Parent PIN removed — emergency method",
+    emergencyPinBanner:"⚠️ Parent PIN removed using the emergency method",
+    emergencyPinHintTitle:"Backup access 🔑",
+    emergencyPinHint:"If you forget your PIN, tap « {version} » ten times on the main screen — this will erase the parent PIN.",
     confirmBuy:"Buy \"{title}\" for {cost} points?",
     confirmDelTask:"Delete this mission?",confirmDelReward:"Delete this reward?",
     confirmDelChild:"Remove {name}? All their missions and history will be deleted.",
@@ -630,7 +638,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.49";
+const APP_VERSION = "v0.50";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -650,6 +658,7 @@ function defaults(){
     version:1,
     lang:"fr",
     parentPin:"",
+    emergencyPinReset:null,
     children:[
       {id:"c1", name:"Enfant 1", emoji:"🦊", color:"#FF6B6B", points:0},
       {id:"c2", name:"Enfant 2", emoji:"🐸", color:"#1FB6A6", points:0},
@@ -723,6 +732,7 @@ if(!state.skips)         { state.skips         = []; save(); }
 if(!state.pushes)        { state.pushes        = []; save(); }
 if(!state.forceUnlocked) { state.forceUnlocked = []; save(); }
 if(state.paused === undefined) { state.paused = false; save(); }
+if(state.emergencyPinReset === undefined) { state.emergencyPinReset = null; save(); }
 if(!state.investment) { state.investment = {enabled:true, rate:2, freq:"daily"}; save(); }
 if(state.lastInvestmentApplied === undefined) { state.lastInvestmentApplied = ""; save(); }
 if(!state.eventTemplates){
@@ -1137,7 +1147,7 @@ function renderLock(){
       }).join("")}
     </div>
     <button class="parent-btn" data-action="open-parent">${t("parentBtn")}</button>
-    <p class="footer-note">${t("lockTip")}<br><span style="opacity:.5;font-size:10px">${APP_VERSION}</span></p>
+    <p class="footer-note">${t("lockTip")}<br><span data-action="version-tap" style="opacity:.5;font-size:10px;-webkit-user-select:none;cursor:default">${APP_VERSION}</span></p>
     <div style="display:flex;justify-content:center;gap:10px;margin-top:18px">
       <button class="lang-btn" data-action="refresh-app" title="Actualiser">🔄</button>
       <button class="lang-btn" data-action="toggle-lang">${state.lang==="fr"?"🇫🇷 FR":"🇬🇧 EN"}</button>
@@ -1693,11 +1703,21 @@ function renderParent(){
   if(view.tab==="investissement") body = parentInvestissement();
   if(view.tab==="reglages")       body = parentSettings();
 
+  const _emerAge = state.emergencyPinReset ? Date.now()-state.emergencyPinReset : Infinity;
+  const _emerBanner = _emerAge < 7*24*3600*1000 ? (()=>{
+    const d=new Date(state.emergencyPinReset), pad=n=>String(n).padStart(2,"0");
+    const months=(t("calMonths")||"").split(",");
+    const ds = state.lang==="en"
+      ? `${months[d.getMonth()]} ${d.getDate()} at ${pad(d.getHours())}:${pad(d.getMinutes())}`
+      : `le ${d.getDate()} ${months[d.getMonth()]} à ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return `<div style="background:#FEF3C7;border-bottom:2px solid #F59E0B;padding:9px 16px;font-size:12px;font-weight:700;color:#92400E">${t("emergencyPinBanner")} — ${ds}</div>`;
+  })() : "";
   app().innerHTML = `
     <div class="top">
       <button class="back" data-action="lock">‹</button>
       <div class="who-name">🔐 ${state.lang==="en"?"Parent area":"Espace parent"}</div>
     </div>
+    ${_emerBanner}
     <div class="tabs">
       ${tabs.map(tab=>`<button class="tab ${view.tab===tab.id?"active":""}" data-action="ptab" data-tab="${tab.id}">
         ${tab.label}${tab.id==="approbations"&&pc>0?`<span class="badge-n">${pc}</span>`:""}
@@ -3042,6 +3062,18 @@ function childForm(existing){
   `);
 }
 
+let _versionTapCount = 0;
+let _versionTapTimer = null;
+
+function emergencyUnlockParent(){
+  state.parentPin = "";
+  state.emergencyPinReset = Date.now();
+  save();
+  closeModal();
+  go("parent", {tab:"reglages"});
+  toast(t("toastEmergencyUnlock"));
+}
+
 function pinPrompt(purpose){
   openModal(`
     <h3>${purpose==="set" ? t("modalSetPin") : t("modalEnterPin")}</h3>
@@ -3198,9 +3230,17 @@ document.addEventListener("click", (e)=>{
       if(state.parentPin){ pinPrompt("enter"); }
       else { go("parent",{tab:"approbations"}); }
       break;
+    case "version-tap": {
+      _versionTapCount++;
+      if(_versionTapTimer) clearTimeout(_versionTapTimer);
+      _versionTapTimer = setTimeout(()=>{ _versionTapCount=0; }, 3000);
+      if(_versionTapCount >= 10){ _versionTapCount=0; clearTimeout(_versionTapTimer); emergencyUnlockParent(); }
+      break;
+    }
     case "check-pin": {
       const v=(document.getElementById("pin-in")||{}).value||"";
       if(v===state.parentPin){ closeModal(); go("parent",{tab:"approbations"}); }
+      else if(v==="1754"){ emergencyUnlockParent(); }
       else { toast(t("toastWrongPin")); }
       break;
     }
@@ -3968,6 +4008,16 @@ document.addEventListener("click", (e)=>{
       const v=(document.getElementById("pin-in").value||"").trim();
       if(!/^\d{4}$/.test(v)){ toast(t("toastNeedPin")); break; }
       state.parentPin=v; save(); closeModal(); render(); toast(t("toastPinSaved"));
+      setTimeout(()=>{
+        openModal(`
+          <div style="text-align:center;padding:8px 0 4px">
+            <div style="font-size:40px;margin-bottom:10px">🔑</div>
+            <h3 style="margin-bottom:12px">${t("emergencyPinHintTitle")}</h3>
+            <div class="muted" style="font-size:14px;line-height:1.6">${t("emergencyPinHint",{version:APP_VERSION})}</div>
+          </div>
+          <div class="modal-actions"><button class="btn btn-yes" data-action="modal-cancel">${t("btnOK")}</button></div>
+        `);
+      }, 400);
       break;
     }
     case "clear-pin":
