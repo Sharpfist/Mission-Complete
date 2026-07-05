@@ -638,7 +638,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.51";
+const APP_VERSION = "v0.52";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -2472,23 +2472,40 @@ function playPowerUpSound(){
 function playBombSound(){
   try{
     const ctx = new (window.AudioContext||window.webkitAudioContext)();
-    const o=ctx.createOscillator(), g=ctx.createGain();
-    o.type="sine";
-    o.frequency.setValueAtTime(1400, ctx.currentTime);
-    o.frequency.exponentialRampToValueAtTime(80, ctx.currentTime+0.75);
-    g.gain.setValueAtTime(0.18, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.75);
-    o.connect(g); g.connect(ctx.destination);
-    o.start(ctx.currentTime); o.stop(ctx.currentTime+0.75);
-    const buf=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*0.4),ctx.sampleRate);
-    const d=buf.getChannelData(0);
-    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/(ctx.sampleRate*0.08));
-    const src=ctx.createBufferSource(); src.buffer=buf;
-    const eg=ctx.createGain();
-    eg.gain.setValueAtTime(0.5, ctx.currentTime+0.72);
-    eg.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+1.1);
-    src.connect(eg); eg.connect(ctx.destination);
-    src.start(ctx.currentTime+0.72); src.stop(ctx.currentTime+1.1);
+    const now = ctx.currentTime;
+
+    /* 1 — fuse bwoop : onde carrée (style NES) qui descend vite */
+    const fuse = ctx.createOscillator(), fuseG = ctx.createGain();
+    fuse.type = "square";
+    fuse.frequency.setValueAtTime(380, now);
+    fuse.frequency.exponentialRampToValueAtTime(65, now + 0.22);
+    fuseG.gain.setValueAtTime(0.10, now);
+    fuseG.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    fuse.connect(fuseG); fuseG.connect(ctx.destination);
+    fuse.start(now); fuse.stop(now + 0.22);
+
+    /* 2 — thump grave : sine qui plonge de 110 Hz à 28 Hz → coup de kick */
+    const thump = ctx.createOscillator(), thumpG = ctx.createGain();
+    thump.type = "sine";
+    thump.frequency.setValueAtTime(110, now + 0.22);
+    thump.frequency.exponentialRampToValueAtTime(28, now + 0.55);
+    thumpG.gain.setValueAtTime(0.55, now + 0.22);
+    thumpG.gain.exponentialRampToValueAtTime(0.001, now + 0.58);
+    thump.connect(thumpG); thumpG.connect(ctx.destination);
+    thump.start(now + 0.22); thump.stop(now + 0.60);
+
+    /* 3 — bruit d'explosion : noise blanc → lowpass → decay très court */
+    const bufLen = Math.ceil(ctx.sampleRate * 0.45);
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i = 0; i < bufLen; i++) d[i] = (Math.random()*2-1) * Math.exp(-i/(ctx.sampleRate*0.055));
+    const noise = ctx.createBufferSource(); noise.buffer = buf;
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 700;
+    const noiseG = ctx.createGain();
+    noiseG.gain.setValueAtTime(0.70, now + 0.22);
+    noiseG.gain.exponentialRampToValueAtTime(0.001, now + 0.58);
+    noise.connect(lp); lp.connect(noiseG); noiseG.connect(ctx.destination);
+    noise.start(now + 0.22); noise.stop(now + 0.62);
   }catch(e){}
 }
 
