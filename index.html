@@ -630,7 +630,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.45";
+const APP_VERSION = "v0.46";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1783,6 +1783,14 @@ function parentApprovals(){
   return purchasesHtml + visible.map(c=>approvalCard(c, fs)).join("");
 }
 
+function fmtCompletedAt(ts){
+  if(!ts) return "";
+  const d = new Date(ts);
+  const isFR = state.lang !== "en";
+  return isFR
+    ? `Le ${d.getDate()} à ${pad(d.getHours())}:${pad(d.getMinutes())}`
+    : `On ${d.getDate()} at ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 function approvalCard(c, fs){
   const tsk = task(c.taskId); const k = child(c.childId);
   if(!tsk||!k) return "";
@@ -1848,7 +1856,7 @@ function approvalCard(c, fs){
         ${modeTag}
       </div>
       <div class="row">
-        <div class="grow"><div class="t" style="font-weight:800;font-size:17px">${ex?extremeEmoji(tsk)+" ":""}${esc(tsk.title)}</div></div>
+        <div class="grow"><div class="t" style="font-weight:800;font-size:17px">${ex?extremeEmoji(tsk)+" ":""}${esc(tsk.title)}<span style="font-size:12px;font-weight:500;color:var(--ink-soft);margin-left:8px;white-space:nowrap">${fmtCompletedAt(c.createdAt)}</span></div></div>
         ${ptsDisplay}
       </div>
       ${buttons}
