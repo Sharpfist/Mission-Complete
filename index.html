@@ -646,7 +646,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.60";
+const APP_VERSION = "v0.61";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1602,7 +1602,7 @@ function renderChild(){
       let action;
       if(view.childEditMode && st === "skipped"){
         action = `<button class="do" style="background:#ddd;color:#888;font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skipped")}</button>`;
-      } else if(view.childEditMode && st === "open" && !greyed){
+      } else if(view.childEditMode && st === "open"){
         action = `<div style="display:flex;flex-direction:column;gap:4px">
           <button class="do" style="background:var(--line);color:var(--ink-soft);font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skip")}</button>
           <button class="do" style="background:${isPushed?"#ddd":"var(--line)"};color:${isPushed?"#888":"var(--ink-soft)"};font-size:11px;font-weight:700;white-space:normal;text-align:center;line-height:1.2;padding:6px 8px" data-action="push-task" data-id="${tsk.id}">${isPushed?t("pushedTomorrow"):t("pushTomorrow")}</button>
@@ -4092,6 +4092,10 @@ document.addEventListener("click", (e)=>{
           if(!state.skips.some(x=>x.taskId===taskId && x.childId===cid && x.periodKey===pk))
             state.skips.push({id:uid(), taskId, childId:cid, periodKey:pk, skippedAt:Date.now()});
         });
+        /* rembourser pénalité si la période est expirée */
+        const _p=period(tsk.periodId), _now=new Date(), _hm=pad(_now.getHours())+":"+pad(_now.getMinutes());
+        if(_p && !_p.isAllDay && _hm > _p.endTime)
+          affectedIds.forEach(cid => reverseExpiredPenalty(tsk, cid));
       } else {
         state.skips = state.skips.filter(x=>!(x.taskId===taskId && affectedIds.includes(x.childId) && x.periodKey===pk));
       }
@@ -4123,6 +4127,10 @@ document.addEventListener("click", (e)=>{
           if(!state.pushes.some(x=>x.taskId===taskId && x.childId===cid && x.pushedDate===today))
             state.pushes.push({id:uid(), taskId, childId:cid, pushedDate:today});
         });
+        /* rembourser pénalité si la période est expirée */
+        const _p=period(tsk.periodId), _now=new Date(), _hm=pad(_now.getHours())+":"+pad(_now.getMinutes());
+        if(_p && !_p.isAllDay && _hm > _p.endTime)
+          affectedIds.forEach(cid => reverseExpiredPenalty(tsk, cid));
       } else {
         state.pushes = state.pushes.filter(x=>!(x.taskId===taskId && affectedIds.includes(x.childId) && x.pushedDate===today));
       }
@@ -4382,6 +4390,42 @@ function applyInvestment(){
     applyEvent("investment", t("invEventTitle"), gain, [c.id]);
   });
   save();
+}
+
+/* Annule une pénalité d'incomplétion déjà appliquée pour une tâche+enfant.
+   Appelé quand l'enfant marque "ignorer" ou "remettre à demain" sur une période expirée. */
+function reverseExpiredPenalty(tsk, cid){
+  if(!state.penaltyLog) return;
+  const pk = taskPK(tsk);
+  const penaltyKeys = [
+    `${tsk.id}|${cid}|${pk}|incomplete`,
+    `${tsk.id}|${cid}|${pk}|incomplete-eod`,
+    `${tsk.id}|${cid}|${pk}|wk-incomplete`,
+    `${tsk.id}|${cid}|${pk}|mth-incomplete`,
+  ];
+  let anyRemoved = false;
+  penaltyKeys.forEach(k => { if(state.penaltyLog[k]){ delete state.penaltyLog[k]; anyRemoved = true; } });
+  if(!anyRemoved) return;
+  /* Retrouve et inverse la bombe de pénalité correspondante */
+  const c = child(cid);
+  if(!c) return;
+  const bombtitle = esc(tsk.title) + " : " + t("incompleteSuffix");
+  const notif = [...(state.notifications||[])].reverse().find(n =>
+    n.type === "bomb" && n.childId === cid && n.title === bombtitle && !n.ignored
+  );
+  if(notif){
+    const refund = Math.abs(notif.delta);
+    c.points += refund;
+    notif.ignored = true;
+    if(refund > 0) setTimeout(() => showSimplePtsAnim(refund, tsk.title), 200);
+  }
+  /* Annule aussi la pénalité de carry si applicable */
+  const cpKey = `${tsk.id}|${cid}`;
+  if(state.carryPenalties && state.carryPenalties[cpKey] != null){
+    delete state.carryPenalties[cpKey];
+    const carryLogKey = `${tsk.id}|${cid}|carry`;
+    if(state.penaltyLog[carryLogKey]) delete state.penaltyLog[carryLogKey];
+  }
 }
 
 function applyPenalties(){
