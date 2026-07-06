@@ -345,7 +345,8 @@ const TRANSLATIONS = {
     noRewards:"Aucune récompense pour l'instant.",
     tabApprove:"À valider",tabTasks:"Missions",tabStore:"Boutique",tabChildren:"Enfants",tabInvestment:"Investissement",tabSettings:"Réglages",
     tabHistory:"🕓 Historique",histToday:"Aujourd'hui",histYesterday:"Hier",histDayBefore:"Avant-hier",histEmpty:"Aucune activité récente.",
-    histDone:"✅ Complétée",histPending:"⏳ En attente",histIgnored:"✗ Ignorée",histNonComplete:"✗ Non complétée",
+    histDone:"✅ Complétée",histPending:"⏳ En attente",histIgnored:"✗ Ignorée",histNonComplete:"✗ Non complétée",histReverted:"↩ Renversé",
+    histBtnComplete:"✅ Compléter",histBtnRefuse:"✗ Refuser",histBtnRevert:"↩ Renverser",histBtnApprove:"✓ Approuver",histBtnGiven:"🎁 Donné",
     skip:"Ignorer",skipped:"Ignorée",pushTomorrow:"Pousser à demain",pushedTomorrow:"Remise à demain",parentalDone:"Terminé ✓",
     ignoreEvt:"Ignorer",ignoredEvt:"Fut ignoré",evIgnoredTag:"fut ignoré",
     noApprovals:"Rien à valider pour le moment.<br>Quand un enfant coche « J'ai fait », ça apparaît ici.",
@@ -487,7 +488,8 @@ const TRANSLATIONS = {
     noRewards:"No rewards yet.",
     tabApprove:"To approve",tabTasks:"Missions",tabStore:"Store",tabChildren:"Children",tabInvestment:"Investment",tabSettings:"Settings",
     tabHistory:"🕓 History",histToday:"Today",histYesterday:"Yesterday",histDayBefore:"2 days ago",histEmpty:"No recent activity.",
-    histDone:"✅ Completed",histPending:"⏳ Pending",histIgnored:"✗ Ignored",histNonComplete:"✗ Not completed",
+    histDone:"✅ Completed",histPending:"⏳ Pending",histIgnored:"✗ Ignored",histNonComplete:"✗ Not completed",histReverted:"↩ Reverted",
+    histBtnComplete:"✅ Complete",histBtnRefuse:"✗ Refuse",histBtnRevert:"↩ Revert",histBtnApprove:"✓ Approve",histBtnGiven:"🎁 Given",
     skip:"Skip",skipped:"Skipped",pushTomorrow:"Push to tomorrow",pushedTomorrow:"Pushed to tomorrow",parentalDone:"Done ✓",
     ignoreEvt:"Ignore",ignoredEvt:"Was ignored",evIgnoredTag:"was ignored",
     noApprovals:"Nothing to approve right now.<br>When a child taps « Done », it appears here.",
@@ -650,7 +652,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.64";
+const APP_VERSION = "v0.65";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -2456,15 +2458,18 @@ function parentHistory(){
     const b = hDayBucket(ts);
     if(b < 0 || b > 2) return;
     const tsk = task(o.taskId); if(!tsk) return;
+    const comp = (state.completions||[]).find(x=>x.taskId===o.taskId && x.childId===o.childId && x.periodKey===o.periodKey);
     items.push({ bucket:b, ts, childId:o.childId, kind:"mission", order:0,
-      title: tsk.title, status:o.status, pts:o.appliedDelta });
+      title: tsk.title, status:o.status, pts:o.appliedDelta,
+      compId: comp ? comp.id : null, isExtreme: isExtreme(tsk) });
   });
   /* Événements : notifications */
   (state.notifications||[]).forEach(n => {
     const b = hDayBucket(n.createdAt);
     if(b < 0 || b > 2) return;
     items.push({ bucket:b, ts:n.createdAt, childId:n.childId, kind:"event", order:1,
-      title:n.title, evType:n.type, delta:(n.delta!=null?n.delta:0) });
+      title:n.title, evType:n.type, delta:(n.delta!=null?n.delta:0),
+      nid:n.id, ignored:!!n.ignored });
   });
   /* Récompenses : achats */
   (state.purchases||[]).forEach(p => {
@@ -2472,7 +2477,7 @@ function parentHistory(){
     const b = hDayBucket(ts);
     if(b < 0 || b > 2) return;
     items.push({ bucket:b, ts, childId:p.childId, kind:"reward", order:2,
-      title:p.title, cost:p.cost, status:p.status||"pending" });
+      title:p.title, cost:p.cost, status:p.status||"pending", pid:p.id });
   });
 
   if(items.length === 0)
@@ -2495,20 +2500,40 @@ function parentHistory(){
       html += `<div style="font-weight:800;font-size:15px;color:${k.color};margin:12px 2px 5px;display:flex;align-items:center;gap:6px">${esc(k.emoji)} ${esc(k.name)}</div>`;
       html += kItems.map(x=>{
         const icon = x.kind==="mission" ? "📋" : x.kind==="event" ? "⚡" : "🎁";
-        let right = "";
-        if(x.kind==="mission") right = histMissionChip(x.status);
-        else if(x.kind==="event"){
+        let right = "", actions = "";
+        const btn = (action, dataId, label, bg, col) =>
+          `<button data-action="${action}" data-id="${dataId}" style="background:${bg};color:${col};border:none;border-radius:9px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">${label}</button>`;
+        if(x.kind==="mission"){
+          right = histMissionChip(x.status);
+          /* actions sûres : approuver/refuser une mission EN ATTENTE (hors extrême) */
+          if(x.status==="pending" && x.compId && !x.isExtreme){
+            actions = btn("approve", x.compId, t("histBtnComplete"), "#E6F7EE", "#1d8a55")
+                    + btn("reject",  x.compId, t("histBtnRefuse"),   "#FCE9E9", "#c0392b");
+          }
+        } else if(x.kind==="event"){
           const up = x.delta > 0;
-          right = `<span class="tag" style="background:${up?"#E6F7EE":"#FCE9E9"};color:${up?"#1d8a55":"#c0392b"};font-size:11px;font-weight:800">${up?"+":""}${x.delta}</span>`;
+          right = x.ignored
+            ? `<span class="tag" style="background:#EEE;color:#888;font-size:11px;font-weight:800">${t("histReverted")}</span>`
+            : `<span class="tag" style="background:${up?"#E6F7EE":"#FCE9E9"};color:${up?"#1d8a55":"#c0392b"};font-size:11px;font-weight:800">${up?"+":""}${x.delta}</span>`;
+          if(!x.ignored) actions = btn("revert-event", x.nid, t("histBtnRevert"), "var(--line)", "var(--ink-soft)");
         } else {
           right = `<span class="tag" style="background:#EEE;color:#555;font-size:11px;font-weight:800">−${x.cost}</span>`;
+          if(x.status==="pending"){
+            actions = btn("approve-purchase", x.pid, t("histBtnApprove"), "#E6F7EE", "#1d8a55")
+                    + btn("refuse-purchase",  x.pid, t("histBtnRefuse"),  "#FCE9E9", "#c0392b");
+          } else if(x.status==="approved"){
+            actions = btn("mark-given", x.pid, t("histBtnGiven"), "#E6F7EE", "#1d8a55");
+          }
         }
         return `
-          <div class="card" style="display:flex;align-items:center;gap:10px;padding:9px 12px;margin-bottom:5px">
-            <span style="font-size:16px;flex-shrink:0">${icon}</span>
-            <div style="flex:1;min-width:0;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis">${esc(x.title)}</div>
-            <span style="font-size:11px;font-weight:600;color:var(--ink-soft);white-space:nowrap">${hTime(x.ts)}</span>
-            ${right}
+          <div class="card" style="padding:9px 12px;margin-bottom:5px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:16px;flex-shrink:0">${icon}</span>
+              <div style="flex:1;min-width:0;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis">${esc(x.title)}</div>
+              <span style="font-size:11px;font-weight:600;color:var(--ink-soft);white-space:nowrap">${hTime(x.ts)}</span>
+              ${right}
+            </div>
+            ${actions ? `<div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">${actions}</div>` : ""}
           </div>`;
       }).join("");
     });
@@ -3720,6 +3745,20 @@ document.addEventListener("click", (e)=>{
         save(); refreshParentBody();
         const hist = document.getElementById("reward-hist-"+p.childId);
         if(hist){ const k=child(p.childId); if(k) hist.innerHTML=renderRewardHistory(k); }
+      }
+      break;
+    }
+
+    case "revert-event": {
+      const notif = (state.notifications||[]).find(n=>n.id===id);
+      if(notif && !notif.ignored){
+        const k = child(notif.childId);
+        const rev = -(notif.delta != null ? notif.delta : 0); /* inverse le delta réellement appliqué */
+        if(k) k.points = Math.max(0, (k.points||0) + rev);
+        notif.ignored = true;
+        save();
+        if(rev !== 0) showSimplePtsAnim(rev, notif.title);
+        refreshParentBody();
       }
       break;
     }
