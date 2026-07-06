@@ -346,7 +346,7 @@ const TRANSLATIONS = {
     tabApprove:"À valider",tabTasks:"Missions",tabStore:"Boutique",tabChildren:"Enfants",tabInvestment:"Investissement",tabSettings:"Réglages",
     tabHistory:"🕓 Historique",histToday:"Aujourd'hui",histYesterday:"Hier",histDayBefore:"Avant-hier",histEmpty:"Aucune activité récente.",
     histDone:"✅ Complétée",histPending:"⏳ En attente",histIgnored:"✗ Ignorée",histNonComplete:"✗ Non complétée",histReverted:"↩ Renversé",
-    histBtnComplete:"✅ Compléter",histBtnRefuse:"✗ Refuser",histBtnRevert:"↩ Renverser",histBtnApprove:"✓ Approuver",histBtnGiven:"🎁 Donné",
+    histBtnComplete:"✅ Compléter",histBtnRefuse:"✗ Refuser",histBtnRevert:"↩ Renverser",histBtnApprove:"✓ Approuver",histBtnGiven:"🎁 Donné",histBtnIgnore:"✗ Ignorer",histBtnReopen:"↺ Rouvrir",
     skip:"Ignorer",skipped:"Ignorée",pushTomorrow:"Pousser à demain",pushedTomorrow:"Remise à demain",parentalDone:"Terminé ✓",
     ignoreEvt:"Ignorer",ignoredEvt:"Fut ignoré",evIgnoredTag:"fut ignoré",
     noApprovals:"Rien à valider pour le moment.<br>Quand un enfant coche « J'ai fait », ça apparaît ici.",
@@ -489,7 +489,7 @@ const TRANSLATIONS = {
     tabApprove:"To approve",tabTasks:"Missions",tabStore:"Store",tabChildren:"Children",tabInvestment:"Investment",tabSettings:"Settings",
     tabHistory:"🕓 History",histToday:"Today",histYesterday:"Yesterday",histDayBefore:"2 days ago",histEmpty:"No recent activity.",
     histDone:"✅ Completed",histPending:"⏳ Pending",histIgnored:"✗ Ignored",histNonComplete:"✗ Not completed",histReverted:"↩ Reverted",
-    histBtnComplete:"✅ Complete",histBtnRefuse:"✗ Refuse",histBtnRevert:"↩ Revert",histBtnApprove:"✓ Approve",histBtnGiven:"🎁 Given",
+    histBtnComplete:"✅ Complete",histBtnRefuse:"✗ Refuse",histBtnRevert:"↩ Revert",histBtnApprove:"✓ Approve",histBtnGiven:"🎁 Given",histBtnIgnore:"✗ Ignore",histBtnReopen:"↺ Reopen",
     skip:"Skip",skipped:"Skipped",pushTomorrow:"Push to tomorrow",pushedTomorrow:"Pushed to tomorrow",parentalDone:"Done ✓",
     ignoreEvt:"Ignore",ignoredEvt:"Was ignored",evIgnoredTag:"was ignored",
     noApprovals:"Nothing to approve right now.<br>When a child taps « Done », it appears here.",
@@ -652,7 +652,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.65";
+const APP_VERSION = "v0.66";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1036,6 +1036,35 @@ function isExtremeClosed(tsk){ return !!(state.extremeClosed && state.extremeClo
 function closeExtreme(tsk){
   if(!state.extremeClosed) state.extremeClosed = {};
   state.extremeClosed[extremeClosedKey(tsk)] = true;
+}
+
+/* Transition réconciliante d'une mission (Historique) entre les statuts
+   propres : done / pending / ignored / active. Ne touche PAS aux bombes de
+   pénalité (non-complete réservé plus tard). Écrit dans les stores legacy
+   (que la vue enfant lit) et réconcilie les points de complétion.
+   pk = periodKey de l'occurrence (peut être une date passée). */
+function setMissionStatus(taskId, childId, pk, newStatus){
+  const tsk = task(taskId); if(!tsk) return 0;
+  const k = child(childId); if(!k) return 0;
+  const comp = (state.completions||[]).find(x=>x.taskId===taskId && x.childId===childId && x.periodKey===pk);
+  const curApplied = (comp && comp.status==="approved") ? (comp.pts!=null ? comp.pts : tsk.points) : 0;
+  const keptPts = (comp && comp.pts!=null) ? comp.pts : null; /* préserve un éventuel ajustement carry */
+  const target = (newStatus==="done") ? (keptPts!=null ? keptPts : tsk.points) : 0;
+  const keptCreated = comp ? comp.createdAt : Date.now();
+  /* nettoyage legacy pour cette occurrence */
+  state.completions = (state.completions||[]).filter(x=>!(x.taskId===taskId && x.childId===childId && x.periodKey===pk));
+  state.skips       = (state.skips||[]).filter(x=>!(x.taskId===taskId && x.childId===childId && x.periodKey===pk));
+  if(newStatus==="done"){
+    state.completions.push({id:uid(), taskId, childId, periodKey:pk, status:"approved", pts:keptPts, createdAt:keptCreated, approvedAt:Date.now()});
+  } else if(newStatus==="pending"){
+    state.completions.push({id:uid(), taskId, childId, periodKey:pk, status:"pending", pts:keptPts, createdAt:keptCreated});
+  } else if(newStatus==="ignored"){
+    if(!state.skips) state.skips=[];
+    state.skips.push({id:uid(), taskId, childId, periodKey:pk, skippedAt:Date.now()});
+  } /* active : rien à ajouter */
+  k.points = Math.max(0, (k.points||0) + (target - curApplied));
+  save();
+  return target - curApplied;
 }
 
 /* une mission extrême se débloque pour un enfant quand toutes ses tâches
@@ -2461,7 +2490,8 @@ function parentHistory(){
     const comp = (state.completions||[]).find(x=>x.taskId===o.taskId && x.childId===o.childId && x.periodKey===o.periodKey);
     items.push({ bucket:b, ts, childId:o.childId, kind:"mission", order:0,
       title: tsk.title, status:o.status, pts:o.appliedDelta,
-      compId: comp ? comp.id : null, isExtreme: isExtreme(tsk) });
+      compId: comp ? comp.id : null, isExtreme: isExtreme(tsk),
+      taskId:o.taskId, pk:o.periodKey });
   });
   /* Événements : notifications */
   (state.notifications||[]).forEach(n => {
@@ -2505,10 +2535,15 @@ function parentHistory(){
           `<button data-action="${action}" data-id="${dataId}" style="background:${bg};color:${col};border:none;border-radius:9px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">${label}</button>`;
         if(x.kind==="mission"){
           right = histMissionChip(x.status);
-          /* actions sûres : approuver/refuser une mission EN ATTENTE (hors extrême) */
-          if(x.status==="pending" && x.compId && !x.isExtreme){
-            actions = btn("approve", x.compId, t("histBtnComplete"), "#E6F7EE", "#1d8a55")
-                    + btn("reject",  x.compId, t("histBtnRefuse"),   "#FCE9E9", "#c0392b");
+          /* transitions propres (hors extrême) : done / ignored / active */
+          if(!x.isExtreme){
+            const tb = (status,label,bg,col) =>
+              `<button data-action="hist-set-status" data-tid="${x.taskId}" data-cid="${x.childId}" data-pk="${x.pk}" data-status="${status}" style="background:${bg};color:${col};border:none;border-radius:9px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">${label}</button>`;
+            const parts = [];
+            if(x.status!=="done")    parts.push(tb("done",    t("histBtnComplete"), "#E6F7EE", "#1d8a55"));
+            if(x.status!=="ignored") parts.push(tb("ignored", t("histBtnIgnore"),   "#FCE9E9", "#c0392b"));
+            parts.push(tb("active", t("histBtnReopen"), "var(--line)", "var(--ink-soft)"));
+            actions = parts.join("");
           }
         } else if(x.kind==="event"){
           const up = x.delta > 0;
@@ -3746,6 +3781,13 @@ document.addEventListener("click", (e)=>{
         const hist = document.getElementById("reward-hist-"+p.childId);
         if(hist){ const k=child(p.childId); if(k) hist.innerHTML=renderRewardHistory(k); }
       }
+      break;
+    }
+
+    case "hist-set-status": {
+      const d = setMissionStatus(el.dataset.tid, el.dataset.cid, el.dataset.pk, el.dataset.status);
+      if(d) showSimplePtsAnim(d, "");
+      refreshParentBody();
       break;
     }
 
