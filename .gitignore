@@ -1,0 +1,3 @@
+# Sauvegardes de données famille (contiennent points + PIN) — jamais sur GitHub
+missions-sauvegarde-*.json
+*.backup.json

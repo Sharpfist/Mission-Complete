@@ -646,7 +646,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.62";
+const APP_VERSION = "v0.63";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -767,6 +767,45 @@ if(!state.preOccBackupDone){
     if(raw) localStorage.setItem(BACKUP_KEY, raw);
   } catch(e){}
   state.preOccBackupDone = true;
+  save();
+}
+
+/* ============ Phase 2a : migration SHADOW vers le modèle d'occurrence ============
+   Construit state.occurrences depuis completions + skips. SHADOW = rien ne lit
+   encore ce store ; on vérifie seulement qu'il se construit bien sur les vraies
+   données. Conservation des points prouvée par migration_test.js (JXA).
+   (pushes / non-complete / reschedule : sous-étapes ultérieures.) */
+const OCC_MIGRATION_VERSION = 1;
+function buildOccurrencesFromLegacy(st){
+  const occ = [];
+  const byKey = {};
+  function getOcc(taskId, childId, periodKey){
+    const k = taskId + "|" + childId + "|" + periodKey;
+    if(!byKey[k]){
+      byKey[k] = { id: uid(), taskId, childId, periodKey, periodOverride: null,
+        status: "active", appliedDelta: 0, closed: false, createdAt: 0, updatedAt: 0 };
+      occ.push(byKey[k]);
+    }
+    return byKey[k];
+  }
+  (st.completions || []).forEach(c => {
+    const o = getOcc(c.taskId, c.childId, c.periodKey);
+    const tsk = (st.tasks || []).find(t => t.id === c.taskId);
+    const pts = (c.pts != null) ? c.pts : (tsk ? tsk.points : 0);
+    if(c.status === "approved"){ o.status = "done"; o.appliedDelta = pts; o.approvedAt = c.approvedAt; }
+    else { o.status = "pending"; o.appliedDelta = 0; }
+    if(c.createdAt) o.createdAt = c.createdAt;
+  });
+  (st.skips || []).forEach(s => {
+    const o = getOcc(s.taskId, s.childId, s.periodKey);
+    o.status = "ignored"; o.appliedDelta = 0;
+    if(s.skippedAt) o.createdAt = s.skippedAt;
+  });
+  return occ;
+}
+if(state.occMigrationVersion !== OCC_MIGRATION_VERSION){
+  state.occurrences = buildOccurrencesFromLegacy(state);
+  state.occMigrationVersion = OCC_MIGRATION_VERSION;
   save();
 }
 
@@ -2427,7 +2466,10 @@ function parentSettings(){
     </div>
     <div class="card" style="border:1px dashed var(--line)">
       <h3 style="font-size:15px;margin-bottom:8px">🛟 Sauvegarde pré-occurrence</h3>
-      <div class="muted" style="margin-bottom:12px">Restaure l'état d'avant la migration vers le modèle d'occurrence. Bouton temporaire.</div>
+      <div class="muted" style="margin-bottom:12px">
+        Restaure l'état d'avant la migration vers le modèle d'occurrence. Bouton temporaire.<br>
+        Occurrences migrées (shadow) : <b>${(state.occurrences||[]).length}</b>
+      </div>
       <div class="btn-line">
         <button class="btn btn-ghost" data-action="restore-preocc">Restaurer sauvegarde PreOccurence</button>
       </div>
