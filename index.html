@@ -646,7 +646,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.61";
+const APP_VERSION = "v0.62";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -752,6 +752,21 @@ if(!state.eventTemplates){
     {id:"etpl-3", type:"powerup", title:"A aidé sans qu'on le demande", points:10, childIds:[]},
     {id:"etpl-4", type:"bomb",    title:"A été impoli(e)",              points:5,  childIds:[]},
   ];
+  save();
+}
+
+/* ============ Sauvegarde one-time avant migration « occurrence » ============
+   Capture l'état pré-migration (completions/skips/pushes d'origine) sous une
+   clé séparée, une seule fois. Le drapeau empêche la migration ultérieure
+   (phase 2) d'écraser cette bonne sauvegarde. Bouton « Restaurer » temporaire
+   dans Réglages. */
+const BACKUP_KEY = "missions_recompenses_v1_backup_preOccurrence";
+if(!state.preOccBackupDone){
+  try {
+    const raw = localStorage.getItem(KEY);
+    if(raw) localStorage.setItem(BACKUP_KEY, raw);
+  } catch(e){}
+  state.preOccBackupDone = true;
   save();
 }
 
@@ -2410,6 +2425,13 @@ function parentSettings(){
         <button class="btn btn-no" data-action="reset-all">${t("btnResetAll")}</button>
       </div>
     </div>
+    <div class="card" style="border:1px dashed var(--line)">
+      <h3 style="font-size:15px;margin-bottom:8px">🛟 Sauvegarde pré-occurrence</h3>
+      <div class="muted" style="margin-bottom:12px">Restaure l'état d'avant la migration vers le modèle d'occurrence. Bouton temporaire.</div>
+      <div class="btn-line">
+        <button class="btn btn-ghost" data-action="restore-preocc">Restaurer sauvegarde PreOccurence</button>
+      </div>
+    </div>
     <p class="footer-note">${t("footerNote")}</p>
     <p class="footer-note" style="margin-top:6px;opacity:.45">${APP_VERSION}</p>
   `;
@@ -2604,6 +2626,31 @@ function drawEventForm(){
       </div>
     `}
   `);
+}
+
+/* ============ Cœur de réconciliation des points (modèle B) ============
+   Chaque entité (occurrence de mission, événement, achat) porte un champ
+   `appliedDelta` = total de points déjà porté au solde de l'enfant par CETTE
+   entité. reconcilePoints() ajuste le solde de la seule différence entre le
+   delta cible (dicté par le statut) et ce qui est déjà appliqué, puis met à
+   jour `appliedDelta`. Idempotent : rappeler avec le même statut ne fait rien.
+
+   Ex. mission +5 : active→appliedDelta 0 ; complétée→cible +5 (applique +5) ;
+   ignorée→cible 0 (applique −5) ; non-complétée→cible −pénalité.
+
+   NOTE phase 2 : le plancher à 0 (un enfant ne descend pas sous 0) peut
+   désynchroniser appliedDelta du solde réel si on tape le plancher. À gérer
+   quand on branchera les occurrences (probablement autoriser un négatif
+   interne ou suivre un solde brut). Laissé tel quel pour l'instant. */
+function reconcilePoints(entity, childId, targetDelta){
+  const k = child(childId);
+  if(!k) return 0;
+  const applied = entity.appliedDelta || 0;
+  const diff = targetDelta - applied;
+  if(diff === 0) return 0;
+  k.points = Math.max(0, k.points + diff);
+  entity.appliedDelta = targetDelta;
+  return diff;
 }
 
 function applyEvent(type, title, points, childIds){
@@ -4339,6 +4386,23 @@ document.addEventListener("click", (e)=>{
         state = defaults(); save(); go("lock"); toast(t("toastReset"));
       }
       break;
+
+    case "restore-preocc": {
+      let raw = null;
+      try { raw = localStorage.getItem(BACKUP_KEY); } catch(e){}
+      if(!raw){ alert("Aucune sauvegarde pré-occurrence trouvée."); break; }
+      if(confirm("Restaurer l'état d'avant la migration ? Les changements depuis seront perdus.")){
+        try {
+          const restored = JSON.parse(raw);
+          restored.preOccBackupDone = true; /* ne pas réécraser la sauvegarde */
+          state = restored;
+          save();
+          go("lock");
+          toast("Sauvegarde restaurée");
+        } catch(e){ alert("Sauvegarde illisible."); }
+      }
+      break;
+    }
 
     /* modale */
     case "modal-cancel": closeModal(); break;
