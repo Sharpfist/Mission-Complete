@@ -652,7 +652,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.66";
+const APP_VERSION = "v0.67";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -745,6 +745,7 @@ if(!state.notifications) { state.notifications = []; save(); }
 if(!state.purchases) { state.purchases = []; save(); }
 if(!state.skips)         { state.skips         = []; save(); }
 if(!state.pushes)        { state.pushes        = []; save(); }
+if(!state.nonComplete)   { state.nonComplete   = []; save(); }
 if(!state.forceUnlocked) { state.forceUnlocked = []; save(); }
 if(state.paused === undefined) { state.paused = false; save(); }
 if(state.emergencyPinReset === undefined) { state.emergencyPinReset = null; save(); }
@@ -806,6 +807,12 @@ function buildOccurrencesFromLegacy(st){
     const o = getOcc(s.taskId, s.childId, s.periodKey);
     o.status = "ignored"; o.appliedDelta = 0;
     if(s.skippedAt) o.createdAt = s.skippedAt;
+  });
+  (st.nonComplete || []).forEach(nc => {
+    const o = getOcc(nc.taskId, nc.childId, nc.periodKey);
+    o.status = "non-complete"; o.appliedDelta = -(nc.penalty||0);
+    if(nc.at) o.createdAt = nc.at;
+    o.closed = true;
   });
   return occ;
 }
@@ -1022,8 +1029,9 @@ function taskStatusFor(tsk, childId){
   const pk = taskPK(tsk);
   if(state.skips && state.skips.some(x=>x.taskId===tsk.id && x.childId===childId && x.periodKey===pk)) return "skipped";
   const c = state.completions.find(x=>x.taskId===tsk.id && x.childId===childId && x.periodKey===pk);
-  if(!c) return "open";
-  return c.status==="approved" ? "done" : "pending";
+  if(c) return c.status==="approved" ? "done" : "pending";
+  if(state.nonComplete && state.nonComplete.some(x=>x.taskId===tsk.id && x.childId===childId && x.periodKey===pk)) return "non-complete";
+  return "open";
 }
 
 function isPushedTomorrow(tsk, childId){
@@ -1047,20 +1055,36 @@ function setMissionStatus(taskId, childId, pk, newStatus){
   const tsk = task(taskId); if(!tsk) return 0;
   const k = child(childId); if(!k) return 0;
   const comp = (state.completions||[]).find(x=>x.taskId===taskId && x.childId===childId && x.periodKey===pk);
-  const curApplied = (comp && comp.status==="approved") ? (comp.pts!=null ? comp.pts : tsk.points) : 0;
+  const ncEntry = (state.nonComplete||[]).find(x=>x.taskId===taskId && x.childId===childId && x.periodKey===pk);
+  /* pénalité auto déjà appliquée (bombe legacy) pour cette occurrence ? */
+  const hasAutoPenalty = state.penaltyLog && [
+    `${taskId}|${childId}|${pk}|incomplete`,
+    `${taskId}|${childId}|${pk}|incomplete-eod`,
+    `${taskId}|${childId}|${pk}|wk-incomplete`,
+    `${taskId}|${childId}|${pk}|mth-incomplete`,
+  ].some(key => state.penaltyLog[key]);
+  /* points déjà portés au solde par cette occurrence */
+  let curApplied = 0;
+  if(comp && comp.status==="approved")      curApplied = (comp.pts!=null ? comp.pts : tsk.points);
+  else if(ncEntry)                          curApplied = -(ncEntry.penalty||0);
+  else if(hasAutoPenalty)                   curApplied = -(tsk.incompletePenalty||0);
   const keptPts = (comp && comp.pts!=null) ? comp.pts : null; /* préserve un éventuel ajustement carry */
-  const target = (newStatus==="done") ? (keptPts!=null ? keptPts : tsk.points) : 0;
-  const keptCreated = comp ? comp.createdAt : Date.now();
-  /* nettoyage legacy pour cette occurrence */
+  const target = (newStatus==="done")          ? (keptPts!=null ? keptPts : tsk.points)
+               : (newStatus==="non-complete")  ? -(tsk.incompletePenalty||0)
+               : 0;
+  const keptCreated = comp ? comp.createdAt : (ncEntry ? ncEntry.at : Date.now());
+  /* nettoyage de tous les marqueurs pour cette occurrence */
   state.completions = (state.completions||[]).filter(x=>!(x.taskId===taskId && x.childId===childId && x.periodKey===pk));
   state.skips       = (state.skips||[]).filter(x=>!(x.taskId===taskId && x.childId===childId && x.periodKey===pk));
+  state.nonComplete = (state.nonComplete||[]).filter(x=>!(x.taskId===taskId && x.childId===childId && x.periodKey===pk));
   if(newStatus==="done"){
     state.completions.push({id:uid(), taskId, childId, periodKey:pk, status:"approved", pts:keptPts, createdAt:keptCreated, approvedAt:Date.now()});
   } else if(newStatus==="pending"){
     state.completions.push({id:uid(), taskId, childId, periodKey:pk, status:"pending", pts:keptPts, createdAt:keptCreated});
   } else if(newStatus==="ignored"){
-    if(!state.skips) state.skips=[];
     state.skips.push({id:uid(), taskId, childId, periodKey:pk, skippedAt:Date.now()});
+  } else if(newStatus==="non-complete"){
+    state.nonComplete.push({id:uid(), taskId, childId, periodKey:pk, penalty:(tsk.incompletePenalty||0), closed:true, at:keptCreated});
   } /* active : rien à ajouter */
   k.points = Math.max(0, (k.points||0) + (target - curApplied));
   save();
@@ -1490,13 +1514,15 @@ function renderChild(){
         action = statusChip("status-chip", `✗ ${t("skipped")}`);
       } else if(isPushed){
         action = statusChip("status-chip", `↷ ${t("pushedTomorrow")}`);
+      } else if(st==="non-complete"){
+        action = statusChip("status-chip", t("histNonComplete"));
       } else {
         action = `<button class="do" data-action="do-task" data-id="${tsk.id}">${t("btnDone")}</button>`;
         if(st==="pending") action = `<button class="do waiting" data-action="undo-task" data-id="${tsk.id}">${t("statusPending")}</button>`;
         if(st==="done")    action = statusChip("done-chip", t("statusDone"));
       }
       rows += `
-        <div class="task" id="tc-${tsk.id}" style="${(st==="skipped"||isPushed)?"opacity:.4":""}">
+        <div class="task" id="tc-${tsk.id}" style="${(st==="skipped"||st==="non-complete"||isPushed)?"opacity:.4":""}">
           ${tsk.incompletePenalty > 0
             ? `<div style="align-self:flex-start;margin-top:4px">
                  <span class="pts-badge" style="display:block;font-size:14px;position:relative;z-index:1">+${tsk.points}</span>
@@ -1537,13 +1563,15 @@ function renderChild(){
         action = statusChip("status-chip", `✗ ${t("skipped")}`);
       } else if(isPushed){
         action = statusChip("status-chip", `↷ ${t("pushedTomorrow")}`);
+      } else if(st==="non-complete"){
+        action = statusChip("status-chip", t("histNonComplete"));
       } else {
         action = `<button class="do" data-action="do-task" data-id="${tsk.id}">${t("btnDone")}</button>`;
         if(st==="pending") action = `<button class="do waiting" data-action="undo-task" data-id="${tsk.id}">${t("statusPending")}</button>`;
         if(st==="done")    action = statusChip("done-chip", t("statusDone"));
       }
       rows += `
-        <div class="task" id="tc-${tsk.id}" style="${(st==="skipped"||isPushed)?"opacity:.4":""}">
+        <div class="task" id="tc-${tsk.id}" style="${(st==="skipped"||st==="non-complete"||isPushed)?"opacity:.4":""}">
           ${tsk.incompletePenalty > 0
             ? `<div style="align-self:flex-start;margin-top:4px">
                  <span class="pts-badge" style="display:block;font-size:14px;position:relative;z-index:1">+${tsk.points}</span>
@@ -1636,6 +1664,9 @@ function renderChild(){
           action = view.childEditMode
             ? `<div style="display:flex;flex-direction:column;gap:4px">${exSkipBtn(t("skipped"))}${exPushBtn(false)}</div>`
             : statusChip("status-chip", `✗ ${t("skipped")}`);
+        } else if(st === "non-complete"){
+          action = statusChip("status-chip", t("histNonComplete"));
+          locked = true;
         } else if(isPushedEx){
           action = view.childEditMode
             ? `<div style="display:flex;flex-direction:column;gap:4px">${exSkipBtn(t("skip"))}${exPushBtn(true)}</div>`
@@ -1702,6 +1733,8 @@ function renderChild(){
         action = statusChip("status-chip", `↷ ${t("pushedTomorrow")}`);
       } else if(greyed && st === "open"){
         action = `<span style="font-size:12px;font-weight:700;color:var(--ink-soft);padding:6px 10px;background:var(--line);border-radius:10px">—</span>`;
+      } else if(st === "non-complete"){
+        action = statusChip("status-chip", t("histNonComplete"));
       } else {
         action = `<button class="do" data-action="do-task" data-id="${tsk.id}">${t("btnDone")}</button>`;
         if(st === "pending") action = `<button class="do waiting" data-action="undo-task" data-id="${tsk.id}">${t("statusPending")}</button>`;
@@ -1709,7 +1742,7 @@ function renderChild(){
       }
 
       const wrapStyle = [
-        (greyed || st === "skipped" || isPushed) ? "opacity:.4" : "",
+        (greyed || st === "skipped" || st === "non-complete" || isPushed) ? "opacity:.4" : "",
         carried ? "border-left:3px solid var(--wait);padding-left:13px" : "",
       ].filter(Boolean).join(";");
 
@@ -2540,8 +2573,9 @@ function parentHistory(){
             const tb = (status,label,bg,col) =>
               `<button data-action="hist-set-status" data-tid="${x.taskId}" data-cid="${x.childId}" data-pk="${x.pk}" data-status="${status}" style="background:${bg};color:${col};border:none;border-radius:9px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">${label}</button>`;
             const parts = [];
-            if(x.status!=="done")    parts.push(tb("done",    t("histBtnComplete"), "#E6F7EE", "#1d8a55"));
-            if(x.status!=="ignored") parts.push(tb("ignored", t("histBtnIgnore"),   "#FCE9E9", "#c0392b"));
+            if(x.status!=="done")         parts.push(tb("done",         t("histBtnComplete"), "#E6F7EE", "#1d8a55"));
+            if(x.status!=="ignored")      parts.push(tb("ignored",      t("histBtnIgnore"),   "#EEE",    "#666"));
+            if(x.status!=="non-complete") parts.push(tb("non-complete", t("histNonComplete"), "#FCE9E9", "#c0392b"));
             parts.push(tb("active", t("histBtnReopen"), "var(--line)", "var(--ink-soft)"));
             actions = parts.join("");
           }
@@ -4764,7 +4798,7 @@ function applyPenalties(){
 
     taskChildIds(tsk).forEach(cid => {
       const st = taskStatusFor(tsk, cid);
-      if(st === "done" || st === "pending" || st === "skipped" || isPushedTomorrow(tsk, cid)) return; /* complété, soumis, ignoré ou remis → exempt */
+      if(st === "done" || st === "pending" || st === "skipped" || st === "non-complete" || isPushedTomorrow(tsk, cid)) return; /* complété, soumis, ignoré, non-complété ou remis → exempt */
 
       /* réduction de report : modifie les pts de la tâche pour cet enfant, une fois */
       if(tsk.carryOn && tsk.carryOnPenalty > 0){
