@@ -652,7 +652,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.69";
+const APP_VERSION = "v0.70";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1101,7 +1101,7 @@ function gearButtons(tsk, cid, st){
   const isPushed = isPushedTomorrow(tsk, cid);
   /* statut courant → clé du bouton à surligner (open ⇒ « Rouvrir ») */
   const activeKey = st==="done" ? "done"
-                  : st==="ignored" ? "ignored"
+                  : (st==="ignored" || st==="skipped") ? "ignored"
                   : st==="non-complete" ? "non-complete"
                   : st==="open" ? "active" : null;
   /* tous les boutons affichés ; le courant surligné, les autres atténués */
@@ -1548,7 +1548,7 @@ function renderChild(){
         if(st==="done")    action = statusChip("done-chip", t("statusDone"));
       }
       rows += `
-        <div class="task" id="tc-${tsk.id}" style="${(st==="skipped"||st==="non-complete"||isPushed)?"opacity:.4":""}">
+        <div class="task" id="tc-${tsk.id}" style="${(!view.childEditMode && (st==="skipped"||st==="non-complete"||isPushed))?"opacity:.4":""}">
           ${tsk.incompletePenalty > 0
             ? `<div style="align-self:flex-start;margin-top:4px">
                  <span class="pts-badge" style="display:block;font-size:14px;position:relative;z-index:1">+${tsk.points}</span>
@@ -1592,7 +1592,7 @@ function renderChild(){
         if(st==="done")    action = statusChip("done-chip", t("statusDone"));
       }
       rows += `
-        <div class="task" id="tc-${tsk.id}" style="${(st==="skipped"||st==="non-complete"||isPushed)?"opacity:.4":""}">
+        <div class="task" id="tc-${tsk.id}" style="${(!view.childEditMode && (st==="skipped"||st==="non-complete"||isPushed))?"opacity:.4":""}">
           ${tsk.incompletePenalty > 0
             ? `<div style="align-self:flex-start;margin-top:4px">
                  <span class="pts-badge" style="display:block;font-size:14px;position:relative;z-index:1">+${tsk.points}</span>
@@ -1758,7 +1758,7 @@ function renderChild(){
       }
 
       const wrapStyle = [
-        (greyed || st === "skipped" || st === "non-complete" || isPushed) ? "opacity:.4" : "",
+        (!view.childEditMode && (greyed || st === "skipped" || st === "non-complete" || isPushed)) ? "opacity:.4" : "",
         carried ? "border-left:3px solid var(--wait);padding-left:13px" : "",
       ].filter(Boolean).join(";");
 
