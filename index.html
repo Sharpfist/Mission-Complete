@@ -347,7 +347,7 @@ const TRANSLATIONS = {
     tabHistory:"🕓 Historique",histToday:"Aujourd'hui",histYesterday:"Hier",histDayBefore:"Avant-hier",histEmpty:"Aucune activité récente.",
     histDone:"✅ Complétée",histPending:"⏳ En attente",histIgnored:"✗ Ignorée",histNonComplete:"✗ Non complétée",histReverted:"↩ Renversé",
     histBtnComplete:"✅ Compléter",histBtnRefuse:"✗ Refuser",histBtnRevert:"↩ Renverser",histBtnApprove:"✓ Approuver",histBtnGiven:"🎁 Donné",histBtnIgnore:"✗ Ignorer",histBtnReopen:"↺ Rouvrir",
-    skip:"Ignorer",skipped:"Ignorée",pushTomorrow:"Pousser à demain",pushedTomorrow:"Remise à demain",parentalDone:"Terminé ✓",
+    skip:"Ignorer",skipped:"Ignorée",pushTomorrow:"Pousser à demain",pushedTomorrow:"Remise à demain",parentalDone:"Terminé ✓",pushAlready:"Tâche déjà prévue demain",
     ignoreEvt:"Ignorer",ignoredEvt:"Fut ignoré",evIgnoredTag:"fut ignoré",
     noApprovals:"Rien à valider pour le moment.<br>Quand un enfant coche « J'ai fait », ça apparaît ici.",
     btnApprove:"✓ Valider (+{pts})",btnReject:"✗ Refuser",
@@ -490,7 +490,7 @@ const TRANSLATIONS = {
     tabHistory:"🕓 History",histToday:"Today",histYesterday:"Yesterday",histDayBefore:"2 days ago",histEmpty:"No recent activity.",
     histDone:"✅ Completed",histPending:"⏳ Pending",histIgnored:"✗ Ignored",histNonComplete:"✗ Not completed",histReverted:"↩ Reverted",
     histBtnComplete:"✅ Complete",histBtnRefuse:"✗ Refuse",histBtnRevert:"↩ Revert",histBtnApprove:"✓ Approve",histBtnGiven:"🎁 Given",histBtnIgnore:"✗ Ignore",histBtnReopen:"↺ Reopen",
-    skip:"Skip",skipped:"Skipped",pushTomorrow:"Push to tomorrow",pushedTomorrow:"Pushed to tomorrow",parentalDone:"Done ✓",
+    skip:"Skip",skipped:"Skipped",pushTomorrow:"Push to tomorrow",pushedTomorrow:"Pushed to tomorrow",parentalDone:"Done ✓",pushAlready:"Task already scheduled tomorrow",
     ignoreEvt:"Ignore",ignoredEvt:"Was ignored",evIgnoredTag:"was ignored",
     noApprovals:"Nothing to approve right now.<br>When a child taps « Done », it appears here.",
     btnApprove:"✓ Approve (+{pts})",btnReject:"✗ Reject",
@@ -652,7 +652,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.70";
+const APP_VERSION = "v0.71";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1118,7 +1118,9 @@ function gearButtons(tsk, cid, st){
     b("non-complete", t("histNonComplete"), "#FCE9E9", "#c0392b"),
     b("active",       t("histBtnReopen"),   "#EAF2FF", "#2b6cb0"),
   ];
-  parts.push(`<button class="do" style="background:${isPushed?"#FFE8C2":"var(--line)"};color:${isPushed?"#a06d00":"var(--ink-soft)"};${isPushed?"box-shadow:0 0 0 2px #a06d00 inset;font-weight:800":"opacity:.6;font-weight:700"};font-size:11px;padding:5px 9px;white-space:nowrap" data-action="push-task" data-id="${tsk.id}">${isPushed?t("pushedTomorrow"):t("pushTomorrow")}</button>`);
+  parts.push(isPushed
+    ? `<button style="background:var(--line);color:var(--ink-soft);opacity:.4;font-weight:700;border:none;border-radius:9px;padding:5px 9px;font-size:11px;cursor:pointer;white-space:nowrap" data-action="push-already">${t("pushTomorrow")}</button>`
+    : `<button style="background:var(--line);color:var(--ink-soft);font-weight:700;border:none;border-radius:9px;padding:5px 9px;font-size:11px;cursor:pointer;white-space:nowrap" data-action="push-task" data-id="${tsk.id}">${t("pushTomorrow")}</button>`);
   return `<div style="display:flex;flex-direction:column;gap:4px">${parts.join("")}</div>`;
 }
 
@@ -3833,6 +3835,8 @@ document.addEventListener("click", (e)=>{
       }
       break;
     }
+
+    case "push-already": { toast(t("pushAlready")); break; }
 
     case "hist-set-status": {
       const d = setMissionStatus(el.dataset.tid, el.dataset.cid, el.dataset.pk, el.dataset.status);
