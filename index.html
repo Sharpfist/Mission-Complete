@@ -652,7 +652,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.67";
+const APP_VERSION = "v0.68";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1091,6 +1091,23 @@ function setMissionStatus(taskId, childId, pk, newStatus){
   return target - curApplied;
 }
 
+/* Boutons de transition pour la roue dentée enfant (accès parent, protégé PIN).
+   Réutilise setMissionStatus via l'action hist-set-status, sur l'occurrence du
+   jour (taskPK). Exclut le statut courant. + Remettre à demain (push). */
+function gearButtons(tsk, cid, st){
+  const pk = taskPK(tsk);
+  const isPushed = isPushedTomorrow(tsk, cid);
+  const b = (status,label,bg,col) =>
+    `<button data-action="hist-set-status" data-tid="${tsk.id}" data-cid="${cid}" data-pk="${pk}" data-status="${status}" style="background:${bg};color:${col};border:none;border-radius:9px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">${label}</button>`;
+  const parts = [];
+  if(st!=="done")         parts.push(b("done",         t("histBtnComplete"), "#E6F7EE", "#1d8a55"));
+  if(st!=="ignored")      parts.push(b("ignored",      t("histBtnIgnore"),   "#EEE",    "#666"));
+  if(st!=="non-complete") parts.push(b("non-complete", t("histNonComplete"), "#FCE9E9", "#c0392b"));
+  parts.push(b("active", t("histBtnReopen"), "var(--line)", "var(--ink-soft)"));
+  parts.push(`<button class="do" style="background:${isPushed?"#ddd":"var(--line)"};color:${isPushed?"#888":"var(--ink-soft)"};font-size:11px;font-weight:700;padding:5px 9px;white-space:nowrap" data-action="push-task" data-id="${tsk.id}">${isPushed?t("pushedTomorrow"):t("pushTomorrow")}</button>`);
+  return `<div style="display:flex;flex-direction:column;gap:4px">${parts.join("")}</div>`;
+}
+
 /* une mission extrême se débloque pour un enfant quand toutes ses tâches
    régulières de la période assignée (+ all-day si requis) sont APPROUVÉES */
 function extremeUnlocked(tsk, childId){
@@ -1503,13 +1520,8 @@ function renderChild(){
       const st = taskStatusFor(tsk, c.id);
       const isPushed = isPushedTomorrow(tsk, c.id);
       let action;
-      if(view.childEditMode && st==="skipped"){
-        action = `<button class="do" style="background:#ddd;color:#888;font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skipped")}</button>`;
-      } else if(view.childEditMode && st==="open"){
-        action = `<div style="display:flex;flex-direction:column;gap:4px">
-          <button class="do" style="background:var(--line);color:var(--ink-soft);font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skip")}</button>
-          <button class="do" style="background:${isPushed?"#ddd":"var(--line)"};color:${isPushed?"#888":"var(--ink-soft)"};font-size:11px;font-weight:700;white-space:normal;text-align:center;line-height:1.2;padding:6px 8px" data-action="push-task" data-id="${tsk.id}">${isPushed?t("pushedTomorrow"):t("pushTomorrow")}</button>
-        </div>`;
+      if(view.childEditMode){
+        action = gearButtons(tsk, c.id, st);
       } else if(st==="skipped"){
         action = statusChip("status-chip", `✗ ${t("skipped")}`);
       } else if(isPushed){
@@ -1552,13 +1564,8 @@ function renderChild(){
       const st = taskStatusFor(tsk, c.id);
       const isPushed = isPushedTomorrow(tsk, c.id);
       let action;
-      if(view.childEditMode && st==="skipped"){
-        action = `<button class="do" style="background:#ddd;color:#888;font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skipped")}</button>`;
-      } else if(view.childEditMode && st==="open"){
-        action = `<div style="display:flex;flex-direction:column;gap:4px">
-          <button class="do" style="background:var(--line);color:var(--ink-soft);font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skip")}</button>
-          <button class="do" style="background:${isPushed?"#ddd":"var(--line)"};color:${isPushed?"#888":"var(--ink-soft)"};font-size:11px;font-weight:700;white-space:normal;text-align:center;line-height:1.2;padding:6px 8px" data-action="push-task" data-id="${tsk.id}">${isPushed?t("pushedTomorrow"):t("pushTomorrow")}</button>
-        </div>`;
+      if(view.childEditMode){
+        action = gearButtons(tsk, c.id, st);
       } else if(st==="skipped"){
         action = statusChip("status-chip", `✗ ${t("skipped")}`);
       } else if(isPushed){
@@ -1720,13 +1727,8 @@ function renderChild(){
 
       const isPushed = isPushedTomorrow(tsk, c.id);
       let action;
-      if(view.childEditMode && st === "skipped"){
-        action = `<button class="do" style="background:#ddd;color:#888;font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skipped")}</button>`;
-      } else if(view.childEditMode && st === "open"){
-        action = `<div style="display:flex;flex-direction:column;gap:4px">
-          <button class="do" style="background:var(--line);color:var(--ink-soft);font-size:12px;font-weight:700" data-action="skip-task" data-id="${tsk.id}">${t("skip")}</button>
-          <button class="do" style="background:${isPushed?"#ddd":"var(--line)"};color:${isPushed?"#888":"var(--ink-soft)"};font-size:11px;font-weight:700;white-space:normal;text-align:center;line-height:1.2;padding:6px 8px" data-action="push-task" data-id="${tsk.id}">${isPushed?t("pushedTomorrow"):t("pushTomorrow")}</button>
-        </div>`;
+      if(view.childEditMode){
+        action = gearButtons(tsk, c.id, st);
       } else if(st === "skipped"){
         action = statusChip("status-chip", `✗ ${t("skipped")}`);
       } else if(isPushed){
@@ -3821,7 +3823,7 @@ document.addEventListener("click", (e)=>{
     case "hist-set-status": {
       const d = setMissionStatus(el.dataset.tid, el.dataset.cid, el.dataset.pk, el.dataset.status);
       if(d) showSimplePtsAnim(d, "");
-      refreshParentBody();
+      if(view.name === "child") render(); else refreshParentBody();
       break;
     }
 
