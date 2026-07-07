@@ -652,7 +652,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.68";
+const APP_VERSION = "v0.69";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1077,6 +1077,8 @@ function setMissionStatus(taskId, childId, pk, newStatus){
   state.completions = (state.completions||[]).filter(x=>!(x.taskId===taskId && x.childId===childId && x.periodKey===pk));
   state.skips       = (state.skips||[]).filter(x=>!(x.taskId===taskId && x.childId===childId && x.periodKey===pk));
   state.nonComplete = (state.nonComplete||[]).filter(x=>!(x.taskId===taskId && x.childId===childId && x.periodKey===pk));
+  /* un statut explicite annule un « remettre à demain » du jour */
+  state.pushes      = (state.pushes||[]).filter(x=>!(x.taskId===taskId && x.childId===childId && x.pushedDate===todayStr()));
   if(newStatus==="done"){
     state.completions.push({id:uid(), taskId, childId, periodKey:pk, status:"approved", pts:keptPts, createdAt:keptCreated, approvedAt:Date.now()});
   } else if(newStatus==="pending"){
@@ -1097,14 +1099,26 @@ function setMissionStatus(taskId, childId, pk, newStatus){
 function gearButtons(tsk, cid, st){
   const pk = taskPK(tsk);
   const isPushed = isPushedTomorrow(tsk, cid);
-  const b = (status,label,bg,col) =>
-    `<button data-action="hist-set-status" data-tid="${tsk.id}" data-cid="${cid}" data-pk="${pk}" data-status="${status}" style="background:${bg};color:${col};border:none;border-radius:9px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">${label}</button>`;
-  const parts = [];
-  if(st!=="done")         parts.push(b("done",         t("histBtnComplete"), "#E6F7EE", "#1d8a55"));
-  if(st!=="ignored")      parts.push(b("ignored",      t("histBtnIgnore"),   "#EEE",    "#666"));
-  if(st!=="non-complete") parts.push(b("non-complete", t("histNonComplete"), "#FCE9E9", "#c0392b"));
-  parts.push(b("active", t("histBtnReopen"), "var(--line)", "var(--ink-soft)"));
-  parts.push(`<button class="do" style="background:${isPushed?"#ddd":"var(--line)"};color:${isPushed?"#888":"var(--ink-soft)"};font-size:11px;font-weight:700;padding:5px 9px;white-space:nowrap" data-action="push-task" data-id="${tsk.id}">${isPushed?t("pushedTomorrow"):t("pushTomorrow")}</button>`);
+  /* statut courant → clé du bouton à surligner (open ⇒ « Rouvrir ») */
+  const activeKey = st==="done" ? "done"
+                  : st==="ignored" ? "ignored"
+                  : st==="non-complete" ? "non-complete"
+                  : st==="open" ? "active" : null;
+  /* tous les boutons affichés ; le courant surligné, les autres atténués */
+  const b = (status,label,bg,col) => {
+    const on = status===activeKey;
+    const style = on
+      ? `background:${bg};color:${col};box-shadow:0 0 0 2px ${col} inset;font-weight:800`
+      : `background:var(--line);color:var(--ink-soft);opacity:.6;font-weight:700`;
+    return `<button data-action="hist-set-status" data-tid="${tsk.id}" data-cid="${cid}" data-pk="${pk}" data-status="${status}" style="${style};border:none;border-radius:9px;padding:5px 9px;font-size:11px;cursor:pointer;white-space:nowrap">${label}</button>`;
+  };
+  const parts = [
+    b("done",         t("histBtnComplete"), "#E6F7EE", "#1d8a55"),
+    b("ignored",      t("histBtnIgnore"),   "#EEE",    "#666"),
+    b("non-complete", t("histNonComplete"), "#FCE9E9", "#c0392b"),
+    b("active",       t("histBtnReopen"),   "#EAF2FF", "#2b6cb0"),
+  ];
+  parts.push(`<button class="do" style="background:${isPushed?"#FFE8C2":"var(--line)"};color:${isPushed?"#a06d00":"var(--ink-soft)"};${isPushed?"box-shadow:0 0 0 2px #a06d00 inset;font-weight:800":"opacity:.6;font-weight:700"};font-size:11px;padding:5px 9px;white-space:nowrap" data-action="push-task" data-id="${tsk.id}">${isPushed?t("pushedTomorrow"):t("pushTomorrow")}</button>`);
   return `<div style="display:flex;flex-direction:column;gap:4px">${parts.join("")}</div>`;
 }
 
