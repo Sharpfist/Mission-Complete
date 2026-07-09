@@ -338,7 +338,7 @@ const TRANSLATIONS = {
     heroSub:"Termine tes missions pour en gagner plus !",
     shopBtn:"🛒 Boutique des récompenses",
     groupToday:"Aujourd'hui",groupWeek:"Cette semaine",groupMonth:"Ce mois-ci",groupSpecial:"Missions spéciales",
-    btnDone:"J'ai fait ✓",statusPending:"⏳ En attente",statusDone:"✅ Bravo !",toastUndoTask:"Annulé ↩",
+    btnDone:"Fait ✅",statusPending:"⏳ En attente",statusDone:"✅ Bravo !",toastUndoTask:"Annulé ↩",
     noTasks:"Aucune mission pour l'instant.<br>Un parent peut en ajouter dans l'espace parent.",
     storeTitle:"🛒 Boutique",buyBtn:"Acheter — {cost} pts",buyLocked:"🔒 {cost} pts",
     storeNote:"Quand tu achètes, tes points baissent.<br>Va voir un parent pour recevoir ta surprise 😊",
@@ -360,7 +360,7 @@ const TRANSLATIONS = {
     fldTaskName:"Nom de la mission",fldTaskNamePh:"Ex. Ranger sa chambre",
     fldPoints:"Points gagnés",fldWhichChild:"Pour quel enfant ?",fldFreq:"À quelle fréquence ?",
     addReward:"＋ Nouvelle récompense",noRewardsParent:"Aucune récompense.",lastPurchases:"🧾 Derniers achats",
-    purchasePending:"⏳ En attente",purchaseApproved:"✅ Approuvé",purchaseApprovedSub:"À recevoir",
+    purchasePending:"⏳ En attente",purchaseApproved:"✅ Approuvé",purchaseApprovedSub:"À recevoir",purchaseBtnAccept:"Acceptée",purchaseBtnRefuse:"Refusée",
     purchaseGiven:"🎁 Reçu ✓",purchaseRefused:"✗ Refusé",
     btnMarkGiven:"Fut donné à l'enfant",markGivenDone:"Fut donné ✓",
     sectionPurchases:"🛒 Achats boutique",btnApprovePurchase:"✓ Approuver",btnRefusePurchase:"✗ Refuser",
@@ -504,7 +504,7 @@ const TRANSLATIONS = {
     fldTaskName:"Mission name",fldTaskNamePh:"e.g. Clean your room",
     fldPoints:"Points earned",fldWhichChild:"Which child?",fldFreq:"How often?",
     addReward:"＋ New reward",noRewardsParent:"No rewards.",lastPurchases:"🧾 Recent purchases",
-    purchasePending:"⏳ Pending",purchaseApproved:"✅ Approved",purchaseApprovedSub:"To receive",
+    purchasePending:"⏳ Pending",purchaseApproved:"✅ Approved",purchaseApprovedSub:"To receive",purchaseBtnAccept:"Accepted",purchaseBtnRefuse:"Refused",
     purchaseGiven:"🎁 Received ✓",purchaseRefused:"✗ Refused",
     btnMarkGiven:"Given to child",markGivenDone:"Given ✓",
     sectionPurchases:"🛒 Store purchases",btnApprovePurchase:"✓ Approve",btnRefusePurchase:"✗ Refuse",
@@ -654,7 +654,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.77";
+const APP_VERSION = "v0.81";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1352,10 +1352,20 @@ function renderRewardHistory(c){
   });
   if(items.length===0) return "";
   return items.map(p=>{
-    let chip="", sub="", cancelBtn="";
+    let chip="", sub="", cancelBtn="", rightActions="";
     if(p.status==="pending"){
-      chip=`<span class="tag" style="background:#FFF4D6;color:#a06d00;font-size:12px">${t("purchasePending")}</span>`;
-      cancelBtn=`<button class="btn btn-ghost" style="font-size:12px;padding:5px 12px;margin-top:6px" data-action="cancel-purchase" data-id="${p.id}">${t("btnCancel")}</button>`;
+      if(view.childEditMode){
+        const pb = (action,label,bg,col) =>
+          `<button style="background:${bg};color:${col};font-weight:800;border:none;border-radius:9px;padding:5px 10px;font-size:11px;cursor:pointer;white-space:nowrap" data-action="${action}" data-id="${p.id}">${label}</button>`;
+        rightActions = `<div style="display:flex;flex-direction:column;gap:4px">
+            ${pb("approve-purchase", t("purchaseBtnAccept"), "#E6F7EE", "#1d8a55")}
+            ${pb("refuse-purchase",  t("purchaseBtnRefuse"), "#FCE9E9", "#c0392b")}
+            ${pb("cancel-purchase",  t("btnCancel"),          "#EEE",    "#666")}
+          </div>`;
+      } else {
+        chip=`<span class="tag" style="background:#FFF4D6;color:#a06d00;font-size:12px">${t("purchasePending")}</span>`;
+        cancelBtn=`<button class="btn btn-ghost" style="font-size:12px;padding:5px 12px;margin-top:6px" data-action="cancel-purchase" data-id="${p.id}">${t("btnCancel")}</button>`;
+      }
     } else if(p.status==="approved"){
       chip=`<span class="tag" style="background:#E6F7EE;color:#1d8a55;font-size:12px">${t("purchaseApproved")}</span>`;
       sub=`<div style="font-size:11px;font-weight:700;color:#1d8a55;margin-top:2px">${t("purchaseApprovedSub")}</div>`;
@@ -1365,15 +1375,16 @@ function renderRewardHistory(c){
       chip=`<span class="tag" style="background:#FCE9E9;color:#c0392b;font-size:12px">${t("purchaseRefused")}</span>`;
     }
     const displayCost = p.status==="refused" ? 0 : p.cost;
+    const rowShaded = p.status==="refused" ? "opacity:.5" : "";
     return `
-      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)">
+      <div class="row" style="align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line);${rowShaded}">
         <span style="font-size:22px;flex-shrink:0">${esc(p.emoji||"🎁")}</span>
         <div class="grow">
           <div style="font-weight:700;font-size:14px">${esc(p.title)}</div>
           <div class="muted" style="font-size:12px">${displayCost} pts</div>
           ${cancelBtn}
         </div>
-        <div style="flex-shrink:0;text-align:right">${chip}${sub}</div>
+        <div style="flex-shrink:0;text-align:right">${rightActions}${chip}${sub}</div>
       </div>`;
   }).join("");
 }
