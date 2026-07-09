@@ -652,7 +652,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.71";
+const APP_VERSION = "v0.72";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1099,8 +1099,11 @@ function setMissionStatus(taskId, childId, pk, newStatus){
 function gearButtons(tsk, cid, st){
   const pk = taskPK(tsk);
   const isPushed = isPushedTomorrow(tsk, cid);
-  /* statut courant → clé du bouton à surligner (open ⇒ « Rouvrir ») */
-  const activeKey = st==="done" ? "done"
+  /* statut courant → clé du bouton à surligner (open ⇒ « Rouvrir »).
+     Si poussé à demain, c'est le report qui est l'état courant : aucun
+     bouton de statut surligné (le bouton « Remettre à demain » l'est). */
+  const activeKey = isPushed ? null
+                  : st==="done" ? "done"
                   : (st==="ignored" || st==="skipped") ? "ignored"
                   : st==="non-complete" ? "non-complete"
                   : st==="open" ? "active" : null;
@@ -1119,8 +1122,8 @@ function gearButtons(tsk, cid, st){
     b("active",       t("histBtnReopen"),   "#EAF2FF", "#2b6cb0"),
   ];
   parts.push(isPushed
-    ? `<button style="background:var(--line);color:var(--ink-soft);opacity:.4;font-weight:700;border:none;border-radius:9px;padding:5px 9px;font-size:11px;cursor:pointer;white-space:nowrap" data-action="push-already">${t("pushTomorrow")}</button>`
-    : `<button style="background:var(--line);color:var(--ink-soft);font-weight:700;border:none;border-radius:9px;padding:5px 9px;font-size:11px;cursor:pointer;white-space:nowrap" data-action="push-task" data-id="${tsk.id}">${t("pushTomorrow")}</button>`);
+    ? `<button style="background:#FFE8C2;color:#a06d00;box-shadow:0 0 0 2px #a06d00 inset;font-weight:800;border:none;border-radius:9px;padding:5px 9px;font-size:11px;cursor:pointer;white-space:nowrap" data-action="push-already">${t("pushTomorrow")}</button>`
+    : `<button style="background:var(--line);color:var(--ink-soft);opacity:.6;font-weight:700;border:none;border-radius:9px;padding:5px 9px;font-size:11px;cursor:pointer;white-space:nowrap" data-action="push-task" data-id="${tsk.id}">${t("pushTomorrow")}</button>`);
   return `<div style="display:flex;flex-direction:column;gap:4px">${parts.join("")}</div>`;
 }
 
@@ -4448,28 +4451,26 @@ document.addEventListener("click", (e)=>{
       const idx=state.pushes.findIndex(x=>x.taskId===taskId && x.childId===childId && x.pushedDate===today);
       const nowPushed = idx<0;
       if(nowPushed){
+        /* pousser efface le statut de l'occurrence (régulier) : pas fait, à
+           refaire demain. setMissionStatus active réconcilie les points et
+           rembourse une pénalité éventuelle. Extrême : ancien remboursement. */
+        if(!isExtreme(tsk)){
+          const pk = taskPK(tsk);
+          affectedIds.forEach(cid => setMissionStatus(taskId, cid, pk, "active"));
+        } else {
+          const _p=period(tsk.periodId), _now=new Date(), _hm=pad(_now.getHours())+":"+pad(_now.getMinutes());
+          if(_p && !_p.isAllDay && _hm > _p.endTime)
+            affectedIds.forEach(cid => reverseExpiredPenalty(tsk, cid));
+        }
         affectedIds.forEach(cid=>{
           if(!state.pushes.some(x=>x.taskId===taskId && x.childId===cid && x.pushedDate===today))
             state.pushes.push({id:uid(), taskId, childId:cid, pushedDate:today});
         });
-        /* rembourser pénalité si la période est expirée */
-        const _p=period(tsk.periodId), _now=new Date(), _hm=pad(_now.getHours())+":"+pad(_now.getMinutes());
-        if(_p && !_p.isAllDay && _hm > _p.endTime)
-          affectedIds.forEach(cid => reverseExpiredPenalty(tsk, cid));
       } else {
         state.pushes = state.pushes.filter(x=>!(x.taskId===taskId && affectedIds.includes(x.childId) && x.pushedDate===today));
       }
       save();
-      const card=document.getElementById("tc-"+taskId);
-      if(card){
-        card.style.opacity = nowPushed ? "0.4" : "";
-        const pushBtn=card.querySelector("[data-action='push-task']");
-        if(pushBtn){
-          pushBtn.textContent = nowPushed ? t("pushedTomorrow") : t("pushTomorrow");
-          pushBtn.style.background = nowPushed ? "#ddd" : "var(--line)";
-          pushBtn.style.color = nowPushed ? "#888" : "var(--ink-soft)";
-        }
-      }
+      render();
       break;
     }
 
