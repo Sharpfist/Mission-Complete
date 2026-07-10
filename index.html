@@ -655,7 +655,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.87";
+const APP_VERSION = "v0.93";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -664,6 +664,7 @@ function load(){
   return null;
 }
 function save(){
+  syncOccurrences();   /* garde state.occurrences (miroir) exact à chaque mutation */
   _mem = state;
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){}
 }
@@ -789,35 +790,56 @@ const OCC_MIGRATION_VERSION = 1;
 function buildOccurrencesFromLegacy(st){
   const occ = [];
   const byKey = {};
-  function getOcc(taskId, childId, periodKey){
+  function occFor(taskId, childId, periodKey){
     const k = taskId + "|" + childId + "|" + periodKey;
     if(!byKey[k]){
-      byKey[k] = { id: uid(), taskId, childId, periodKey, periodOverride: null,
-        status: "active", appliedDelta: 0, closed: false, createdAt: 0, updatedAt: 0 };
+      byKey[k] = { id: k, taskId, childId, periodKey, periodOverride: null,
+        status: "active", pts: null, appliedDelta: 0, closed: false, createdAt: 0, updatedAt: 0 };
       occ.push(byKey[k]);
     }
     return byKey[k];
   }
   (st.completions || []).forEach(c => {
-    const o = getOcc(c.taskId, c.childId, c.periodKey);
+    const o = occFor(c.taskId, c.childId, c.periodKey);
     const tsk = (st.tasks || []).find(t => t.id === c.taskId);
     const pts = (c.pts != null) ? c.pts : (tsk ? tsk.points : 0);
+    o.pts = pts;
     if(c.status === "approved"){ o.status = "done"; o.appliedDelta = pts; o.approvedAt = c.approvedAt; }
     else { o.status = "pending"; o.appliedDelta = 0; }
     if(c.createdAt) o.createdAt = c.createdAt;
   });
   (st.skips || []).forEach(s => {
-    const o = getOcc(s.taskId, s.childId, s.periodKey);
+    const o = occFor(s.taskId, s.childId, s.periodKey);
     o.status = "ignored"; o.appliedDelta = 0;
     if(s.skippedAt) o.createdAt = s.skippedAt;
   });
   (st.nonComplete || []).forEach(nc => {
-    const o = getOcc(nc.taskId, nc.childId, nc.periodKey);
+    const o = occFor(nc.taskId, nc.childId, nc.periodKey);
     o.status = "non-complete"; o.appliedDelta = -(nc.penalty||0);
     if(nc.at) o.createdAt = nc.at;
     o.closed = true;
   });
+  /* « poussée à demain » (state.pushes du jour) → periodOverride sur l'occurrence du jour */
+  const _today = todayStr();
+  const _dt = new Date(); _dt.setDate(_dt.getDate()+1);
+  const _tomorrow = _dt.getFullYear()+"-"+pad(_dt.getMonth()+1)+"-"+pad(_dt.getDate());
+  (st.pushes || []).forEach(pu => {
+    if(pu.pushedDate !== _today) return;
+    const tsk = (st.tasks || []).find(t => t.id === pu.taskId);
+    if(!tsk) return;
+    const o = occFor(pu.taskId, pu.childId, taskPK(tsk));
+    o.periodOverride = _tomorrow;
+  });
   return occ;
+}
+/* Reconstruit le miroir occurrences depuis le legacy (source de vérité en construction). */
+function syncOccurrences(){
+  if(!state || !state.tasks) return;   /* pas encore initialisé */
+  state.occurrences = buildOccurrencesFromLegacy(state);
+}
+/* Lecture d'une occurrence par clé (utilisé à partir de la phase 3b). */
+function getOcc(taskId, childId, pk){
+  return (state.occurrences || []).find(o => o.taskId===taskId && o.childId===childId && o.periodKey===pk);
 }
 if(state.occMigrationVersion !== OCC_MIGRATION_VERSION){
   state.occurrences = buildOccurrencesFromLegacy(state);
@@ -889,7 +911,7 @@ function weekCooldownActive(tsk, childId, now){
   if((tsk.weekMode||"week")!=="week") return false;
   const n = tsk.weekCooldown!=null ? tsk.weekCooldown : 4;
   if(n<=0) return false;
-  const comps = state.completions.filter(x=>x.taskId===tsk.id && x.childId===childId);
+  const comps = (state.occurrences||[]).filter(o=>o.taskId===tsk.id && o.childId===childId && (o.status==="done"||o.status==="pending"));
   if(!comps.length) return false;
   const last  = comps.reduce((a,b)=> (b.approvedAt||b.createdAt) > (a.approvedAt||a.createdAt) ? b : a);
   const avail = (last.approvedAt||last.createdAt) + n*86400000;
@@ -976,7 +998,7 @@ function monthCooldownActive(tsk, childId, now){
   if((tsk.monthMode||"month")!=="month") return false;
   const n = tsk.monthCooldown!=null ? tsk.monthCooldown : 14;
   if(n<=0) return false;
-  const comps = state.completions.filter(x=>x.taskId===tsk.id && x.childId===childId);
+  const comps = (state.occurrences||[]).filter(o=>o.taskId===tsk.id && o.childId===childId && (o.status==="done"||o.status==="pending"));
   if(!comps.length) return false;
   const last  = comps.reduce((a,b)=> (b.approvedAt||b.createdAt) > (a.approvedAt||a.createdAt) ? b : a);
   const avail = (last.approvedAt||last.createdAt) + n*86400000;
@@ -1029,16 +1051,19 @@ function alldayPeriodId(){ const p=(state.periods||[]).find(x=>x.isAllDay); retu
 
 /* statut par enfant, valable pour tâche normale OU extrême partagée */
 function taskStatusFor(tsk, childId){
-  const pk = taskPK(tsk);
-  if(state.skips && state.skips.some(x=>x.taskId===tsk.id && x.childId===childId && x.periodKey===pk)) return "skipped";
-  const c = state.completions.find(x=>x.taskId===tsk.id && x.childId===childId && x.periodKey===pk);
-  if(c) return c.status==="approved" ? "done" : "pending";
-  if(state.nonComplete && state.nonComplete.some(x=>x.taskId===tsk.id && x.childId===childId && x.periodKey===pk)) return "non-complete";
-  return "open";
+  /* 3b : lecture depuis le miroir occurrences (getOcc). Vocabulaire legacy conservé
+     (skipped/open) pour ne pas casser le reste de l'app tant que tout n'est pas migré. */
+  const o = getOcc(tsk.id, childId, taskPK(tsk));
+  if(!o) return "open";
+  if(o.status === "ignored") return "skipped";
+  if(o.status === "active")  return "open";
+  return o.status;   /* done | pending | non-complete */
 }
 
 function isPushedTomorrow(tsk, childId){
-  return !!(state.pushes && state.pushes.some(x=>x.taskId===tsk.id && x.childId===childId && x.pushedDate===todayStr()));
+  /* 3b : « poussé à demain » = periodOverride posé sur l'occurrence du jour (miroir) */
+  const o = getOcc(tsk.id, childId, taskPK(tsk));
+  return !!(o && o.periodOverride);
 }
 
 /* mission extrême « fermée » pour la période courante (compétitif remporté / collab terminé) */
@@ -1135,7 +1160,7 @@ function gearButtons(tsk, cid, st, pkOverride){
     b("non-complete", t("gearNonComp"), "#FCE9E9", "#c0392b"),
     pushedBtn,
   ];
-  return `<div style="flex:0 0 100%;display:grid;grid-template-columns:calc((100% - 8px)/3 - 2px) calc((100% - 8px)/3) calc((100% - 8px)/3 + 2px);gap:4px;margin-top:2px">${parts.join("")}</div>`;
+  return `<div style="flex:0 0 100%;display:grid;grid-template-columns:calc((100% - 8px)/3 - 4px) calc((100% - 8px)/3) calc((100% - 8px)/3 + 4px);gap:4px;margin-top:2px">${parts.join("")}</div>`;
 }
 
 /* une mission extrême se débloque pour un enfant quand toutes ses tâches
@@ -1747,9 +1772,10 @@ function renderChild(){
         let allCounter = "";
         if(tsk.extremeMode === "all"){
           const ids = taskChildIds(tsk);
-          const done = ids.filter(cid =>
-            state.completions.some(x=>x.taskId===tsk.id && x.childId===cid && x.periodKey===exPk)
-          ).length;
+          const done = ids.filter(cid => {
+            const o = getOcc(tsk.id, cid, exPk);
+            return o && (o.status==="done" || o.status==="pending");
+          }).length;
           allCounter = ` · <b>${done}/${ids.length}</b>`;
         }
         const subLine = (!unlocked && !closed && st==="open" && !isPushedEx)
@@ -2036,8 +2062,10 @@ function refreshParentBody(){
 function allModeReady(tsk){
   const pk = taskPK(tsk);
   const ids = taskChildIds(tsk);
-  return ids.length>0 && ids.every(cid =>
-    state.completions.some(x=>x.taskId===tsk.id && x.childId===cid && x.periodKey===pk));
+  return ids.length>0 && ids.every(cid => {
+    const o = getOcc(tsk.id, cid, pk);
+    return o && (o.status==="done" || o.status==="pending");
+  });
 }
 
 function parentApprovals(){
@@ -4891,10 +4919,8 @@ function applyPenalties(){
       if(!tsk.carryOn && tsk.incompletePenalty > 0){
         const logKey = `${tsk.id}|${cid}|${pk}|incomplete`;
         if(!state.penaltyLog[logKey]){
+          setMissionStatus(tsk.id, cid, pk, "non-complete"); /* pénalité fondue dans la mission, plus de bombe séparée */
           state.penaltyLog[logKey] = today;
-          applyEvent("bomb",
-            esc(tsk.title) + " : " + t("incompleteSuffix"),
-            tsk.incompletePenalty, [cid]);
           changed = true;
         }
       }
@@ -4930,17 +4956,14 @@ function applyPenalties(){
       if(prevPk === currPk) return; /* même occurrence de fréquence → rien */
 
       taskChildIds(tsk).forEach(cid => {
-        /* complétion (approuvée ou soumise) dans la période précédente → exempt */
-        const prevDone = state.completions.some(x =>
-          x.taskId===tsk.id && x.childId===cid && x.periodKey===prevPk);
-        if(prevDone) return;
+        /* 3b : complétion (approuvée ou soumise) dans la période précédente → exempt */
+        const _po = getOcc(tsk.id, cid, prevPk);
+        if(_po && (_po.status==="done" || _po.status==="pending")) return;
 
         const logKey = `${tsk.id}|${cid}|${prevPk}|incomplete-eod`;
         if(!state.penaltyLog[logKey]){
+          setMissionStatus(tsk.id, cid, prevPk, "non-complete"); /* pénalité fondue dans la mission, plus de bombe séparée */
           state.penaltyLog[logKey] = today;
-          applyEvent("bomb",
-            esc(tsk.title) + " : " + t("incompleteSuffix"),
-            tsk.incompletePenalty, [cid]);
           changed = true;
         }
       });
@@ -4963,18 +4986,14 @@ function applyPenalties(){
     if(tsk.createdAt && occ.start.getTime() < tsk.createdAt) return; /* occurrence antérieure à la création */
 
     taskChildIds(tsk).forEach(cid => {
-      /* complétion (approuvée ou soumise) pour cette occurrence → exempt */
-      const done = state.completions.some(x =>
-        x.taskId===tsk.id && x.childId===cid && x.periodKey===occ.key);
-      if(done) return;
-      if(state.skips  && state.skips.some( x=>x.taskId===tsk.id && x.childId===cid && x.periodKey===occ.key)) return;
+      /* 3b : complétion (done/pending) ou ignorée pour cette occurrence → exempt */
+      const _po = getOcc(tsk.id, cid, occ.key);
+      if(_po && (_po.status==="done" || _po.status==="pending" || _po.status==="ignored")) return;
 
       const logKey = `${tsk.id}|${cid}|${occ.key}|wk-incomplete`;
       if(!state.penaltyLog[logKey]){
+        setMissionStatus(tsk.id, cid, occ.key, "non-complete"); /* pénalité fondue dans la mission, plus de bombe séparée */
         state.penaltyLog[logKey] = today;
-        applyEvent("bomb",
-          esc(tsk.title) + " : " + t("incompleteSuffix"),
-          tsk.incompletePenalty, [cid]);
         changed = true;
       }
     });
@@ -4996,17 +5015,14 @@ function applyPenalties(){
     if(tsk.createdAt && occ.start.getTime() < tsk.createdAt) return;
 
     taskChildIds(tsk).forEach(cid => {
-      const done = state.completions.some(x =>
-        x.taskId===tsk.id && x.childId===cid && x.periodKey===occ.key);
-      if(done) return;
-      if(state.skips  && state.skips.some( x=>x.taskId===tsk.id && x.childId===cid && x.periodKey===occ.key)) return;
+      /* 3b : complétion (done/pending) ou ignorée pour cette occurrence → exempt */
+      const _po = getOcc(tsk.id, cid, occ.key);
+      if(_po && (_po.status==="done" || _po.status==="pending" || _po.status==="ignored")) return;
 
       const logKey = `${tsk.id}|${cid}|${occ.key}|mth-incomplete`;
       if(!state.penaltyLog[logKey]){
+        setMissionStatus(tsk.id, cid, occ.key, "non-complete"); /* pénalité fondue dans la mission, plus de bombe séparée */
         state.penaltyLog[logKey] = today;
-        applyEvent("bomb",
-          esc(tsk.title) + " : " + t("incompleteSuffix"),
-          tsk.incompletePenalty, [cid]);
         changed = true;
       }
     });
