@@ -655,7 +655,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.95";
+const APP_VERSION = "v0.96";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1146,7 +1146,7 @@ function gearButtons(tsk, cid, st, pkOverride){
                   : st==="pending" ? "pending"
                   : (st==="ignored" || st==="skipped") ? "ignored"
                   : st==="non-complete" ? "non-complete"
-                  : st==="open" ? "active" : null;
+                  : (st==="open"||st==="active") ? "active" : null;
   /* tous les boutons affichés ; le courant surligné, les autres atténués */
   const b = (status,label,bg,col) => {
     const on = status===activeKey;
@@ -2582,6 +2582,7 @@ function hDayBucket(ts){
 function hTime(ts){ const d = new Date(ts); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
 function histMissionChip(status){
   const map = {
+    active:      ["gearActive",      "#EAF2FF", "#2b6cb0"],
     done:        ["histDone",        "#E6F7EE", "#1d8a55"],
     pending:     ["histPending",     "#FFF4D6", "#a06d00"],
     ignored:     ["histIgnored",     "#EEE",    "#888"],
@@ -2595,8 +2596,7 @@ function parentHistory(){
   const items = [];
   /* Missions : occurrences avec activité (statut ≠ active) */
   currentOccurrences().forEach(o => {
-    if(o.status === "active") return;
-    const ts = o.approvedAt || o.createdAt;
+    const ts = o.updatedAt || o.approvedAt || o.createdAt;   /* jour du dernier changement */
     const b = hDayBucket(ts);
     if(b < 0 || b > 2) return;
     const tsk = task(o.taskId); if(!tsk) return;
