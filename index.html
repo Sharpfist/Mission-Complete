@@ -452,7 +452,7 @@ const TRANSLATIONS = {
     fldCarryOnPenalty:"Réduction de points si reportée (appliquée une seule fois)",
     fldIncompletePenalty:"Points retirés si non complétée",
     editChildNote:"(enfant non modifiable en édition)",
-    periodPast:"terminée",periodCurrent:"active",periodUpcoming:"à venir",
+    periodPast:"passée",periodCurrent:"active",periodUpcoming:"à venir",
     carriedOver:"reportée de la période précédente",
     extremeModeLabel:"Genre de mission extrême",
     modeSolo:"Solo",modeCompetitive:"Compétitif",modeCollab:"Collabore",modeAll:"Tous",
@@ -655,7 +655,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.86";
+const APP_VERSION = "v0.87";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1135,7 +1135,7 @@ function gearButtons(tsk, cid, st, pkOverride){
     b("non-complete", t("gearNonComp"), "#FCE9E9", "#c0392b"),
     pushedBtn,
   ];
-  return `<div style="flex:0 0 100%;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:2px">${parts.join("")}</div>`;
+  return `<div style="flex:0 0 100%;display:grid;grid-template-columns:calc((100% - 8px)/3 - 2px) calc((100% - 8px)/3) calc((100% - 8px)/3 + 2px);gap:4px;margin-top:2px">${parts.join("")}</div>`;
 }
 
 /* une mission extrême se débloque pour un enfant quand toutes ses tâches
