@@ -101,7 +101,7 @@
 
   .task{
     background:var(--card);border-radius:18px;padding:14px 14px 14px 16px;margin-bottom:3px;
-    display:flex;align-items:center;gap:14px;box-shadow:var(--shadow);
+    display:flex;align-items:center;flex-wrap:wrap;gap:14px;box-shadow:var(--shadow);
   }
   .task .meta{flex:1;min-width:0}
   .task .t{font-weight:800;font-size:16px}
@@ -348,7 +348,7 @@ const TRANSLATIONS = {
     tabHistory:"🕓 Historique",histToday:"Aujourd'hui",histYesterday:"Hier",histDayBefore:"Avant-hier",histEmpty:"Aucune activité récente.",
     histDone:"✅ Complétée",histPending:"⏳ En attente",histIgnored:"✗ Ignorée",histNonComplete:"✗ Non complétée",histReverted:"↩ Renversé",
     histBtnComplete:"✅ Compléter",histBtnRefuse:"✗ Refuser",histBtnRevert:"↩ Renverser",histBtnApprove:"✓ Approuver",histBtnGiven:"🎁 Donné",
-    gearActive:"Active",gearDone:"Complétée",gearNonComp:"Non complétée",gearIgnored:"Ignorée",gearPushed:"Poussée à demain",
+    gearActive:"Active",gearPending:"⏳ En attente",gearDone:"Complétée",gearNonComp:"Non complétée",gearIgnored:"Ignorée",gearPushed:"Poussée à demain",
     skip:"Ignorer",skipped:"Ignorée",pushTomorrow:"Pousser à demain",pushedTomorrow:"Poussée à demain",parentalDone:"Terminé ✓",pushAlready:"Tâche déjà prévue demain",
     ignoreEvt:"Ignorer",ignoredEvt:"Fut ignoré",evIgnoredTag:"fut ignoré",
     noApprovals:"Rien à valider pour le moment.<br>Quand un enfant coche « J'ai fait », ça apparaît ici.",
@@ -492,7 +492,7 @@ const TRANSLATIONS = {
     tabHistory:"🕓 History",histToday:"Today",histYesterday:"Yesterday",histDayBefore:"2 days ago",histEmpty:"No recent activity.",
     histDone:"✅ Completed",histPending:"⏳ Pending",histIgnored:"✗ Ignored",histNonComplete:"✗ Not completed",histReverted:"↩ Reverted",
     histBtnComplete:"✅ Complete",histBtnRefuse:"✗ Refuse",histBtnRevert:"↩ Revert",histBtnApprove:"✓ Approve",histBtnGiven:"🎁 Given",
-    gearActive:"Active",gearDone:"Completed",gearNonComp:"Not completed",gearIgnored:"Ignored",gearPushed:"Pushed to tomorrow",
+    gearActive:"Active",gearPending:"⏳ Pending",gearDone:"Completed",gearNonComp:"Not completed",gearIgnored:"Ignored",gearPushed:"Pushed to tomorrow",
     skip:"Skip",skipped:"Skipped",pushTomorrow:"Push to tomorrow",pushedTomorrow:"Pushed to tomorrow",parentalDone:"Done ✓",pushAlready:"Task already scheduled tomorrow",
     ignoreEvt:"Ignore",ignoredEvt:"Was ignored",evIgnoredTag:"was ignored",
     noApprovals:"Nothing to approve right now.<br>When a child taps « Done », it appears here.",
@@ -655,7 +655,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.84";
+const APP_VERSION = "v0.86";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1108,6 +1108,7 @@ function gearButtons(tsk, cid, st, pkOverride){
      bouton de statut surligné (le bouton « Remettre à demain » l'est). */
   const activeKey = isPushed ? null
                   : st==="done" ? "done"
+                  : st==="pending" ? "pending"
                   : (st==="ignored" || st==="skipped") ? "ignored"
                   : st==="non-complete" ? "non-complete"
                   : st==="open" ? "active" : null;
@@ -1117,20 +1118,24 @@ function gearButtons(tsk, cid, st, pkOverride){
     const style = on
       ? `background:${bg};color:${col};box-shadow:0 0 0 2px ${col} inset;font-weight:800`
       : `background:var(--line);color:var(--ink-soft);opacity:.6;font-weight:700`;
-    return `<button data-action="hist-set-status" data-tid="${tsk.id}" data-cid="${cid}" data-pk="${pk}" data-status="${status}" style="${style};border:none;border-radius:9px;padding:5px 9px;font-size:11px;cursor:pointer;white-space:nowrap">${label}</button>`;
+    return `<button data-action="hist-set-status" data-tid="${tsk.id}" data-cid="${cid}" data-pk="${pk}" data-status="${status}" style="${style};border:none;border-radius:9px;padding:6px 5px;font-size:11px;cursor:pointer;text-align:center;line-height:1.15">${label}</button>`;
   };
+  /* Poussée à demain : seulement pour l'occurrence du jour (sinon cellule vide) */
+  const pushedBtn = !isToday ? "" : (isPushed
+      ? `<button style="background:#FFE8C2;color:#a06d00;box-shadow:0 0 0 2px #a06d00 inset;font-weight:800;border:none;border-radius:9px;padding:6px 5px;font-size:11px;cursor:pointer;text-align:center;line-height:1.15" data-action="push-already">${t("gearPushed")}</button>`
+      : `<button style="background:var(--line);color:var(--ink-soft);opacity:.6;font-weight:700;border:none;border-radius:9px;padding:6px 5px;font-size:11px;cursor:pointer;text-align:center;line-height:1.15" data-action="push-task" data-id="${tsk.id}">${t("gearPushed")}</button>`);
+  /* Grille 3 colonnes × 2 rangées, pleine largeur sous le titre :
+     rangée 1 = Active / En attente / Complétée
+     rangée 2 = Ignorée / Non complétée / Poussée à demain */
   const parts = [
     b("active",       t("gearActive"),  "#EAF2FF", "#2b6cb0"),
+    b("pending",      t("gearPending"), "#FFF1DE", "#b86a00"),
     b("done",         t("gearDone"),    "#E6F7EE", "#1d8a55"),
-    b("non-complete", t("gearNonComp"), "#FCE9E9", "#c0392b"),
     b("ignored",      t("gearIgnored"), "#EEE",    "#666"),
+    b("non-complete", t("gearNonComp"), "#FCE9E9", "#c0392b"),
+    pushedBtn,
   ];
-  if(isToday){
-    parts.push(isPushed
-      ? `<button style="background:#FFE8C2;color:#a06d00;box-shadow:0 0 0 2px #a06d00 inset;font-weight:800;border:none;border-radius:9px;padding:5px 9px;font-size:11px;cursor:pointer;white-space:nowrap" data-action="push-already">${t("gearPushed")}</button>`
-      : `<button style="background:var(--line);color:var(--ink-soft);opacity:.6;font-weight:700;border:none;border-radius:9px;padding:5px 9px;font-size:11px;cursor:pointer;white-space:nowrap" data-action="push-task" data-id="${tsk.id}">${t("gearPushed")}</button>`);
-  }
-  return `<div style="display:flex;flex-direction:column;gap:4px">${parts.join("")}</div>`;
+  return `<div style="flex:0 0 100%;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:2px">${parts.join("")}</div>`;
 }
 
 /* une mission extrême se débloque pour un enfant quand toutes ses tâches
@@ -2626,7 +2631,7 @@ function parentHistory(){
           }
         }
         return `
-          <div class="card" style="padding:9px 12px;margin-bottom:5px;display:flex;align-items:flex-start;gap:10px">
+          <div class="card" style="padding:9px 12px;margin-bottom:5px;display:flex;align-items:flex-start;flex-wrap:wrap;gap:10px">
             <div style="flex:1;min-width:0;padding-top:2px">
               <div style="display:flex;align-items:flex-start;gap:6px">
                 <span style="font-size:16px;flex-shrink:0">${icon}</span>
@@ -2686,6 +2691,14 @@ function parentSettings(){
         <button class="btn ${state.lang==="en"?"btn-yes":"btn-ghost"}" data-action="set-lang" data-lang="en">🇬🇧 English</button>
       </div>
     </div>
+    ${state.lang==="fr" ? `
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:8px">📖 Légende</h3>
+      <div class="muted" style="margin-bottom:12px">Signification des statuts et actions (missions, événements, récompenses).</div>
+      <div class="btn-line">
+        <button class="btn btn-ghost" data-action="show-legend">Voir la légende</button>
+      </div>
+    </div>` : ""}
     <div class="card">
       <h3 style="font-size:15px;margin-bottom:8px">${t("settingsData")}</h3>
       <div class="muted" style="margin-bottom:12px">${t("dataNote")}</div>
@@ -4638,6 +4651,34 @@ document.addEventListener("click", (e)=>{
     }
     case "export-backup": exportBackup(); break;
     case "trigger-import": document.getElementById("restore-input").click(); break;
+    case "show-legend": {
+      /* Légende FR — à maintenir à jour si les statuts changent (voir gearActive/Done/... et parts[] ~1123). */
+      const chip = (label,bg,col)=>`<span style="display:inline-block;background:${bg};color:${col};font-weight:800;border-radius:9px;padding:3px 9px;font-size:12px;white-space:nowrap">${label}</span>`;
+      const row  = (c,desc)=>`<div style="display:flex;gap:10px;align-items:flex-start;margin:9px 0"><div style="flex:0 0 auto;min-width:104px">${c}</div><div class="muted" style="font-size:13px;line-height:1.45;flex:1">${desc}</div></div>`;
+      const head = (txt)=>`<div style="font-weight:800;font-size:13px;margin:14px 0 2px">${txt}</div>`;
+      openModal(`
+        <h3 style="margin-bottom:4px">📖 Légende</h3>
+        <div class="muted" style="font-size:12px;margin-bottom:8px">Statuts et actions utilisés dans l'app et l'Historique.</div>
+        <div style="max-height:60vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:4px">
+          ${head("📋 Missions")}
+          ${row(chip("Active","#EAF2FF","#2b6cb0"),"À faire — en cours pour la période courante.")}
+          ${row(chip("⏳ En attente","#FFF1DE","#b86a00"),"Complétée par l'enfant, en attente d'approbation du parent.")}
+          ${row(chip("✅ Complétée","#E6F7EE","#1d8a55"),"Faite et approuvée — les points sont accordés.")}
+          ${row(chip("✗ Non complétée","#FCE9E9","#c0392b"),"Non faite à temps — la pénalité est appliquée (fondue dans la mission). Si forcée par le parent, l'enfant ne peut plus la modifier.")}
+          ${row(chip("✗ Ignorée","#EEE","#666"),"Passée volontairement pour cette période — aucun point, aucune pénalité.")}
+          ${row(chip("Poussée à demain","#FFE8C2","#a06d00"),"Reportée au lendemain — réapparaît demain, sans pénalité aujourd'hui.")}
+          ${head("⚡ Événements")}
+          ${row(chip("Jouée","#EAF2FF","#2b6cb0"),"Power-up (gain) ou bombe (perte) — les points sont appliqués immédiatement.")}
+          ${row(chip("↩ Renversé","#EEE","#666"),"Événement annulé — son effet sur les points est ramené à 0.")}
+          ${head("🎁 Récompenses")}
+          ${row(chip("⏳ En attente","#FFF1DE","#b86a00"),"Achat demandé — les points sont déduits, en attente de l'approbation du parent.")}
+          ${row(chip("✅ Approuvé","#E6F7EE","#1d8a55"),"Accordée par le parent — à recevoir / donnée.")}
+          ${row(chip("Refusée","#FCE9E9","#c0392b"),"Refusée — les points sont remboursés à l'enfant.")}
+        </div>
+        <div class="modal-actions"><button class="btn btn-yes" data-action="modal-cancel">${t("btnOK")}</button></div>
+      `);
+      break;
+    }
     case "set-pin": pinPrompt("set"); break;
     case "save-pin": {
       const v=(document.getElementById("pin-in").value||"").trim();
