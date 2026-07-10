@@ -655,7 +655,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.93";
+const APP_VERSION = "v0.95";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -664,7 +664,8 @@ function load(){
   return null;
 }
 function save(){
-  syncOccurrences();   /* garde state.occurrences (miroir) exact à chaque mutation */
+  /* 3c : occurrences est désormais la SOURCE DE VÉRITÉ (les writers l'écrivent
+     directement). La dérivation depuis le legacy est coupée. */
   _mem = state;
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){}
 }
@@ -840,6 +841,52 @@ function syncOccurrences(){
 /* Lecture d'une occurrence par clé (utilisé à partir de la phase 3b). */
 function getOcc(taskId, childId, pk){
   return (state.occurrences || []).find(o => o.taskId===taskId && o.childId===childId && o.periodKey===pk);
+}
+/* ===== Writer occurrence-autoritatif (phase 3c — pas encore branché) =====
+   Transition réconciliante d'une occurrence : applique au solde la seule différence
+   entre le delta cible du nouveau statut et le delta déjà appliqué. */
+function setOccStatus(taskId, childId, pk, newStatus){
+  const tsk = task(taskId); if(!tsk) return 0;
+  const k = child(childId); if(!k) return 0;
+  if(!state.occurrences) state.occurrences = [];
+  let o = getOcc(taskId, childId, pk);
+  const curApplied = o ? o.appliedDelta : 0;
+  const keptPts    = (o && o.pts != null) ? o.pts : null;   /* préserve un ajustement carry */
+  const keptCreated= o ? o.createdAt : Date.now();
+  const target = (newStatus==="done")         ? (keptPts != null ? keptPts : tsk.points)
+               : (newStatus==="non-complete") ? -(tsk.incompletePenalty||0)
+               : 0;   /* active | pending | ignored */
+  if(!o){
+    o = { id: taskId+"|"+childId+"|"+pk, taskId, childId, periodKey: pk,
+          periodOverride: null, status: "active", pts: null, appliedDelta: 0,
+          closed: false, createdAt: keptCreated, updatedAt: 0 };
+    state.occurrences.push(o);
+  }
+  o.status        = newStatus;                       /* active|pending|done|ignored|non-complete */
+  o.appliedDelta  = target;
+  o.periodOverride= null;                            /* un statut explicite annule un report */
+  o.closed        = (newStatus==="non-complete");
+  o.updatedAt     = Date.now();
+  if(newStatus==="done") o.approvedAt = Date.now(); else delete o.approvedAt;
+  if(keptPts != null && (newStatus==="pending" || newStatus==="done")) o.pts = keptPts;
+  k.points = Math.max(0, (k.points||0) + (target - curApplied));
+  save();
+  return target - curApplied;
+}
+/* Reschedule (« poussée à demain ») = periodOverride sur l'occurrence. date=null pour annuler. */
+function setOccOverride(taskId, childId, pk, date){
+  if(!task(taskId)) return;
+  if(!state.occurrences) state.occurrences = [];
+  let o = getOcc(taskId, childId, pk);
+  if(!o){
+    o = { id: taskId+"|"+childId+"|"+pk, taskId, childId, periodKey: pk,
+          periodOverride: null, status: "active", pts: null, appliedDelta: 0,
+          closed: false, createdAt: Date.now(), updatedAt: 0 };
+    state.occurrences.push(o);
+  }
+  o.periodOverride = date;
+  o.updatedAt = Date.now();
+  save();
 }
 if(state.occMigrationVersion !== OCC_MIGRATION_VERSION){
   state.occurrences = buildOccurrencesFromLegacy(state);
@@ -1080,45 +1127,8 @@ function closeExtreme(tsk){
    (que la vue enfant lit) et réconcilie les points de complétion.
    pk = periodKey de l'occurrence (peut être une date passée). */
 function setMissionStatus(taskId, childId, pk, newStatus){
-  const tsk = task(taskId); if(!tsk) return 0;
-  const k = child(childId); if(!k) return 0;
-  const comp = (state.completions||[]).find(x=>x.taskId===taskId && x.childId===childId && x.periodKey===pk);
-  const ncEntry = (state.nonComplete||[]).find(x=>x.taskId===taskId && x.childId===childId && x.periodKey===pk);
-  /* pénalité auto déjà appliquée (bombe legacy) pour cette occurrence ? */
-  const hasAutoPenalty = state.penaltyLog && [
-    `${taskId}|${childId}|${pk}|incomplete`,
-    `${taskId}|${childId}|${pk}|incomplete-eod`,
-    `${taskId}|${childId}|${pk}|wk-incomplete`,
-    `${taskId}|${childId}|${pk}|mth-incomplete`,
-  ].some(key => state.penaltyLog[key]);
-  /* points déjà portés au solde par cette occurrence */
-  let curApplied = 0;
-  if(comp && comp.status==="approved")      curApplied = (comp.pts!=null ? comp.pts : tsk.points);
-  else if(ncEntry)                          curApplied = -(ncEntry.penalty||0);
-  else if(hasAutoPenalty)                   curApplied = -(tsk.incompletePenalty||0);
-  const keptPts = (comp && comp.pts!=null) ? comp.pts : null; /* préserve un éventuel ajustement carry */
-  const target = (newStatus==="done")          ? (keptPts!=null ? keptPts : tsk.points)
-               : (newStatus==="non-complete")  ? -(tsk.incompletePenalty||0)
-               : 0;
-  const keptCreated = comp ? comp.createdAt : (ncEntry ? ncEntry.at : Date.now());
-  /* nettoyage de tous les marqueurs pour cette occurrence */
-  state.completions = (state.completions||[]).filter(x=>!(x.taskId===taskId && x.childId===childId && x.periodKey===pk));
-  state.skips       = (state.skips||[]).filter(x=>!(x.taskId===taskId && x.childId===childId && x.periodKey===pk));
-  state.nonComplete = (state.nonComplete||[]).filter(x=>!(x.taskId===taskId && x.childId===childId && x.periodKey===pk));
-  /* un statut explicite annule un « remettre à demain » du jour */
-  state.pushes      = (state.pushes||[]).filter(x=>!(x.taskId===taskId && x.childId===childId && x.pushedDate===todayStr()));
-  if(newStatus==="done"){
-    state.completions.push({id:uid(), taskId, childId, periodKey:pk, status:"approved", pts:keptPts, createdAt:keptCreated, approvedAt:Date.now()});
-  } else if(newStatus==="pending"){
-    state.completions.push({id:uid(), taskId, childId, periodKey:pk, status:"pending", pts:keptPts, createdAt:keptCreated});
-  } else if(newStatus==="ignored"){
-    state.skips.push({id:uid(), taskId, childId, periodKey:pk, skippedAt:Date.now()});
-  } else if(newStatus==="non-complete"){
-    state.nonComplete.push({id:uid(), taskId, childId, periodKey:pk, penalty:(tsk.incompletePenalty||0), closed:true, at:keptCreated});
-  } /* active : rien à ajouter */
-  k.points = Math.max(0, (k.points||0) + (target - curApplied));
-  save();
-  return target - curApplied;
+  /* 3c : délègue au writer occurrence-autoritatif (setOccStatus). */
+  return setOccStatus(taskId, childId, pk, newStatus);
 }
 
 /* Boutons de transition pour la roue dentée enfant (accès parent, protégé PIN).
@@ -1181,15 +1191,16 @@ function extremeUnlocked(tsk, childId){
 }
 
 function taskStatus(t){
-  const pk = taskPK(t);
-  const c = state.completions.find(x=>x.taskId===t.id && x.childId===t.childId && x.periodKey===pk);
-  if(!c) return "open";
-  return c.status==="approved" ? "done" : "pending";
+  const o = getOcc(t.id, t.childId, taskPK(t));
+  if(!o) return "open";
+  if(o.status==="done") return "done";
+  if(o.status==="pending") return "pending";
+  return "open";
 }
 function pendingCount(){
-  const tasks = state.completions.filter(c=>{
-    if(c.status !== "pending") return false;
-    const tsk = task(c.taskId);
+  const tasks = (state.occurrences||[]).filter(o=>{
+    if(o.status !== "pending") return false;
+    const tsk = task(o.taskId);
     if(tsk && isExtreme(tsk) && tsk.extremeMode === "all") return allModeReady(tsk);
     return true;
   }).length;
@@ -1201,63 +1212,60 @@ function undoTask(taskId, childId){
   const t = task(taskId); if(!t) return;
   const cid = childId != null ? childId : t.childId;
   const pk = taskPK(t);
-  state.completions = state.completions.filter(c =>
-    !(c.taskId===taskId && c.childId===cid && c.periodKey===pk && c.status==="pending")
-  );
-  save();
+  const o = getOcc(taskId, cid, pk);
+  if(o && o.status==="pending") setOccStatus(taskId, cid, pk, "active");   /* n'annule qu'une soumission en attente */
 }
 function markDone(taskId, childId){
   const t = task(taskId); if(!t) return;
   const cid = childId != null ? childId : t.childId;
   if(cid == null) return;
   const pk = taskPK(t);
-  const exists = state.completions.find(c=>c.taskId===t.id && c.childId===cid && c.periodKey===pk);
-  if(exists) return;
-  /* pts ajustés si une réduction de report a été appliquée */
+  const ex = getOcc(taskId, cid, pk);
+  if(ex && (ex.status==="done" || ex.status==="pending")) return;   /* déjà soumise/approuvée */
+  setOccStatus(taskId, cid, pk, "pending");
+  /* pts ajustés si une réduction de report a été appliquée (carry penalty) */
   const cpKey = `${t.id}|${cid}`;
-  const adjPts = (state.carryPenalties && state.carryPenalties[cpKey] != null)
-    ? state.carryPenalties[cpKey] : null;
-  state.completions.push({id:uid(), taskId:t.id, childId:cid, periodKey:pk, status:"pending",
-    pts: adjPts, createdAt:Date.now()});
-  save();
+  if(state.carryPenalties && state.carryPenalties[cpKey] != null){
+    const o = getOcc(taskId, cid, pk);
+    if(o){ o.pts = state.carryPenalties[cpKey]; save(); }
+  }
 }
-function approve(compId){
-  const c = state.completions.find(x=>x.id===compId); if(!c) return;
-  const tsk = task(c.taskId);
-  c.status = "approved"; c.approvedAt = Date.now();
-  /* utilise les points ajustés stockés dans la complétion (carry penalty), sinon tsk.points */
-  if(tsk){ const k = child(c.childId); if(k){ k.points += (c.pts != null ? c.pts : tsk.points); } }
-  save();
+function approve(oid){
+  const [taskId, childId, pk] = String(oid).split("|");
+  const o = getOcc(taskId, childId, pk);
+  if(!o || o.status!=="pending") return;
+  setOccStatus(taskId, childId, pk, "done");   /* applique les points (o.pts si carry, sinon tsk.points) */
 }
-function reject(compId){
-  state.completions = state.completions.filter(x=>x.id!==compId);
-  save();
+function reject(oid){
+  const [taskId, childId, pk] = String(oid).split("|");
+  const o = getOcc(taskId, childId, pk);
+  if(o) setOccStatus(taskId, childId, pk, "active");
 }
 /* Approbation d'une complétion de mission extrême partagée (compétitif / collabore) */
-function approveExtremeComp(compId, finish){
-  const c = state.completions.find(x=>x.id===compId); if(!c) return;
-  const tsk = task(c.taskId); if(!tsk) return;
-  c.status = "approved"; c.approvedAt = Date.now();
-  const k = child(c.childId); if(k){ k.points += (c.pts != null ? c.pts : tsk.points); }
+function approveExtremeComp(oid, finish){
+  const [taskId, childId, pk] = String(oid).split("|");
+  const tsk = task(taskId); if(!tsk) return;
+  const o = getOcc(taskId, childId, pk);
+  if(!o || o.status!=="pending") return;
+  setOccStatus(taskId, childId, pk, "done");
   if(tsk.extremeMode === "competitive"){
-    /* remporté : ferme pour tous, retire les autres complétions en attente */
+    /* remporté : ferme pour tous, retire les autres soumissions en attente */
     closeExtreme(tsk);
-    const pk = taskPK(tsk);
-    state.completions = state.completions.filter(x =>
-      !(x.taskId===tsk.id && x.periodKey===pk && x.id!==c.id && x.status!=="approved")
-    );
+    (state.occurrences||[])
+      .filter(x=>x.taskId===tsk.id && x.periodKey===pk && x.childId!==childId && x.status==="pending")
+      .forEach(x=> setOccStatus(x.taskId, x.childId, pk, "active"));
   } else if(tsk.extremeMode === "collab" && finish){
-    /* approuvé & terminé : ferme pour tous, mais garde les complétions déjà en attente */
+    /* approuvé & terminé : ferme pour tous, mais garde les soumissions déjà en attente */
     closeExtreme(tsk);
   }
-  save();
 }
 /* Refus d'une mission extrême avec pénalité optionnelle (bombe) */
-function rejectExtremeConfirm(compId, penalty){
-  const c = state.completions.find(x=>x.id===compId); if(!c) return;
-  const tsk = task(c.taskId);
-  const k = tsk ? child(c.childId) : null;
-  state.completions = state.completions.filter(x=>x.id!==compId);
+function rejectExtremeConfirm(oid, penalty){
+  const [taskId, childId, pk] = String(oid).split("|");
+  const tsk = task(taskId);
+  const k = tsk ? child(childId) : null;
+  const o = getOcc(taskId, childId, pk);
+  if(o) setOccStatus(taskId, childId, pk, "active");
   if(tsk && k && penalty >= 1){
     applyEvent("bomb", tsk.title + " : " + t("notDoneSuffix"), penalty, [k.id]);
   } else {
@@ -1302,6 +1310,7 @@ function deleteChild(id){
   state.tasks.forEach(tk=>{ if(tk.childIds) tk.childIds = tk.childIds.filter(x=>x!==id); });
   state.tasks = state.tasks.filter(tk=> tk.childIds ? tk.childIds.length>0 : tk.childId!==id);
   state.completions = state.completions.filter(c=>c.childId!==id);
+  state.occurrences = (state.occurrences||[]).filter(o=>o.childId!==id);
   state.purchases = state.purchases.filter(p=>p.childId!==id);
   save();
 }
@@ -1665,11 +1674,10 @@ function renderChild(){
       </div>${rows}`;
   }
 
-  /* inject tasks pushed from yesterday that don't appear naturally today */
-  const yStr = yesterdayStr();
-  (state.pushes||[]).filter(pr => pr.pushedDate === yStr).forEach(pr => {
-    const tsk = task(pr.taskId); if(!tsk) return;
-    if(!taskChildIds(tsk).includes(c.id)) return;
+  /* inject tasks reportées à aujourd'hui (occurrence avec periodOverride = aujourd'hui) */
+  const _pushToday = todayStr();
+  (state.occurrences||[]).filter(o => o.childId===c.id && o.periodOverride === _pushToday).forEach(o => {
+    const tsk = task(o.taskId); if(!tsk) return;
     const alreadyVisible =
       Object.values(displayMap).some(a => a.some(x => x.tsk.id === tsk.id)) ||
       weekBoxTasks.some(t => t.id === tsk.id) ||
@@ -2070,7 +2078,8 @@ function allModeReady(tsk){
 
 function parentApprovals(){
   const fs = freqShort();
-  const pend = state.completions.filter(c=>c.status==="pending");
+  /* 3c : itère les occurrences (leur id = "taskId|childId|pk" = l'oid attendu par approve/reject) */
+  const pend = (state.occurrences||[]).filter(o=>o.status==="pending");
   const visible = pend.filter(c=>{
     const tsk = task(c.taskId);
     if(tsk && isExtreme(tsk) && tsk.extremeMode==="all") return allModeReady(tsk);
@@ -2563,7 +2572,7 @@ function fmtDate(ts){
    par enfant, triée par type puis heure. Alimentée par une PROJECTION LIVE
    des occurrences (dérivée des stores existants) + événements + achats.
    Aucune écriture ici pour l'instant ; les boutons d'action viendront ensuite. */
-function currentOccurrences(){ return buildOccurrencesFromLegacy(state); }
+function currentOccurrences(){ return state.occurrences || []; }
 function hDayBucket(ts){
   if(!ts) return -1;
   const d = new Date(ts); d.setHours(0,0,0,0);
@@ -2591,10 +2600,9 @@ function parentHistory(){
     const b = hDayBucket(ts);
     if(b < 0 || b > 2) return;
     const tsk = task(o.taskId); if(!tsk) return;
-    const comp = (state.completions||[]).find(x=>x.taskId===o.taskId && x.childId===o.childId && x.periodKey===o.periodKey);
     items.push({ bucket:b, ts, childId:o.childId, kind:"mission", order:0,
       title: tsk.title, status:o.status, pts:o.appliedDelta,
-      compId: comp ? comp.id : null, isExtreme: isExtreme(tsk),
+      isExtreme: isExtreme(tsk),
       taskId:o.taskId, pk:o.periodKey });
   });
   /* Événements : notifications */
@@ -3939,6 +3947,7 @@ document.addEventListener("click", (e)=>{
       if(confirm(t("confirmDelTask"))){
         state.tasks = state.tasks.filter(tsk=>tsk.id!==id);
         state.completions = state.completions.filter(c=>c.taskId!==id);
+        state.occurrences = (state.occurrences||[]).filter(o=>o.taskId!==id);
         save(); render();
       }
       break;
@@ -4465,24 +4474,12 @@ document.addEventListener("click", (e)=>{
       const taskId=id, childId=view.childId;
       const tsk=task(taskId); if(!tsk) break;
       const pk=taskPK(tsk);
-      if(!state.skips) state.skips=[];
       /* shared extremes affect all children; solo/regular affect only this child */
       const affectedIds = (isExtreme(tsk) && tsk.childIds) ? taskChildIds(tsk) : [childId];
-      const idx=state.skips.findIndex(x=>x.taskId===taskId && x.childId===childId && x.periodKey===pk);
-      const nowSkipped = idx<0;
-      if(nowSkipped){
-        affectedIds.forEach(cid=>{
-          if(!state.skips.some(x=>x.taskId===taskId && x.childId===cid && x.periodKey===pk))
-            state.skips.push({id:uid(), taskId, childId:cid, periodKey:pk, skippedAt:Date.now()});
-        });
-        /* rembourser pénalité si la période est expirée */
-        const _p=period(tsk.periodId), _now=new Date(), _hm=pad(_now.getHours())+":"+pad(_now.getMinutes());
-        if(_p && !_p.isAllDay && _hm > _p.endTime)
-          affectedIds.forEach(cid => reverseExpiredPenalty(tsk, cid));
-      } else {
-        state.skips = state.skips.filter(x=>!(x.taskId===taskId && affectedIds.includes(x.childId) && x.periodKey===pk));
-      }
-      save();
+      const cur = getOcc(taskId, childId, pk);
+      const nowSkipped = !(cur && cur.status==="ignored");
+      /* setOccStatus réconcilie : "ignored" rembourse une pénalité éventuelle, "active" remet à zéro */
+      affectedIds.forEach(cid => setOccStatus(taskId, cid, pk, nowSkipped ? "ignored" : "active"));
       const card=document.getElementById("tc-"+taskId);
       if(card){
         card.style.opacity = nowSkipped ? "0.4" : "";
@@ -4499,32 +4496,19 @@ document.addEventListener("click", (e)=>{
     case "push-task": {
       const taskId=id, childId=view.childId;
       const tsk=task(taskId); if(!tsk) break;
-      const today=todayStr();
-      if(!state.pushes) state.pushes=[];
+      const pk=taskPK(tsk);
       /* shared extremes affect all children; solo/regular affect only this child */
       const affectedIds = (isExtreme(tsk) && tsk.childIds) ? taskChildIds(tsk) : [childId];
-      const idx=state.pushes.findIndex(x=>x.taskId===taskId && x.childId===childId && x.pushedDate===today);
-      const nowPushed = idx<0;
+      const cur = getOcc(taskId, childId, pk);
+      const nowPushed = !(cur && cur.periodOverride);
       if(nowPushed){
-        /* pousser efface le statut de l'occurrence (régulier) : pas fait, à
-           refaire demain. setMissionStatus active réconcilie les points et
-           rembourse une pénalité éventuelle. Extrême : ancien remboursement. */
-        if(!isExtreme(tsk)){
-          const pk = taskPK(tsk);
-          affectedIds.forEach(cid => setMissionStatus(taskId, cid, pk, "active"));
-        } else {
-          const _p=period(tsk.periodId), _now=new Date(), _hm=pad(_now.getHours())+":"+pad(_now.getMinutes());
-          if(_p && !_p.isAllDay && _hm > _p.endTime)
-            affectedIds.forEach(cid => reverseExpiredPenalty(tsk, cid));
-        }
-        affectedIds.forEach(cid=>{
-          if(!state.pushes.some(x=>x.taskId===taskId && x.childId===cid && x.pushedDate===today))
-            state.pushes.push({id:uid(), taskId, childId:cid, pushedDate:today});
-        });
+        const _d=new Date(); _d.setDate(_d.getDate()+1);
+        const _tom=_d.getFullYear()+"-"+pad(_d.getMonth()+1)+"-"+pad(_d.getDate());
+        /* pousser : statut remis à "active" (réconcilie/rembourse), puis marqué reporté à demain */
+        affectedIds.forEach(cid => { setOccStatus(taskId, cid, pk, "active"); setOccOverride(taskId, cid, pk, _tom); });
       } else {
-        state.pushes = state.pushes.filter(x=>!(x.taskId===taskId && affectedIds.includes(x.childId) && x.pushedDate===today));
+        affectedIds.forEach(cid => setOccOverride(taskId, cid, pk, null));
       }
-      save();
       render();
       break;
     }
