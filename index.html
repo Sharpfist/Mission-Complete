@@ -655,7 +655,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.96";
+const APP_VERSION = "v0.97";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1158,7 +1158,7 @@ function gearButtons(tsk, cid, st, pkOverride){
   /* Poussée à demain : seulement pour l'occurrence du jour (sinon cellule vide) */
   const pushedBtn = !isToday ? "" : (isPushed
       ? `<button style="background:#FFE8C2;color:#a06d00;box-shadow:0 0 0 2px #a06d00 inset;font-weight:800;border:none;border-radius:9px;padding:6px 5px;font-size:11px;cursor:pointer;text-align:center;line-height:1.15" data-action="push-already">${t("gearPushed")}</button>`
-      : `<button style="background:var(--line);color:var(--ink-soft);opacity:.6;font-weight:700;border:none;border-radius:9px;padding:6px 5px;font-size:11px;cursor:pointer;text-align:center;line-height:1.15" data-action="push-task" data-id="${tsk.id}">${t("gearPushed")}</button>`);
+      : `<button style="background:var(--line);color:var(--ink-soft);opacity:.6;font-weight:700;border:none;border-radius:9px;padding:6px 5px;font-size:11px;cursor:pointer;text-align:center;line-height:1.15" data-action="push-task" data-id="${tsk.id}" data-cid="${cid}">${t("gearPushed")}</button>`);
   /* Grille 3 colonnes × 2 rangées, pleine largeur sous le titre :
      rangée 1 = Active / En attente / Complétée
      rangée 2 = Ignorée / Non complétée / Poussée à demain */
@@ -4494,7 +4494,7 @@ document.addEventListener("click", (e)=>{
     }
 
     case "push-task": {
-      const taskId=id, childId=view.childId;
+      const taskId=id, childId=el.dataset.cid || view.childId;   /* Historique fournit data-cid ; vue enfant retombe sur view.childId */
       const tsk=task(taskId); if(!tsk) break;
       const pk=taskPK(tsk);
       /* shared extremes affect all children; solo/regular affect only this child */
@@ -4509,7 +4509,7 @@ document.addEventListener("click", (e)=>{
       } else {
         affectedIds.forEach(cid => setOccOverride(taskId, cid, pk, null));
       }
-      render();
+      if(view.name === "child") render(); else refreshParentBody();
       break;
     }
 
