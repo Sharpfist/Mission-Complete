@@ -655,7 +655,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.97";
+const APP_VERSION = "v0.98";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -715,7 +715,6 @@ function defaults(){
       {id:uid(), name:"Revenant de l'école", emoji:"🎒", startTime:"15:00", endTime:"17:00", active:true,  isAllDay:false},
       {id:uid(), name:"Soir",                emoji:"🌙", startTime:"17:00", endTime:"21:00", active:true,  isAllDay:false},
     ],
-    completions:[],
     purchases:[],
     eventTemplates:[
       {id:"etpl-1", type:"powerup", title:"Bon comportement au resto",        points:5, childIds:[]},
@@ -724,8 +723,7 @@ function defaults(){
       {id:"etpl-4", type:"bomb",    title:"A été impoli(e)",                   points:5, childIds:[]},
     ],
     notifications:[],
-    skips:[],
-    pushes:[],
+    occurrences:[],
     forceUnlocked:[],
     paused:false,
     investment:{enabled:true, rate:2, freq:"daily"},
@@ -748,9 +746,7 @@ if(!state.periods) {
 }
 if(!state.notifications) { state.notifications = []; save(); }
 if(!state.purchases) { state.purchases = []; save(); }
-if(!state.skips)         { state.skips         = []; save(); }
-if(!state.pushes)        { state.pushes        = []; save(); }
-if(!state.nonComplete)   { state.nonComplete   = []; save(); }
+if(!state.occurrences)   { state.occurrences   = []; save(); }
 if(!state.forceUnlocked) { state.forceUnlocked = []; save(); }
 if(state.paused === undefined) { state.paused = false; save(); }
 if(state.emergencyPinReset === undefined) { state.emergencyPinReset = null; save(); }
@@ -767,78 +763,10 @@ if(!state.eventTemplates){
   save();
 }
 
-/* ============ Sauvegarde one-time avant migration « occurrence » ============
-   Capture l'état pré-migration (completions/skips/pushes d'origine) sous une
-   clé séparée, une seule fois. Le drapeau empêche la migration ultérieure
-   (phase 2) d'écraser cette bonne sauvegarde. Bouton « Restaurer » temporaire
-   dans Réglages. */
-const BACKUP_KEY = "missions_recompenses_v1_backup_preOccurrence";
-if(!state.preOccBackupDone){
-  try {
-    const raw = localStorage.getItem(KEY);
-    if(raw) localStorage.setItem(BACKUP_KEY, raw);
-  } catch(e){}
-  state.preOccBackupDone = true;
-  save();
-}
-
-/* ============ Phase 2a : migration SHADOW vers le modèle d'occurrence ============
-   Construit state.occurrences depuis completions + skips. SHADOW = rien ne lit
-   encore ce store ; on vérifie seulement qu'il se construit bien sur les vraies
-   données. Conservation des points prouvée par migration_test.js (JXA).
-   (pushes / non-complete / reschedule : sous-étapes ultérieures.) */
-const OCC_MIGRATION_VERSION = 1;
-function buildOccurrencesFromLegacy(st){
-  const occ = [];
-  const byKey = {};
-  function occFor(taskId, childId, periodKey){
-    const k = taskId + "|" + childId + "|" + periodKey;
-    if(!byKey[k]){
-      byKey[k] = { id: k, taskId, childId, periodKey, periodOverride: null,
-        status: "active", pts: null, appliedDelta: 0, closed: false, createdAt: 0, updatedAt: 0 };
-      occ.push(byKey[k]);
-    }
-    return byKey[k];
-  }
-  (st.completions || []).forEach(c => {
-    const o = occFor(c.taskId, c.childId, c.periodKey);
-    const tsk = (st.tasks || []).find(t => t.id === c.taskId);
-    const pts = (c.pts != null) ? c.pts : (tsk ? tsk.points : 0);
-    o.pts = pts;
-    if(c.status === "approved"){ o.status = "done"; o.appliedDelta = pts; o.approvedAt = c.approvedAt; }
-    else { o.status = "pending"; o.appliedDelta = 0; }
-    if(c.createdAt) o.createdAt = c.createdAt;
-  });
-  (st.skips || []).forEach(s => {
-    const o = occFor(s.taskId, s.childId, s.periodKey);
-    o.status = "ignored"; o.appliedDelta = 0;
-    if(s.skippedAt) o.createdAt = s.skippedAt;
-  });
-  (st.nonComplete || []).forEach(nc => {
-    const o = occFor(nc.taskId, nc.childId, nc.periodKey);
-    o.status = "non-complete"; o.appliedDelta = -(nc.penalty||0);
-    if(nc.at) o.createdAt = nc.at;
-    o.closed = true;
-  });
-  /* « poussée à demain » (state.pushes du jour) → periodOverride sur l'occurrence du jour */
-  const _today = todayStr();
-  const _dt = new Date(); _dt.setDate(_dt.getDate()+1);
-  const _tomorrow = _dt.getFullYear()+"-"+pad(_dt.getMonth()+1)+"-"+pad(_dt.getDate());
-  (st.pushes || []).forEach(pu => {
-    if(pu.pushedDate !== _today) return;
-    const tsk = (st.tasks || []).find(t => t.id === pu.taskId);
-    if(!tsk) return;
-    const o = occFor(pu.taskId, pu.childId, taskPK(tsk));
-    o.periodOverride = _tomorrow;
-  });
-  return occ;
-}
-/* Reconstruit le miroir occurrences depuis le legacy (source de vérité en construction). */
-function syncOccurrences(){
-  if(!state || !state.tasks) return;   /* pas encore initialisé */
-  state.occurrences = buildOccurrencesFromLegacy(state);
-}
-/* Lecture d'une occurrence par clé (utilisé à partir de la phase 3b). */
+/* ============ Occurrences (source de vérité) ============
+   Une occurrence = statut d'une mission pour un enfant à une période donnée.
+   {id:"taskId|childId|pk", taskId, childId, periodKey, periodOverride,
+    status:"active|pending|done|ignored|non-complete", pts, appliedDelta, closed, createdAt, updatedAt} */
 function getOcc(taskId, childId, pk){
   return (state.occurrences || []).find(o => o.taskId===taskId && o.childId===childId && o.periodKey===pk);
 }
@@ -886,11 +814,6 @@ function setOccOverride(taskId, childId, pk, date){
   }
   o.periodOverride = date;
   o.updatedAt = Date.now();
-  save();
-}
-if(state.occMigrationVersion !== OCC_MIGRATION_VERSION){
-  state.occurrences = buildOccurrencesFromLegacy(state);
-  state.occMigrationVersion = OCC_MIGRATION_VERSION;
   save();
 }
 
@@ -1309,7 +1232,6 @@ function deleteChild(id){
   /* retire l'enfant des missions partagées ; supprime la mission si plus aucun enfant */
   state.tasks.forEach(tk=>{ if(tk.childIds) tk.childIds = tk.childIds.filter(x=>x!==id); });
   state.tasks = state.tasks.filter(tk=> tk.childIds ? tk.childIds.length>0 : tk.childId!==id);
-  state.completions = state.completions.filter(c=>c.childId!==id);
   state.occurrences = (state.occurrences||[]).filter(o=>o.childId!==id);
   state.purchases = state.purchases.filter(p=>p.childId!==id);
   save();
@@ -2742,16 +2664,6 @@ function parentSettings(){
         <button class="btn btn-no" data-action="reset-all">${t("btnResetAll")}</button>
       </div>
     </div>
-    <div class="card" style="border:1px dashed var(--line)">
-      <h3 style="font-size:15px;margin-bottom:8px">🛟 Sauvegarde pré-occurrence</h3>
-      <div class="muted" style="margin-bottom:12px">
-        Restaure l'état d'avant la migration vers le modèle d'occurrence. Bouton temporaire.<br>
-        Occurrences migrées (shadow) : <b>${(state.occurrences||[]).length}</b>
-      </div>
-      <div class="btn-line">
-        <button class="btn btn-ghost" data-action="restore-preocc">Restaurer sauvegarde PreOccurence</button>
-      </div>
-    </div>
     <p class="footer-note">${t("footerNote")}</p>
     <p class="footer-note" style="margin-top:6px;opacity:.45">${APP_VERSION}</p>
   `;
@@ -3946,7 +3858,6 @@ document.addEventListener("click", (e)=>{
     case "del-task":
       if(confirm(t("confirmDelTask"))){
         state.tasks = state.tasks.filter(tsk=>tsk.id!==id);
-        state.completions = state.completions.filter(c=>c.taskId!==id);
         state.occurrences = (state.occurrences||[]).filter(o=>o.taskId!==id);
         save(); render();
       }
@@ -4733,23 +4644,6 @@ document.addEventListener("click", (e)=>{
       }
       break;
 
-    case "restore-preocc": {
-      let raw = null;
-      try { raw = localStorage.getItem(BACKUP_KEY); } catch(e){}
-      if(!raw){ alert("Aucune sauvegarde pré-occurrence trouvée."); break; }
-      if(confirm("Restaurer l'état d'avant la migration ? Les changements depuis seront perdus.")){
-        try {
-          const restored = JSON.parse(raw);
-          restored.preOccBackupDone = true; /* ne pas réécraser la sauvegarde */
-          state = restored;
-          save();
-          go("lock");
-          toast("Sauvegarde restaurée");
-        } catch(e){ alert("Sauvegarde illisible."); }
-      }
-      break;
-    }
-
     /* modale */
     case "modal-cancel": closeModal(); break;
     case "modal-bg": if(e.target.classList.contains("modal-bg")) closeModal(); break;
@@ -4802,42 +4696,6 @@ function applyInvestment(){
   save();
 }
 
-/* Annule une pénalité d'incomplétion déjà appliquée pour une tâche+enfant.
-   Appelé quand l'enfant marque "ignorer" ou "remettre à demain" sur une période expirée. */
-function reverseExpiredPenalty(tsk, cid){
-  if(!state.penaltyLog) return;
-  const pk = taskPK(tsk);
-  const penaltyKeys = [
-    `${tsk.id}|${cid}|${pk}|incomplete`,
-    `${tsk.id}|${cid}|${pk}|incomplete-eod`,
-    `${tsk.id}|${cid}|${pk}|wk-incomplete`,
-    `${tsk.id}|${cid}|${pk}|mth-incomplete`,
-  ];
-  let anyRemoved = false;
-  penaltyKeys.forEach(k => { if(state.penaltyLog[k]){ delete state.penaltyLog[k]; anyRemoved = true; } });
-  if(!anyRemoved) return;
-  /* Retrouve et inverse la bombe de pénalité correspondante */
-  const c = child(cid);
-  if(!c) return;
-  const bombtitle = esc(tsk.title) + " : " + t("incompleteSuffix");
-  const notif = [...(state.notifications||[])].reverse().find(n =>
-    n.type === "bomb" && n.childId === cid && n.title === bombtitle && !n.ignored
-  );
-  if(notif){
-    const refund = Math.abs(notif.delta);
-    c.points += refund;
-    notif.ignored = true;
-    if(refund > 0) setTimeout(() => showSimplePtsAnim(refund, tsk.title), 200);
-  }
-  /* Annule aussi la pénalité de carry si applicable */
-  const cpKey = `${tsk.id}|${cid}`;
-  if(state.carryPenalties && state.carryPenalties[cpKey] != null){
-    delete state.carryPenalties[cpKey];
-    const carryLogKey = `${tsk.id}|${cid}|carry`;
-    if(state.penaltyLog[carryLogKey]) delete state.penaltyLog[carryLogKey];
-  }
-}
-
 function applyPenalties(){
   if(state.paused) return;
   if(!state.penaltyLog)    state.penaltyLog    = {};
@@ -4847,14 +4705,6 @@ function applyPenalties(){
   const nowStr = pad(now.getHours()) + ":" + pad(now.getMinutes());
   const today  = todayStr();
   let changed  = false;
-
-  /* prune push records older than yesterday (no longer needed) */
-  if(state.pushes){
-    const yStr = yesterdayStr();
-    const before = state.pushes.length;
-    state.pushes = state.pushes.filter(p => p.pushedDate === today || p.pushedDate === yStr);
-    if(state.pushes.length !== before) changed = true;
-  }
 
   /* prune forceUnlocked records older than today */
   if(state.forceUnlocked && state.forceUnlocked.length){
