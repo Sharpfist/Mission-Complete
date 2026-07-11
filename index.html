@@ -655,7 +655,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.98";
+const APP_VERSION = "v1.00";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -2527,6 +2527,25 @@ function parentHistory(){
       isExtreme: isExtreme(tsk),
       taskId:o.taskId, pk:o.periodKey });
   });
+  /* Missions du jour dues mais sans occurrence encore enregistrée (nouvelle période
+     jamais touchée) : on les affiche quand même comme "active" pour aujourd'hui,
+     sinon elles restent invisibles en Historique tant que rien n'est fait dessus. */
+  const todayDow = new Date().getDay();
+  state.children.forEach(k => {
+    state.tasks.filter(tsk => taskChildIds(tsk).includes(k.id)).forEach(tsk => {
+      const pk = taskPK(tsk);
+      if(getOcc(tsk.id, k.id, pk)) return;   /* déjà couverte par la boucle ci-dessus */
+      if(tsk.freq === "weekly"  && !weekShow(tsk, k.id))  return;
+      if(tsk.freq === "monthly" && !monthShow(tsk, k.id)) return;
+      if(tsk.freq === "weekdays" && (todayDow===0||todayDow===6)) return;
+      if(tsk.freq === "calendar" && !(tsk.calDates||[]).includes(todayStr())) return;
+      if(tsk.freq === "once" && isExtreme(tsk) && isExtremeClosed(tsk)) return;
+      items.push({ bucket:0, ts:Date.now(), childId:k.id, kind:"mission", order:0,
+        title: tsk.title, status:"active", pts:0,
+        isExtreme: isExtreme(tsk),
+        taskId:tsk.id, pk });
+    });
+  });
   /* Événements : notifications */
   (state.notifications||[]).forEach(n => {
     const b = hDayBucket(n.createdAt);
@@ -2541,7 +2560,7 @@ function parentHistory(){
     const b = hDayBucket(ts);
     if(b < 0 || b > 2) return;
     items.push({ bucket:b, ts, childId:p.childId, kind:"reward", order:2,
-      title:p.title, cost:p.cost, status:p.status||"pending", pid:p.id });
+      title:p.title, cost:p.cost, status:p.status||"pending", pid:p.id, emoji:p.emoji });
   });
 
   if(items.length === 0)
@@ -2563,7 +2582,7 @@ function parentHistory(){
         .sort((a,b)=> a.order-b.order || a.ts-b.ts);
       html += `<div style="font-weight:800;font-size:15px;color:${k.color};margin:12px 2px 5px;display:flex;align-items:center;gap:6px">${esc(k.emoji)} ${esc(k.name)}</div>`;
       html += kItems.map(x=>{
-        const icon = x.kind==="mission" ? "📋" : x.kind==="event" ? "⚡" : "🎁";
+        const icon = x.kind==="mission" ? "📋" : x.kind==="event" ? (x.evType==="bomb"?"💣":x.evType==="investment"?"💰":"⚡") : esc(x.emoji||"🎁");
         let right = "", actions = "";
         const btn = (action, dataId, label, bg, col) =>
           `<button data-action="${action}" data-id="${dataId}" style="background:${bg};color:${col};border:none;border-radius:9px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">${label}</button>`;
