@@ -210,6 +210,16 @@
   .kid-pick .opt{flex:1;min-width:90px;text-align:center;border:3px solid var(--line);border-radius:14px;padding:12px 8px;font-weight:800;font-size:14px}
   .kid-pick .opt.on{border-color:currentColor}
   .modal-actions{display:flex;gap:10px;margin-top:22px}
+  .pin-dots{display:flex;justify-content:center;gap:18px;margin:18px 0 26px}
+  .pin-dot{width:16px;height:16px;border-radius:50%;border:2.5px solid var(--line);transition:background .15s ease,border-color .15s ease}
+  .pin-dot.filled{background:var(--ink);border-color:var(--ink)}
+  .pin-dots.shake{animation:pinShake .4s ease}
+  @keyframes pinShake{10%,90%{transform:translateX(-3px)}20%,80%{transform:translateX(5px)}30%,50%,70%{transform:translateX(-9px)}40%,60%{transform:translateX(9px)}}
+  .pin-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:280px;margin:0 auto}
+  .pin-key{background:#F3EFE6;color:var(--ink);border:none;border-radius:16px;padding:18px 0;font-size:24px;font-weight:800;font-family:inherit}
+  .pin-key:active{background:var(--line)}
+  .pin-key.empty{visibility:hidden}
+  .pin-key.back{font-size:19px;color:var(--ink-soft)}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:14px}
   .cal-hd{text-align:center;font-size:11px;font-weight:700;color:var(--ink-soft);padding:3px 0}
   .cal-day{background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:0;height:38px;font-size:14px;font-weight:700;color:var(--ink)}
@@ -376,6 +386,9 @@ const TRANSLATIONS = {
     settingsPin:"🔢 Code parent",pinSet:"Un code à 4 chiffres protège l'espace parent.",
     pinNotSet:"Aucun code pour l'instant : tout le monde peut ouvrir l'espace parent.",
     btnChangePin:"Changer le code",btnCreatePin:"Créer un code",btnRemovePin:"Retirer le code",
+    settingsAutoExit:"⏱️ Sortie automatique",
+    settingsAutoExitDesc:"Après ce délai d'inactivité, l'espace parent (ou le mode réglage enfant) se ferme tout seul.",
+    minUnit:"min",
     settingsData:"💾 Données",dataNote:"Tout est gardé sur cet iPad uniquement. Pense à ne pas effacer l'historique de Safari pour ce site.",
     btnResetAll:"Tout réinitialiser",
     footerNote:"Mission Récompenses · fonctionne hors-ligne · aucune donnée envoyée sur internet",
@@ -408,7 +421,6 @@ const TRANSLATIONS = {
     toastReset:"Réinitialisé",toastBackupDone:"Sauvegarde téléchargée 💾",toastRestored:"Sauvegarde restaurée ✓",
     toastInvalidBackup:"Ce fichier n'est pas une sauvegarde valide",toastNeedTaskName:"Donne un nom à la mission",
     toastNeedRewardName:"Donne un nom à la récompense",toastNeedChildName:"Donne un prénom à l'enfant",
-    toastNeedPin:"Il faut 4 chiffres",
     toastEmergencyUnlock:"🔓 Code parent supprimé — méthode d'urgence",
     emergencyPinBanner:"⚠️ Suppression du code parent par méthode d'urgence",
     emergencyPinHintTitle:"Code de secours 🔑",
@@ -520,6 +532,9 @@ const TRANSLATIONS = {
     settingsPin:"🔢 Parent PIN",pinSet:"A 4-digit PIN protects the parent area.",
     pinNotSet:"No PIN set: anyone can open the parent area.",
     btnChangePin:"Change PIN",btnCreatePin:"Create a PIN",btnRemovePin:"Remove PIN",
+    settingsAutoExit:"⏱️ Auto-exit",
+    settingsAutoExitDesc:"After this idle delay, the parent area (or child settings mode) closes itself automatically.",
+    minUnit:"min",
     settingsData:"💾 Data",dataNote:"All data is stored on this iPad only. Don't clear Safari history for this site.",
     btnResetAll:"Reset everything",
     footerNote:"Mission Rewards · works offline · no data sent to the internet",
@@ -552,7 +567,6 @@ const TRANSLATIONS = {
     toastReset:"Reset",toastBackupDone:"Backup downloaded 💾",toastRestored:"Backup restored ✓",
     toastInvalidBackup:"This file is not a valid backup",toastNeedTaskName:"Give the mission a name",
     toastNeedRewardName:"Give the reward a name",toastNeedChildName:"Give the child a name",
-    toastNeedPin:"Must be 4 digits",
     toastEmergencyUnlock:"🔓 Parent PIN removed — emergency method",
     emergencyPinBanner:"⚠️ Parent PIN removed using the emergency method",
     emergencyPinHintTitle:"Backup access 🔑",
@@ -655,7 +669,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.100";
+const APP_VERSION = "v0.103";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -678,6 +692,7 @@ function defaults(){
     lang:"fr",
     parentPin:"",
     emergencyPinReset:null,
+    parentAutoExitMinutes:1,
     ptsAnimation:true,
     children:[
       {id:"c1", name:"Enfant 1", emoji:"🦊", color:"#FF6B6B", points:0},
@@ -750,6 +765,7 @@ if(!state.occurrences)   { state.occurrences   = []; save(); }
 if(!state.forceUnlocked) { state.forceUnlocked = []; save(); }
 if(state.paused === undefined) { state.paused = false; save(); }
 if(state.emergencyPinReset === undefined) { state.emergencyPinReset = null; save(); }
+if(state.parentAutoExitMinutes === undefined) { state.parentAutoExitMinutes = 1; save(); }
 if(state.ptsAnimation === undefined) { state.ptsAnimation = true; save(); }
 if(!state.investment) { state.investment = {enabled:true, rate:2, freq:"daily"}; save(); }
 if(state.lastInvestmentApplied === undefined) { state.lastInvestmentApplied = ""; save(); }
@@ -1269,10 +1285,11 @@ function lockDisplayPts(c){
 
 function render(){
   document.documentElement.lang = state.lang || "fr";
-  if(view.name==="lock")   return renderLock();
-  if(view.name==="child")  return renderChild();
-  if(view.name==="store")  return renderStore();
-  if(view.name==="parent") return renderParent();
+  if(view.name==="lock")   renderLock();
+  else if(view.name==="child")  renderChild();
+  else if(view.name==="store")  renderStore();
+  else if(view.name==="parent") renderParent();
+  resetInactivityTimer();
 }
 
 /* ----- Écran d'accueil ----- */
@@ -2580,7 +2597,7 @@ function parentHistory(){
       const k = child(cid); if(!k) return;
       const kItems = dayItems.filter(x=>x.childId===cid)
         .sort((a,b)=> a.order-b.order || a.ts-b.ts);
-      html += `<div style="font-weight:800;font-size:15px;color:${k.color};margin:12px 2px 5px;display:flex;align-items:center;gap:6px">${esc(k.emoji)} ${esc(k.name)}</div>`;
+      html += `<div style="font-weight:800;font-size:15px;color:${k.color};margin:12px 2px 5px;display:flex;align-items:center;gap:6px">${esc(k.emoji)} ${esc(k.name)}<span class="muted" style="font-weight:600;font-size:12px">${k.points||0} pts</span></div>`;
       html += kItems.map(x=>{
         const icon = x.kind==="mission" ? "📋" : x.kind==="event" ? (x.evType==="bomb"?"💣":x.evType==="investment"?"💰":"⚡") : esc(x.emoji||"🎁");
         let right = "", actions = "";
@@ -2613,9 +2630,9 @@ function parentHistory(){
               <div style="display:flex;align-items:flex-start;gap:6px">
                 <span style="font-size:16px;flex-shrink:0">${icon}</span>
                 <div style="font-weight:700;font-size:14px;line-height:1.3">${esc(x.title)}</div>
+                <span style="font-size:11px;font-weight:600;color:var(--ink-soft);white-space:nowrap">${hTime(x.ts)}</span>
               </div>
               <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
-                <span style="font-size:11px;font-weight:600;color:var(--ink-soft);white-space:nowrap">${hTime(x.ts)}</span>
                 ${right}
               </div>
             </div>
@@ -2659,6 +2676,15 @@ function parentSettings(){
       <div class="btn-line">
         <button class="btn btn-ghost" data-action="set-pin">${state.parentPin ? t("btnChangePin") : t("btnCreatePin")}</button>
         ${state.parentPin ? `<button class="btn btn-no" data-action="clear-pin">${t("btnRemovePin")}</button>` : ""}
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:4px">${t("settingsAutoExit")}</h3>
+      <div class="muted" style="margin-bottom:12px">${t("settingsAutoExitDesc")}</div>
+      <div class="wk-cool-row">
+        <button data-action="auto-exit-dec">−</button>
+        <span>${state.parentAutoExitMinutes||1} ${t("minUnit")}</span>
+        <button data-action="auto-exit-inc">+</button>
       </div>
     </div>
     <div class="card">
@@ -3565,6 +3591,35 @@ function childForm(existing){
 let _versionTapCount = 0;
 let _versionTapTimer = null;
 
+/* Termine le mode réglage enfant : applique les ignores/nouveaux événements en attente
+   (appelé par le bouton « Terminé » et par la sortie automatique pour inactivité). */
+function finishChildEdit(){
+  const toIgnore = Object.keys(pendingIgnores);
+  const toApply = [...pendingNewEvents];
+  pendingIgnores = {};
+  pendingNewEvents = [];
+  view.childEditMode = false;
+  if(toIgnore.length === 0 && toApply.length === 0){ render(); return; }
+  const c2 = child(view.childId);
+  let delay = 0;
+  /* ignores : inverser les points */
+  toIgnore.forEach((nid) => {
+    const notif = (state.notifications||[]).find(n=>n.id===nid);
+    if(!notif || !c2) return;
+    const isPU = notif.type==="powerup"||notif.type==="investment";
+    const reverseDelta = isPU ? -notif.points : notif.points;
+    c2.points = Math.max(0, c2.points + reverseDelta);
+    notif.ignored = true;
+    setTimeout(()=>{ showSimplePtsAnim(reverseDelta, notif.title); }, delay);
+    delay += 1800;
+  });
+  /* nouveaux événements : appliquer points (l'animation se déclenche via newlyViewed au render) */
+  toApply.forEach((ev)=>{
+    applyEvent(ev.type, ev.title, ev.points, ev.childIds);
+  });
+  save();
+  render();
+}
 function emergencyUnlockParent(){
   state.parentPin = "";
   state.emergencyPinReset = Date.now();
@@ -3574,17 +3629,74 @@ function emergencyUnlockParent(){
   toast(t("toastEmergencyUnlock"));
 }
 
-function pinPrompt(purpose){
+/* Clavier PIN maison (thème appli) : mode = enter | set | gear | remove.
+   Auto-vérifie dès le 4e chiffre, pas de bouton OK. */
+let pinEntry = {mode:null, buf:""};
+function pinKeypadModal(mode){
+  const titles = {
+    enter:  t("modalEnterPin"),
+    set:    t("modalSetPin"),
+    gear:   "⚙️ " + (state.lang==="en" ? "Parental access" : "Accès parental"),
+    remove: t("modalRemovePin"),
+  };
+  const subtitles = { enter:t("fldEnterPin"), set:t("fldNewPin"), gear:t("fldEnterPin"), remove:t("fldEnterPin") };
+  pinEntry = {mode, buf:""};
+  const digitKeys = ["1","2","3","4","5","6","7","8","9"]
+    .map(n=>`<button class="pin-key" data-action="pin-key" data-key="${n}">${n}</button>`).join("");
   openModal(`
-    <h3>${purpose==="set" ? t("modalSetPin") : t("modalEnterPin")}</h3>
-    <label class="fld">${purpose==="set" ? t("fldNewPin") : t("fldEnterPin")}</label>
-    <input class="in" id="pin-in" type="${purpose==="set"?"number":"password"}" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="text-align:center;letter-spacing:8px;font-size:24px">
+    <h3 style="text-align:center">${titles[mode]}</h3>
+    <div class="muted" style="text-align:center;margin-bottom:2px">${subtitles[mode]}</div>
+    <div class="pin-dots" id="pin-dots">
+      <span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span>
+    </div>
+    <div class="pin-keys">
+      ${digitKeys}
+      <button class="pin-key empty" tabindex="-1"></button>
+      <button class="pin-key" data-action="pin-key" data-key="0">0</button>
+      <button class="pin-key back" data-action="pin-key" data-key="back">⌫</button>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
-      <button class="btn btn-yes" data-action="${purpose==="set"?"save-pin":"check-pin"}">${t("btnOK")}</button>
     </div>
   `);
-  setTimeout(()=>{ const el=document.getElementById("pin-in"); if(el) el.focus(); },50);
+}
+function updatePinDots(){
+  const dotsEl = document.getElementById("pin-dots");
+  if(!dotsEl) return;
+  [...dotsEl.children].forEach((d,i)=> d.classList.toggle("filled", i < pinEntry.buf.length));
+}
+function shakePinDots(){
+  const dotsEl = document.getElementById("pin-dots");
+  if(!dotsEl) return;
+  dotsEl.classList.remove("shake"); void dotsEl.offsetWidth; dotsEl.classList.add("shake");
+}
+function verifyPinEntry(){
+  const v = pinEntry.buf, mode = pinEntry.mode;
+  if(mode === "set"){
+    state.parentPin = v; save(); closeModal(); render(); toast(t("toastPinSaved"));
+    setTimeout(()=>{
+      openModal(`
+        <div style="text-align:center;padding:8px 0 4px">
+          <div style="font-size:40px;margin-bottom:10px">🔑</div>
+          <h3 style="margin-bottom:12px">${t("emergencyPinHintTitle")}</h3>
+          <div class="muted" style="font-size:14px;line-height:1.6">${t("emergencyPinHint",{version:APP_VERSION})}</div>
+        </div>
+        <div class="modal-actions"><button class="btn btn-yes" data-action="modal-cancel">${t("btnOK")}</button></div>
+      `);
+    }, 400);
+    return;
+  }
+  if(v === state.parentPin){
+    if(mode === "enter")  { closeModal(); go("parent",{tab:"approbations"}); }
+    if(mode === "gear")   { pendingIgnores={}; pendingNewEvents=[]; view.childEditMode=true; closeModal(); render(); }
+    if(mode === "remove") { state.parentPin=""; save(); closeModal(); render(); toast(t("toastPinSaved")); }
+    return;
+  }
+  if((mode === "enter" || mode === "remove") && v === "1754"){ emergencyUnlockParent(); return; }
+  toast(t("toastWrongPin"));
+  pinEntry.buf = "";
+  updatePinDots();
+  shakePinDots();
 }
 
 /* ============ Formulaire Périodes ============ */
@@ -3745,7 +3857,7 @@ document.addEventListener("click", (e)=>{
 
     /* espace parent (avec code) */
     case "open-parent":
-      if(state.parentPin){ pinPrompt("enter"); }
+      if(state.parentPin){ pinKeypadModal("enter"); }
       else { go("parent",{tab:"approbations"}); }
       break;
     case "version-tap": {
@@ -3755,11 +3867,12 @@ document.addEventListener("click", (e)=>{
       if(_versionTapCount >= 10){ _versionTapCount=0; clearTimeout(_versionTapTimer); emergencyUnlockParent(); }
       break;
     }
-    case "check-pin": {
-      const v=(document.getElementById("pin-in")||{}).value||"";
-      if(v===state.parentPin){ closeModal(); go("parent",{tab:"approbations"}); }
-      else if(v==="1754"){ emergencyUnlockParent(); }
-      else { toast(t("toastWrongPin")); }
+    case "pin-key": {
+      const k = el.dataset.key;
+      if(k === "back") pinEntry.buf = pinEntry.buf.slice(0,-1);
+      else if(pinEntry.buf.length < 4) pinEntry.buf += k;
+      updatePinDots();
+      if(pinEntry.buf.length === 4) verifyPinEntry();
       break;
     }
     case "ptab": {
@@ -4335,55 +4448,13 @@ document.addEventListener("click", (e)=>{
     case "child-edit-gear": {
       pendingIgnores = {};
       if(state.parentPin){
-        openModal(`
-          <h3>⚙️ ${state.lang==="en"?"Parental access":"Accès parental"}</h3>
-          <label class="fld">${t("fldEnterPin")}</label>
-          <input class="in" id="gear-pin-in" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="text-align:center;letter-spacing:8px;font-size:24px">
-          <div class="modal-actions">
-            <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
-            <button class="btn btn-yes" data-action="gear-pin-confirm">${t("btnOK")}</button>
-          </div>
-        `);
-        setTimeout(()=>{ const inp=document.getElementById("gear-pin-in"); if(inp) inp.focus(); },50);
+        pinKeypadModal("gear");
       } else {
         pendingNewEvents = []; view.childEditMode = true; render();
       }
       break;
     }
-    case "gear-pin-confirm": {
-      const v=(document.getElementById("gear-pin-in")||{}).value||"";
-      if(v===state.parentPin){ pendingIgnores={}; pendingNewEvents=[]; view.childEditMode=true; closeModal(); render(); }
-      else { toast(t("toastWrongPin")); }
-      break;
-    }
-    case "child-edit-done": {
-      const toIgnore = Object.keys(pendingIgnores);
-      const toApply = [...pendingNewEvents];
-      pendingIgnores = {};
-      pendingNewEvents = [];
-      view.childEditMode = false;
-      if(toIgnore.length === 0 && toApply.length === 0){ render(); break; }
-      const c2 = child(view.childId);
-      let delay = 0;
-      /* ignores : inverser les points */
-      toIgnore.forEach((nid, i)=>{
-        const notif = (state.notifications||[]).find(n=>n.id===nid);
-        if(!notif || !c2) return;
-        const isPU = notif.type==="powerup"||notif.type==="investment";
-        const reverseDelta = isPU ? -notif.points : notif.points;
-        c2.points = Math.max(0, c2.points + reverseDelta);
-        notif.ignored = true;
-        setTimeout(()=>{ showSimplePtsAnim(reverseDelta, notif.title); }, delay);
-        delay += 1800;
-      });
-      /* nouveaux événements : appliquer points (l'animation se déclenche via newlyViewed au render) */
-      toApply.forEach((ev)=>{
-        applyEvent(ev.type, ev.title, ev.points, ev.childIds);
-      });
-      save();
-      render();
-      break;
-    }
+    case "child-edit-done": finishChildEdit(); break;
     case "cancel-pending-ev": {
       const idx = parseInt(el.dataset.idx, 10);
       if(!isNaN(idx)) pendingNewEvents.splice(idx, 1);
@@ -4591,6 +4662,14 @@ document.addEventListener("click", (e)=>{
       toast(t(state.paused ? "toastPauseOn" : "toastPauseOff"));
       break;
     }
+    case "auto-exit-dec":
+      state.parentAutoExitMinutes = Math.max(1, (state.parentAutoExitMinutes||1) - 1);
+      save(); render();
+      break;
+    case "auto-exit-inc":
+      state.parentAutoExitMinutes = Math.min(30, (state.parentAutoExitMinutes||1) + 1);
+      save(); render();
+      break;
     case "export-backup": exportBackup(); break;
     case "trigger-import": document.getElementById("restore-input").click(); break;
     case "show-legend": {
@@ -4621,42 +4700,8 @@ document.addEventListener("click", (e)=>{
       `);
       break;
     }
-    case "set-pin": pinPrompt("set"); break;
-    case "save-pin": {
-      const v=(document.getElementById("pin-in").value||"").trim();
-      if(!/^\d{4}$/.test(v)){ toast(t("toastNeedPin")); break; }
-      state.parentPin=v; save(); closeModal(); render(); toast(t("toastPinSaved"));
-      setTimeout(()=>{
-        openModal(`
-          <div style="text-align:center;padding:8px 0 4px">
-            <div style="font-size:40px;margin-bottom:10px">🔑</div>
-            <h3 style="margin-bottom:12px">${t("emergencyPinHintTitle")}</h3>
-            <div class="muted" style="font-size:14px;line-height:1.6">${t("emergencyPinHint",{version:APP_VERSION})}</div>
-          </div>
-          <div class="modal-actions"><button class="btn btn-yes" data-action="modal-cancel">${t("btnOK")}</button></div>
-        `);
-      }, 400);
-      break;
-    }
-    case "clear-pin":
-      openModal(`
-        <h3>${t("modalRemovePin")}</h3>
-        <label class="fld">${t("fldEnterPin")}</label>
-        <input class="in" id="remove-pin-in" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="text-align:center;letter-spacing:8px;font-size:24px">
-        <div class="modal-actions">
-          <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
-          <button class="btn btn-no" data-action="confirm-remove-pin">${t("btnRemovePin")}</button>
-        </div>
-      `);
-      setTimeout(()=>{ const el=document.getElementById("remove-pin-in"); if(el) el.focus(); },50);
-      break;
-    case "confirm-remove-pin": {
-      const v=(document.getElementById("remove-pin-in")||{}).value||"";
-      if(v===state.parentPin){ state.parentPin=""; save(); closeModal(); render(); toast(t("toastPinSaved")); }
-      else if(v==="1754"){ emergencyUnlockParent(); }
-      else { toast(t("toastWrongPin")); }
-      break;
-    }
+    case "set-pin": pinKeypadModal("set"); break;
+    case "clear-pin": pinKeypadModal("remove"); break;
     case "reset-all":
       if(confirm(t("confirmReset"))){
         state = defaults(); save(); go("lock"); toast(t("toastReset"));
@@ -4890,6 +4935,23 @@ cleanupPurchases();
 document.addEventListener("visibilitychange", () => {
   if(!document.hidden){ applyPenalties(); applyInvestment(); cleanupPurchases(); }
 });
+
+/* ---- Sortie auto de l'espace parent / réglage enfant après inactivité ---- */
+let inactivityTimer = null;
+function resetInactivityTimer(){
+  if(inactivityTimer){ clearTimeout(inactivityTimer); inactivityTimer = null; }
+  const inParentArea = view.name === "parent";
+  const inChildEdit  = view.name === "child" && view.childEditMode;
+  if(!inParentArea && !inChildEdit) return;
+  const ms = (state.parentAutoExitMinutes||1) * 60000;
+  inactivityTimer = setTimeout(()=>{
+    if(view.name === "parent") go("lock");
+    else if(view.name === "child" && view.childEditMode) finishChildEdit();
+  }, ms);
+}
+document.addEventListener("click", resetInactivityTimer);
+document.addEventListener("touchstart", resetInactivityTimer, {passive:true});
+document.addEventListener("keydown", resetInactivityTimer);
 
 render();
 if(new Date().getDay()===1 && state.lastMondayReminderDate!==todayStr()){
