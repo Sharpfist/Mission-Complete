@@ -427,6 +427,7 @@ const TRANSLATIONS = {
     emergencyPinHint:"Si tu oublies ton code, clique dix fois sur « {version} » <em>en 4 secondes ou moins</em> sur la page principale — ceci effacera le code parent.",
     confirmBuy:"Acheter « {title} » pour {cost} points ?",
     confirmDelTask:"Supprimer cette mission ?",confirmDelReward:"Supprimer cette récompense ?",
+    confirmDelEvent:"Supprimer cet événement de l'historique ?",
     confirmDelChild:"Supprimer {name} ? Toutes ses missions et son historique seront effacés.",
     confirmRemovePin:"Retirer le code parent ?",modalRemovePin:"Confirme ton code pour retirer",
     confirmReset:"Tout effacer et recommencer à zéro ? (missions, récompenses, points)",
@@ -573,6 +574,7 @@ const TRANSLATIONS = {
     emergencyPinHint:"If you forget your PIN, tap « {version} » ten times <em>within 4 seconds</em> on the main screen — this will erase the parent PIN.",
     confirmBuy:"Buy \"{title}\" for {cost} points?",
     confirmDelTask:"Delete this mission?",confirmDelReward:"Delete this reward?",
+    confirmDelEvent:"Delete this event from history?",
     confirmDelChild:"Remove {name}? All their missions and history will be deleted.",
     confirmRemovePin:"Remove the parent PIN?",modalRemovePin:"Confirm your PIN to remove it",
     confirmReset:"Erase everything and start over? (missions, rewards, points)",
@@ -669,7 +671,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.103";
+const APP_VERSION = "v0.104";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -2600,9 +2602,11 @@ function parentHistory(){
       html += `<div style="font-weight:800;font-size:15px;color:${k.color};margin:12px 2px 5px;display:flex;align-items:center;gap:6px">${esc(k.emoji)} ${esc(k.name)}<span class="muted" style="font-weight:600;font-size:12px">${k.points||0} pts</span></div>`;
       html += kItems.map(x=>{
         const icon = x.kind==="mission" ? "📋" : x.kind==="event" ? (x.evType==="bomb"?"💣":x.evType==="investment"?"💰":"⚡") : esc(x.emoji||"🎁");
-        let right = "", actions = "";
+        let right = "", actions = "", editDel = "";
         const btn = (action, dataId, label, bg, col) =>
           `<button data-action="${action}" data-id="${dataId}" style="background:${bg};color:${col};border:none;border-radius:9px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">${label}</button>`;
+        const miniIcon = (action, dataId, emoji) =>
+          `<button class="icon-btn" style="width:24px;height:24px;border-radius:8px;font-size:12px;flex-shrink:0" data-action="${action}" data-id="${dataId}">${emoji}</button>`;
         if(x.kind==="mission"){
           right = histMissionChip(x.status);
           /* mêmes boutons qu'enfant/réglage (DRY) : hors extrême uniquement */
@@ -2610,12 +2614,14 @@ function parentHistory(){
             const tsk = task(x.taskId);
             if(tsk) actions = gearButtons(tsk, x.childId, x.status, x.pk);
           }
+          editDel = `<span style="display:flex;gap:4px;flex-shrink:0">${miniIcon("edit-task", x.taskId, "✏️")}${miniIcon("del-task", x.taskId, "🗑️")}</span>`;
         } else if(x.kind==="event"){
           const up = x.delta > 0;
           right = x.ignored
             ? `<span class="tag" style="background:#EEE;color:#888;font-size:11px;font-weight:800">${t("histReverted")}</span>`
             : `<span class="tag" style="background:${up?"#E6F7EE":"#FCE9E9"};color:${up?"#1d8a55":"#c0392b"};font-size:11px;font-weight:800">${up?"+":""}${x.delta}</span>`;
           if(!x.ignored) actions = `<div style="display:flex;flex-direction:column;gap:4px">${btn("revert-event", x.nid, t("histBtnRevert"), "var(--line)", "var(--ink-soft)")}</div>`;
+          editDel = `<span style="display:flex;gap:4px;flex-shrink:0">${miniIcon("edit-event-entry", x.nid, "✏️")}${miniIcon("del-event-entry", x.nid, "🗑️")}</span>`;
         } else {
           right = `<span class="tag" style="background:#EEE;color:#555;font-size:11px;font-weight:800">−${x.cost}</span>`;
           if(x.status==="pending"){
@@ -2629,8 +2635,9 @@ function parentHistory(){
             <div style="flex:1;min-width:0;padding-top:2px">
               <div style="display:flex;align-items:flex-start;gap:6px">
                 <span style="font-size:16px;flex-shrink:0">${icon}</span>
-                <div style="font-weight:700;font-size:14px;line-height:1.3">${esc(x.title)}</div>
+                <div style="font-weight:700;font-size:14px;line-height:1.3;flex:1;min-width:0">${esc(x.title)}</div>
                 <span style="font-size:11px;font-weight:600;color:var(--ink-soft);white-space:nowrap">${hTime(x.ts)}</span>
+                ${editDel}
               </div>
               <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
                 ${right}
@@ -2902,6 +2909,28 @@ function drawEventForm(){
         <button class="btn btn-ghost" style="width:100%" data-action="modal-cancel">${t("btnCancel")}</button>
       </div>
     `}
+  `);
+}
+
+/* Édition d'un événement déjà appliqué (depuis Historique) : titre/points seulement,
+   le type (bonus/bombe/investissement) ne change pas. */
+function openEventEntryEdit(nid){
+  const notif = (state.notifications||[]).find(n=>n.id===nid); if(!notif) return;
+  const isPU = notif.type==="powerup"||notif.type==="investment";
+  openModal(`
+    <h3>${t("formEditEvent")}</h3>
+    <label class="fld">${state.lang==="en"?"Title":"Titre"}</label>
+    <input class="in" id="ev-entry-title" value="${esc(notif.title)}">
+    <label class="fld">${t("evPointsLabel")}</label>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <span style="font-size:26px;font-weight:900;color:${isPU?"#2BB673":"#E74C3C"};min-width:22px">${isPU?"+":"−"}</span>
+      <input class="in" id="ev-entry-points" type="number" inputmode="numeric" min="1" value="${Math.abs(notif.points)}" style="flex:1;margin-bottom:0">
+      <span class="muted">pts</span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
+      <button class="btn btn-yes" data-action="save-event-entry" data-id="${notif.id}">${state.lang==="en"?"Save":"Sauvegarder"}</button>
+    </div>
   `);
 }
 
@@ -3966,6 +3995,39 @@ document.addEventListener("click", (e)=>{
         if(rev !== 0) showSimplePtsAnim(rev, notif.title);
         refreshParentBody();
       }
+      break;
+    }
+    case "edit-event-entry": openEventEntryEdit(id); break;
+    case "save-event-entry": {
+      const notif = (state.notifications||[]).find(n=>n.id===id); if(!notif) break;
+      const title = (document.getElementById("ev-entry-title").value||"").trim();
+      const points = Math.max(1, Math.abs(parseInt((document.getElementById("ev-entry-points")||{}).value)||1));
+      if(!title){ toast(t("toastNeedTaskName")); break; }
+      const isPU = notif.type==="powerup"||notif.type==="investment";
+      const oldDelta = notif.delta != null ? notif.delta : (isPU ? notif.points : -notif.points);
+      const newDelta = isPU ? points : -points;
+      if(!notif.ignored){
+        const k = child(notif.childId);
+        if(k) k.points = Math.max(0, (k.points||0) + (newDelta - oldDelta));
+      }
+      notif.title = title;
+      notif.points = points;
+      notif.delta = newDelta;
+      save(); closeModal(); refreshParentBody();
+      toast(t("toastTaskSaved"));
+      break;
+    }
+    case "del-event-entry": {
+      if(!confirm(t("confirmDelEvent"))) break;
+      const notif = (state.notifications||[]).find(n=>n.id===id); if(!notif) break;
+      if(!notif.ignored){
+        const k = child(notif.childId);
+        const rev = -(notif.delta != null ? notif.delta : 0);
+        if(k) k.points = Math.max(0, (k.points||0) + rev);
+      }
+      state.notifications = (state.notifications||[]).filter(n=>n.id!==id);
+      save();
+      refreshParentBody();
       break;
     }
 
