@@ -356,7 +356,7 @@ const TRANSLATIONS = {
     noRewards:"Aucune récompense pour l'instant.",
     tabApprove:"À valider",tabTasks:"Missions",tabStore:"Boutique",tabChildren:"Enfants",tabInvestment:"Investissement",tabSettings:"Réglages",
     tabHistory:"🕓 Historique",histToday:"Aujourd'hui",histYesterday:"Hier",histDayBefore:"Avant-hier",histEmpty:"Aucune activité récente.",
-    histDone:"✅ Complétée",histPending:"⏳ En attente",histIgnored:"✗ Ignorée",histNonComplete:"✗ Non complétée",histReverted:"↩ Renversé",
+    histNonComplete:"✗ Non complétée",histReverted:"↩ Renversé",
     evAnimPending:"⏳ Animation",evAnimDone:"✅ Animation",
     histBtnComplete:"✅ Compléter",histBtnRefuse:"✗ Refuser",histBtnApprove:"✓ Approuver",histBtnGiven:"🎁 Donné",
     gearActive:"Active",gearPending:"⏳ En attente",gearDone:"Complétée",gearNonComp:"Non complétée",gearIgnored:"Ignorée",gearPushed:"Poussée à demain",
@@ -504,7 +504,7 @@ const TRANSLATIONS = {
     noRewards:"No rewards yet.",
     tabApprove:"To approve",tabTasks:"Missions",tabStore:"Store",tabChildren:"Children",tabInvestment:"Investment",tabSettings:"Settings",
     tabHistory:"🕓 History",histToday:"Today",histYesterday:"Yesterday",histDayBefore:"2 days ago",histEmpty:"No recent activity.",
-    histDone:"✅ Completed",histPending:"⏳ Pending",histIgnored:"✗ Ignored",histNonComplete:"✗ Not completed",histReverted:"↩ Reverted",
+    histNonComplete:"✗ Not completed",histReverted:"↩ Reverted",
     evAnimPending:"⏳ Animation",evAnimDone:"✅ Animation",
     histBtnComplete:"✅ Complete",histBtnRefuse:"✗ Refuse",histBtnApprove:"✓ Approve",histBtnGiven:"🎁 Given",
     gearActive:"Active",gearPending:"⏳ Pending",gearDone:"Completed",gearNonComp:"Not completed",gearIgnored:"Ignored",gearPushed:"Pushed to tomorrow",
@@ -673,7 +673,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.107";
+const APP_VERSION = "v0.110";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -2541,17 +2541,6 @@ function hDayBucket(ts){
   return Math.round((today - d) / 86400000); /* 0=auj, 1=hier, 2=avant-hier */
 }
 function hTime(ts){ const d = new Date(ts); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
-function histMissionChip(status){
-  const map = {
-    active:      ["gearActive",      "#EAF2FF", "#2b6cb0"],
-    done:        ["histDone",        "#E6F7EE", "#1d8a55"],
-    pending:     ["histPending",     "#FFF4D6", "#a06d00"],
-    ignored:     ["histIgnored",     "#EEE",    "#888"],
-    "non-complete":["histNonComplete","#FCE9E9","#c0392b"],
-  };
-  const m = map[status] || map.ignored;
-  return `<span class="tag" style="background:${m[1]};color:${m[2]};font-size:11px;font-weight:800">${t(m[0])}</span>`;
-}
 function parentHistory(){
   /* 1. Collecte des items datés des 3 derniers jours civils */
   const items = [];
@@ -2622,15 +2611,17 @@ function parentHistory(){
       html += `<div style="font-weight:800;font-size:15px;color:${k.color};margin:12px 2px 5px;display:flex;align-items:center;gap:6px">${esc(k.emoji)} ${esc(k.name)}<span class="muted" style="font-weight:600;font-size:12px">${k.points||0} pts</span></div>`;
       html += kItems.map(x=>{
         const icon = x.kind==="mission" ? "📋" : x.kind==="event" ? (x.evType==="bomb"?"💣":x.evType==="investment"?"💰":"⚡") : esc(x.emoji||"🎁");
-        let right = "", actions = "", editDel = "";
+        let right = "", actions = "", editDel = "", ptsTag = "";
         const btn = (action, dataId, label, bg, col) =>
           `<button data-action="${action}" data-id="${dataId}" style="background:${bg};color:${col};border:none;border-radius:9px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">${label}</button>`;
         if(x.kind==="mission"){
-          right = histMissionChip(x.status);
+          const tsk = task(x.taskId);
           /* mêmes boutons qu'enfant/réglage (DRY) : hors extrême uniquement */
-          if(!x.isExtreme){
-            const tsk = task(x.taskId);
-            if(tsk) actions = gearButtons(tsk, x.childId, x.status, x.pk);
+          if(!x.isExtreme && tsk) actions = gearButtons(tsk, x.childId, x.status, x.pk);
+          /* info fixe, sans logique de statut : points de la mission / pénalité associée */
+          if(tsk){
+            const penalty = tsk.incompletePenalty || 0;
+            ptsTag = `<span style="font-size:12px;font-weight:900;white-space:nowrap"><span style="color:#1d8a55">+${tsk.points}</span>${penalty>0?`<span style="color:#c0392b">/-${penalty}</span>`:""}</span>`;
           }
           editDel = `<span style="display:flex;gap:4px;flex-shrink:0">${miniIconBtn("edit-task", x.taskId, "✏️")}${miniIconBtn("del-task", x.taskId, "🗑️")}</span>`;
         } else if(x.kind==="event"){
@@ -2654,12 +2645,11 @@ function parentHistory(){
               <div style="display:flex;align-items:flex-start;gap:6px">
                 <span style="font-size:16px;flex-shrink:0">${icon}</span>
                 <div style="font-weight:700;font-size:14px;line-height:1.3;flex:1;min-width:0">${esc(x.title)}</div>
+                ${ptsTag}
                 <span style="font-size:11px;font-weight:600;color:var(--ink-soft);white-space:nowrap">${hTime(x.ts)}</span>
                 ${editDel}
               </div>
-              <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
-                ${right}
-              </div>
+              ${right ? `<div style="display:flex;align-items:center;gap:6px;margin-top:4px">${right}</div>` : ""}
             </div>
             ${actions}
           </div>`;
