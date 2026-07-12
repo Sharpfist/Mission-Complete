@@ -673,7 +673,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.112";
+const APP_VERSION = "v0.114";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -2578,7 +2578,7 @@ function parentHistory(){
     const b = hDayBucket(ts);
     if(b < 0 || b > 2) return;
     const tsk = task(o.taskId); if(!tsk) return;
-    items.push({ bucket:b, ts, childId:o.childId, kind:"mission", order:0,
+    items.push({ bucket:b, ts, childId:o.childId, kind:"mission", order:2,
       title: tsk.title, status:o.status, pts:o.appliedDelta,
       isExtreme: isExtreme(tsk),
       taskId:o.taskId, pk:o.periodKey });
@@ -2596,7 +2596,7 @@ function parentHistory(){
       if(tsk.freq === "weekdays" && (todayDow===0||todayDow===6)) return;
       if(tsk.freq === "calendar" && !(tsk.calDates||[]).includes(todayStr())) return;
       if(tsk.freq === "once" && isExtreme(tsk) && isExtremeClosed(tsk)) return;
-      items.push({ bucket:0, ts:Date.now(), childId:k.id, kind:"mission", order:0,
+      items.push({ bucket:0, ts:Date.now(), childId:k.id, kind:"mission", order:2,
         title: tsk.title, status:"active", pts:0,
         isExtreme: isExtreme(tsk),
         taskId:tsk.id, pk });
@@ -2615,7 +2615,7 @@ function parentHistory(){
     const ts = p.givenAt || p.approvedAt || p.createdAt;
     const b = hDayBucket(ts);
     if(b < 0 || b > 2) return;
-    items.push({ bucket:b, ts, childId:p.childId, kind:"reward", order:2,
+    items.push({ bucket:b, ts, childId:p.childId, kind:"reward", order:0,
       title:p.title, cost:p.cost, status:p.status||"pending", pid:p.id, emoji:p.emoji });
   });
 
@@ -3653,13 +3653,15 @@ function finishChildEdit(){
   const toApply = [...pendingNewEvents];
   pendingNewEvents = [];
   view.childEditMode = false;
-  if(toApply.length === 0){ render(); return; }
-  /* nouveaux événements : appliquer points (l'animation se déclenche via newlyViewed au render) */
+  /* quitte aussi la fenêtre enfant (retour à l'accueil) : sans ça, renderChild()
+     re-rendu tout de suite marquerait un événement fraîchement créé comme "viewedAt"
+     immédiatement, rendant le bouton ⏳ Animation toujours déjà "joué" à tort. */
+  if(toApply.length === 0){ go("lock"); return; }
   toApply.forEach((ev)=>{
     applyEvent(ev.type, ev.title, ev.points, ev.childIds);
   });
   save();
-  render();
+  go("lock");
 }
 function emergencyUnlockParent(){
   state.parentPin = "";
