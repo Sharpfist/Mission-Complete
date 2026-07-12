@@ -356,9 +356,9 @@ const TRANSLATIONS = {
     noRewards:"Aucune récompense pour l'instant.",
     tabApprove:"À valider",tabTasks:"Missions",tabStore:"Boutique",tabChildren:"Enfants",tabInvestment:"Investissement",tabSettings:"Réglages",
     tabHistory:"🕓 Historique",histToday:"Aujourd'hui",histYesterday:"Hier",histDayBefore:"Avant-hier",histEmpty:"Aucune activité récente.",
-    histNonComplete:"✗ Non complétée",histReverted:"↩ Renversé",
+    histNonComplete:"✗ Non complétée",
     evAnimPending:"⏳ Animation",evAnimDone:"✅ Animation",
-    histBtnComplete:"✅ Compléter",histBtnRefuse:"✗ Refuser",histBtnApprove:"✓ Approuver",histBtnGiven:"🎁 Donné",
+    purchaseStBought:"Achetée",purchaseStApproved:"Approuvée",purchaseStGiven:"Donnée",purchaseStRefused:"Refusée",
     gearActive:"Active",gearPending:"⏳ En attente",gearDone:"Complétée",gearNonComp:"Non complétée",gearIgnored:"Ignorée",gearPushed:"Poussée à demain",
     skip:"Ignorer",skipped:"Ignorée",pushTomorrow:"Pousser à demain",pushedTomorrow:"Poussée à demain",parentalDone:"Terminé ✓",pushAlready:"Tâche déjà prévue demain",
     evIgnoredTag:"fut ignoré",
@@ -372,7 +372,7 @@ const TRANSLATIONS = {
     fldTaskName:"Nom de la mission",fldTaskNamePh:"Ex. Ranger sa chambre",
     fldPoints:"Points gagnés",fldWhichChild:"Pour quel enfant ?",fldFreq:"À quelle fréquence ?",
     addReward:"＋ Nouvelle récompense",noRewardsParent:"Aucune récompense.",lastPurchases:"🧾 Derniers achats",
-    purchasePending:"⏳ En attente",purchaseApproved:"✅ Approuvé",purchaseApprovedSub:"À recevoir",purchaseBtnAccept:"Acceptée",purchaseBtnRefuse:"Refusée",
+    purchasePending:"⏳ En attente",purchaseApproved:"✅ Approuvé",purchaseApprovedSub:"À recevoir",
     purchaseGiven:"🎁 Reçu ✓",purchaseRefused:"✗ Refusé",
     btnMarkGiven:"Fut donné à l'enfant",markGivenDone:"Fut donné ✓",
     sectionPurchases:"🛒 Achats boutique",btnApprovePurchase:"✓ Approuver",btnRefusePurchase:"✗ Refuser",
@@ -504,9 +504,9 @@ const TRANSLATIONS = {
     noRewards:"No rewards yet.",
     tabApprove:"To approve",tabTasks:"Missions",tabStore:"Store",tabChildren:"Children",tabInvestment:"Investment",tabSettings:"Settings",
     tabHistory:"🕓 History",histToday:"Today",histYesterday:"Yesterday",histDayBefore:"2 days ago",histEmpty:"No recent activity.",
-    histNonComplete:"✗ Not completed",histReverted:"↩ Reverted",
+    histNonComplete:"✗ Not completed",
     evAnimPending:"⏳ Animation",evAnimDone:"✅ Animation",
-    histBtnComplete:"✅ Complete",histBtnRefuse:"✗ Refuse",histBtnApprove:"✓ Approve",histBtnGiven:"🎁 Given",
+    purchaseStBought:"Bought",purchaseStApproved:"Approved",purchaseStGiven:"Given",purchaseStRefused:"Refused",
     gearActive:"Active",gearPending:"⏳ Pending",gearDone:"Completed",gearNonComp:"Not completed",gearIgnored:"Ignored",gearPushed:"Pushed to tomorrow",
     skip:"Skip",skipped:"Skipped",pushTomorrow:"Push to tomorrow",pushedTomorrow:"Pushed to tomorrow",parentalDone:"Done ✓",pushAlready:"Task already scheduled tomorrow",
     evIgnoredTag:"was ignored",
@@ -520,7 +520,7 @@ const TRANSLATIONS = {
     fldTaskName:"Mission name",fldTaskNamePh:"e.g. Clean your room",
     fldPoints:"Points earned",fldWhichChild:"Which child?",fldFreq:"How often?",
     addReward:"＋ New reward",noRewardsParent:"No rewards.",lastPurchases:"🧾 Recent purchases",
-    purchasePending:"⏳ Pending",purchaseApproved:"✅ Approved",purchaseApprovedSub:"To receive",purchaseBtnAccept:"Accepted",purchaseBtnRefuse:"Refused",
+    purchasePending:"⏳ Pending",purchaseApproved:"✅ Approved",purchaseApprovedSub:"To receive",
     purchaseGiven:"🎁 Received ✓",purchaseRefused:"✗ Refused",
     btnMarkGiven:"Given to child",markGivenDone:"Given ✓",
     sectionPurchases:"🛒 Store purchases",btnApprovePurchase:"✓ Approve",btnRefusePurchase:"✗ Refuse",
@@ -673,7 +673,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.110";
+const APP_VERSION = "v0.112";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1132,6 +1132,40 @@ function eventAnimButtons(nid, viewed){
     ${b("done", t("evAnimDone"), "#E6F7EE", "#1d8a55")}
   </div>`;
 }
+/* même principe que gearButtons/eventAnimButtons, pour le statut d'une récompense achetée :
+   Achetée (points déjà déduits, en attente) → Approuvée (parent accepte, pas encore donnée)
+   → Donnée (l'enfant l'a reçue) ; Refusée rembourse les points et grise la ligne côté enfant. */
+function rewardStatusButtons(pid, status){
+  const b = (key,label,bg,col) => {
+    const on = status === key;
+    const style = on
+      ? `background:${bg};color:${col};box-shadow:0 0 0 2px ${col} inset;font-weight:800`
+      : `background:var(--line);color:var(--ink-soft);opacity:.6;font-weight:700`;
+    return `<button data-action="set-purchase-status" data-id="${pid}" data-status="${key}" style="${style};border:none;border-radius:9px;padding:6px 5px;font-size:11px;cursor:pointer;text-align:center;line-height:1.15">${label}</button>`;
+  };
+  return `<div style="flex:0 0 100%;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:2px">
+    ${b("pending",  t("purchaseStBought"),   "#FFF1DE", "#b86a00")}
+    ${b("approved", t("purchaseStApproved"), "#EAF2FF", "#2b6cb0")}
+    ${b("given",    t("purchaseStGiven"),    "#E6F7EE", "#1d8a55")}
+    ${b("refused",  t("purchaseStRefused"),  "#FCE9E9", "#c0392b")}
+  </div>`;
+}
+/* Réconciliation d'une récompense vers n'importe quel statut (même principe que setOccStatus) :
+   seule « refusée » rembourse le coût ; idempotent via p.refundApplied. */
+function setPurchaseStatus(pid, newStatus){
+  const p = (state.purchases||[]).find(x=>x.id===pid); if(!p) return;
+  const k = child(p.childId); if(!k) return;
+  const targetRefund = newStatus === "refused" ? p.cost : 0;
+  const curRefund = p.refundApplied || 0;
+  const diff = targetRefund - curRefund;
+  if(diff !== 0) k.points = Math.max(0, (k.points||0) + diff);
+  p.refundApplied = targetRefund;
+  p.status = newStatus;
+  if(newStatus==="approved") p.approvedAt = Date.now();
+  if(newStatus==="given")    p.givenAt = Date.now();
+  if(newStatus==="refused")  p.refusedAt = Date.now();
+  save();
+}
 /* petit bouton icône rond (crayon/poubelle) réutilisé dans Historique et le panneau événements enfant */
 function miniIconBtn(action, dataId, emoji){
   return `<button class="icon-btn" style="width:24px;height:24px;border-radius:8px;font-size:12px;flex-shrink:0" data-action="${action}" data-id="${dataId}">${emoji}</button>`;
@@ -1355,20 +1389,13 @@ function renderRewardHistory(c){
   });
   if(items.length===0) return "";
   return items.map(p=>{
-    let chip="", sub="", cancelBtn="", rightActions="";
-    if(p.status==="pending"){
-      if(view.childEditMode){
-        const pb = (action,label,bg,col) =>
-          `<button style="background:${bg};color:${col};font-weight:800;border:none;border-radius:9px;padding:5px 10px;font-size:11px;cursor:pointer;white-space:nowrap" data-action="${action}" data-id="${p.id}">${label}</button>`;
-        rightActions = `<div style="display:flex;flex-direction:column;gap:4px">
-            ${pb("approve-purchase", t("purchaseBtnAccept"), "#E6F7EE", "#1d8a55")}
-            ${pb("refuse-purchase",  t("purchaseBtnRefuse"), "#FCE9E9", "#c0392b")}
-            ${pb("cancel-purchase",  t("btnCancel"),          "#EEE",    "#666")}
-          </div>`;
-      } else {
-        chip=`<span class="tag" style="background:#FFF4D6;color:#a06d00;font-size:12px">${t("purchasePending")}</span>`;
-        cancelBtn=`<button class="btn btn-ghost" style="font-size:12px;padding:5px 12px;margin-top:6px" data-action="cancel-purchase" data-id="${p.id}">${t("btnCancel")}</button>`;
-      }
+    let chip="", sub="", cancelBtn="", statusGrid="";
+    if(view.childEditMode){
+      /* même grille de statut qu'Historique (Achetée/Approuvée/Donnée/Refusée) */
+      statusGrid = rewardStatusButtons(p.id, p.status);
+    } else if(p.status==="pending"){
+      chip=`<span class="tag" style="background:#FFF4D6;color:#a06d00;font-size:12px">${t("purchasePending")}</span>`;
+      cancelBtn=`<button class="btn btn-ghost" style="font-size:12px;padding:5px 12px;margin-top:6px" data-action="cancel-purchase" data-id="${p.id}">${t("btnCancel")}</button>`;
     } else if(p.status==="approved"){
       chip=`<span class="tag" style="background:#E6F7EE;color:#1d8a55;font-size:12px">${t("purchaseApproved")}</span>`;
       sub=`<div style="font-size:11px;font-weight:700;color:#1d8a55;margin-top:2px">${t("purchaseApprovedSub")}</div>`;
@@ -1380,14 +1407,15 @@ function renderRewardHistory(c){
     const displayCost = p.status==="refused" ? 0 : p.cost;
     const rowShaded = p.status==="refused" ? "opacity:.5" : "";
     return `
-      <div class="row" style="align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line);${rowShaded}">
+      <div class="row" style="align-items:flex-start;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line);${rowShaded}">
         <span style="font-size:22px;flex-shrink:0">${esc(p.emoji||"🎁")}</span>
         <div class="grow">
           <div style="font-weight:700;font-size:14px">${esc(p.title)}</div>
           <div class="muted" style="font-size:12px">${displayCost} pts</div>
           ${cancelBtn}
         </div>
-        <div style="flex-shrink:0;text-align:right">${rightActions}${chip}${sub}</div>
+        <div style="flex-shrink:0;text-align:right">${chip}${sub}</div>
+        ${statusGrid}
       </div>`;
   }).join("");
 }
@@ -2580,7 +2608,7 @@ function parentHistory(){
     if(b < 0 || b > 2) return;
     items.push({ bucket:b, ts:n.createdAt, childId:n.childId, kind:"event", order:1,
       title:n.title, evType:n.type, delta:(n.delta!=null?n.delta:0),
-      nid:n.id, ignored:!!n.ignored, viewed:!!n.viewedAt });
+      nid:n.id, viewed:!!n.viewedAt });
   });
   /* Récompenses : achats */
   (state.purchases||[]).forEach(p => {
@@ -2611,9 +2639,7 @@ function parentHistory(){
       html += `<div style="font-weight:800;font-size:15px;color:${k.color};margin:12px 2px 5px;display:flex;align-items:center;gap:6px">${esc(k.emoji)} ${esc(k.name)}<span class="muted" style="font-weight:600;font-size:12px">${k.points||0} pts</span></div>`;
       html += kItems.map(x=>{
         const icon = x.kind==="mission" ? "📋" : x.kind==="event" ? (x.evType==="bomb"?"💣":x.evType==="investment"?"💰":"⚡") : esc(x.emoji||"🎁");
-        let right = "", actions = "", editDel = "", ptsTag = "";
-        const btn = (action, dataId, label, bg, col) =>
-          `<button data-action="${action}" data-id="${dataId}" style="background:${bg};color:${col};border:none;border-radius:9px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">${label}</button>`;
+        let actions = "", editDel = "", ptsTag = "";
         if(x.kind==="mission"){
           const tsk = task(x.taskId);
           /* mêmes boutons qu'enfant/réglage (DRY) : hors extrême uniquement */
@@ -2625,19 +2651,13 @@ function parentHistory(){
           }
           editDel = `<span style="display:flex;gap:4px;flex-shrink:0">${miniIconBtn("edit-task", x.taskId, "✏️")}${miniIconBtn("del-task", x.taskId, "🗑️")}</span>`;
         } else if(x.kind==="event"){
-          const up = x.delta > 0;
-          right = x.ignored
-            ? `<span class="tag" style="background:#EEE;color:#888;font-size:11px;font-weight:800">${t("histReverted")}</span>`
-            : `<span class="tag" style="background:${up?"#E6F7EE":"#FCE9E9"};color:${up?"#1d8a55":"#c0392b"};font-size:11px;font-weight:800">${up?"+":""}${x.delta}</span>`;
+          const up = x.delta >= 0;
+          ptsTag = `<span style="font-size:12px;font-weight:900;color:${up?"#1d8a55":"#c0392b"};white-space:nowrap">${up?"+":""}${x.delta}</span>`;
           actions = eventAnimButtons(x.nid, x.viewed);
           editDel = `<span style="display:flex;gap:4px;flex-shrink:0">${miniIconBtn("edit-event-entry", x.nid, "✏️")}${miniIconBtn("del-event-entry", x.nid, "🗑️")}</span>`;
         } else {
-          right = `<span class="tag" style="background:#EEE;color:#555;font-size:11px;font-weight:800">−${x.cost}</span>`;
-          if(x.status==="pending"){
-            actions = `<div style="display:flex;flex-direction:column;gap:4px">${btn("approve-purchase", x.pid, t("histBtnApprove"), "#E6F7EE", "#1d8a55")}${btn("refuse-purchase", x.pid, t("histBtnRefuse"), "#FCE9E9", "#c0392b")}</div>`;
-          } else if(x.status==="approved"){
-            actions = `<div style="display:flex;flex-direction:column;gap:4px">${btn("mark-given", x.pid, t("histBtnGiven"), "#E6F7EE", "#1d8a55")}</div>`;
-          }
+          ptsTag = `<span style="font-size:12px;font-weight:900;color:#c0392b;white-space:nowrap">−${x.cost}</span>`;
+          actions = rewardStatusButtons(x.pid, x.status);
         }
         return `
           <div class="card" style="padding:9px 12px;margin-bottom:5px;display:flex;align-items:flex-start;flex-wrap:wrap;gap:10px">
@@ -2649,7 +2669,6 @@ function parentHistory(){
                 <span style="font-size:11px;font-weight:600;color:var(--ink-soft);white-space:nowrap">${hTime(x.ts)}</span>
                 ${editDel}
               </div>
-              ${right ? `<div style="display:flex;align-items:center;gap:6px;margin-top:4px">${right}</div>` : ""}
             </div>
             ${actions}
           </div>`;
@@ -3983,6 +4002,11 @@ document.addEventListener("click", (e)=>{
       notif.viewedAt = viewed ? (notif.viewedAt || Date.now()) : null;
       save();
       refreshParentBody();
+      break;
+    }
+    case "set-purchase-status": {
+      setPurchaseStatus(id, el.dataset.status);
+      if(view.name === "child") render(); else refreshParentBody();
       break;
     }
     case "edit-event-entry": openEventEntryEdit(id); break;
