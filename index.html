@@ -357,10 +357,11 @@ const TRANSLATIONS = {
     tabApprove:"À valider",tabTasks:"Missions",tabStore:"Boutique",tabChildren:"Enfants",tabInvestment:"Investissement",tabSettings:"Réglages",
     tabHistory:"🕓 Historique",histToday:"Aujourd'hui",histYesterday:"Hier",histDayBefore:"Avant-hier",histEmpty:"Aucune activité récente.",
     histDone:"✅ Complétée",histPending:"⏳ En attente",histIgnored:"✗ Ignorée",histNonComplete:"✗ Non complétée",histReverted:"↩ Renversé",
-    histBtnComplete:"✅ Compléter",histBtnRefuse:"✗ Refuser",histBtnRevert:"↩ Renverser",histBtnApprove:"✓ Approuver",histBtnGiven:"🎁 Donné",
+    evAnimPending:"⏳ Animation",evAnimDone:"✅ Animation",
+    histBtnComplete:"✅ Compléter",histBtnRefuse:"✗ Refuser",histBtnApprove:"✓ Approuver",histBtnGiven:"🎁 Donné",
     gearActive:"Active",gearPending:"⏳ En attente",gearDone:"Complétée",gearNonComp:"Non complétée",gearIgnored:"Ignorée",gearPushed:"Poussée à demain",
     skip:"Ignorer",skipped:"Ignorée",pushTomorrow:"Pousser à demain",pushedTomorrow:"Poussée à demain",parentalDone:"Terminé ✓",pushAlready:"Tâche déjà prévue demain",
-    ignoreEvt:"Ignorer",ignoredEvt:"Fut ignoré",evIgnoredTag:"fut ignoré",
+    evIgnoredTag:"fut ignoré",
     noApprovals:"Rien à valider pour le moment.<br>Quand un enfant coche « J'ai fait », ça apparaît ici.",
     btnApprove:"✓ Valider (+{pts})",btnReject:"✗ Refuser",
     addTask:"＋ Nouvelle mission",quickTemplates:"⚡ Modèles rapides",
@@ -504,10 +505,11 @@ const TRANSLATIONS = {
     tabApprove:"To approve",tabTasks:"Missions",tabStore:"Store",tabChildren:"Children",tabInvestment:"Investment",tabSettings:"Settings",
     tabHistory:"🕓 History",histToday:"Today",histYesterday:"Yesterday",histDayBefore:"2 days ago",histEmpty:"No recent activity.",
     histDone:"✅ Completed",histPending:"⏳ Pending",histIgnored:"✗ Ignored",histNonComplete:"✗ Not completed",histReverted:"↩ Reverted",
-    histBtnComplete:"✅ Complete",histBtnRefuse:"✗ Refuse",histBtnRevert:"↩ Revert",histBtnApprove:"✓ Approve",histBtnGiven:"🎁 Given",
+    evAnimPending:"⏳ Animation",evAnimDone:"✅ Animation",
+    histBtnComplete:"✅ Complete",histBtnRefuse:"✗ Refuse",histBtnApprove:"✓ Approve",histBtnGiven:"🎁 Given",
     gearActive:"Active",gearPending:"⏳ Pending",gearDone:"Completed",gearNonComp:"Not completed",gearIgnored:"Ignored",gearPushed:"Pushed to tomorrow",
     skip:"Skip",skipped:"Skipped",pushTomorrow:"Push to tomorrow",pushedTomorrow:"Pushed to tomorrow",parentalDone:"Done ✓",pushAlready:"Task already scheduled tomorrow",
-    ignoreEvt:"Ignore",ignoredEvt:"Was ignored",evIgnoredTag:"was ignored",
+    evIgnoredTag:"was ignored",
     noApprovals:"Nothing to approve right now.<br>When a child taps « Done », it appears here.",
     btnApprove:"✓ Approve (+{pts})",btnReject:"✗ Reject",
     addTask:"＋ New mission",quickTemplates:"⚡ Quick templates",
@@ -671,7 +673,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.104";
+const APP_VERSION = "v0.107";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1114,6 +1116,27 @@ function gearButtons(tsk, cid, st, pkOverride){
   return `<div style="flex:0 0 100%;display:grid;grid-template-columns:calc((100% - 8px)/3 - 4px) calc((100% - 8px)/3) calc((100% - 8px)/3 + 4px);gap:4px;margin-top:2px">${parts.join("")}</div>`;
 }
 
+/* même principe que gearButtons, pour le statut d'animation d'un événement :
+   ⏳ = pas encore joué sur l'écran enfant (points comptés mais pas encore
+   affichés au total) ; ✅ = joué (viewedAt posé), le total est à jour. */
+function eventAnimButtons(nid, viewed){
+  const b = (key,label,bg,col) => {
+    const on = viewed === (key==="done");
+    const style = on
+      ? `background:${bg};color:${col};box-shadow:0 0 0 2px ${col} inset;font-weight:800`
+      : `background:var(--line);color:var(--ink-soft);opacity:.6;font-weight:700`;
+    return `<button data-action="set-event-viewed" data-id="${nid}" data-viewed="${key==="done"?1:0}" style="${style};border:none;border-radius:9px;padding:6px 5px;font-size:11px;cursor:pointer;text-align:center;line-height:1.15">${label}</button>`;
+  };
+  return `<div style="flex:0 0 100%;display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:2px">
+    ${b("pending", t("evAnimPending"), "#FFF1DE", "#b86a00")}
+    ${b("done", t("evAnimDone"), "#E6F7EE", "#1d8a55")}
+  </div>`;
+}
+/* petit bouton icône rond (crayon/poubelle) réutilisé dans Historique et le panneau événements enfant */
+function miniIconBtn(action, dataId, emoji){
+  return `<button class="icon-btn" style="width:24px;height:24px;border-radius:8px;font-size:12px;flex-shrink:0" data-action="${action}" data-id="${dataId}">${emoji}</button>`;
+}
+
 /* une mission extrême se débloque pour un enfant quand toutes ses tâches
    régulières de la période assignée (+ all-day si requis) sont APPROUVÉES */
 function extremeUnlocked(tsk, childId){
@@ -1257,7 +1280,6 @@ function deleteChild(id){
 
 /* ============ Routeur de vue ============ */
 let view = { name:"lock", childId:null, tab:"approbations" };
-let pendingIgnores = {};
 let pendingNewEvents = [];
 let expandedDonePeriods = new Set();
 let rejectingComp = null; /* id de complétion en cours de refus avec pénalité */
@@ -1426,21 +1448,19 @@ function renderChild(){
       ${sortedNotifs.map((n,i)=>{
         const isPU = n.type==="powerup"||n.type==="investment";
         const isIgnored = !!n.ignored;
-        const isPending = !!pendingIgnores[n.id];
         const sep = i<sortedNotifs.length-1 ? ";border-bottom:1px solid var(--line)" : "";
-        const rowStyle = `display:flex;align-items:center;gap:10px;padding:7px 0${sep}${isIgnored?";opacity:.38":""}`;
-        const ignBtn = view.childEditMode && !isIgnored ? `
-          <button data-action="toggle-ignore-notif" data-id="${n.id}"
-            style="font-size:12px;font-weight:700;padding:4px 9px;border-radius:8px;flex-shrink:0;
-              background:${isPending?"#F59E0B":"var(--line)"};color:${isPending?"#fff":"var(--ink-soft)"}">
-            ${isPending?t("ignoredEvt"):t("ignoreEvt")}
-          </button>` : "";
+        const rowStyle = `display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:7px 0${sep}${isIgnored?";opacity:.38":""}`;
+        const editDel = view.childEditMode
+          ? `<span style="display:flex;gap:4px;flex-shrink:0">${miniIconBtn("edit-event-entry", n.id, "✏️")}${miniIconBtn("del-event-entry", n.id, "🗑️")}</span>`
+          : "";
+        const animBtns = view.childEditMode ? eventAnimButtons(n.id, !!n.viewedAt) : "";
         const ignoredTag = isIgnored ? `<span style="font-size:12px;font-weight:700;color:var(--ink-soft);flex-shrink:0">${t("evIgnoredTag")}</span>` : "";
         return `<div style="${rowStyle}">
           <span style="font-size:18px">${isPU?"⚡":n.type==="investment"?"💰":"💣"}</span>
           <div style="flex:1;min-width:0;font-weight:700;font-size:15px">${esc(n.title)}<span style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-left:6px;white-space:nowrap">${fmtCompletedAt(n.createdAt)}</span></div>
           <span style="font-weight:900;font-size:16px;color:${isPU?"#2BB673":"#E74C3C"}">${isPU?"+":"-"}${n.points}</span>
-          ${ignBtn}${ignoredTag}
+          ${editDel}${ignoredTag}
+          ${animBtns}
         </div>`;
       }).join("")}
     </div>`;
@@ -2571,7 +2591,7 @@ function parentHistory(){
     if(b < 0 || b > 2) return;
     items.push({ bucket:b, ts:n.createdAt, childId:n.childId, kind:"event", order:1,
       title:n.title, evType:n.type, delta:(n.delta!=null?n.delta:0),
-      nid:n.id, ignored:!!n.ignored });
+      nid:n.id, ignored:!!n.ignored, viewed:!!n.viewedAt });
   });
   /* Récompenses : achats */
   (state.purchases||[]).forEach(p => {
@@ -2605,8 +2625,6 @@ function parentHistory(){
         let right = "", actions = "", editDel = "";
         const btn = (action, dataId, label, bg, col) =>
           `<button data-action="${action}" data-id="${dataId}" style="background:${bg};color:${col};border:none;border-radius:9px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">${label}</button>`;
-        const miniIcon = (action, dataId, emoji) =>
-          `<button class="icon-btn" style="width:24px;height:24px;border-radius:8px;font-size:12px;flex-shrink:0" data-action="${action}" data-id="${dataId}">${emoji}</button>`;
         if(x.kind==="mission"){
           right = histMissionChip(x.status);
           /* mêmes boutons qu'enfant/réglage (DRY) : hors extrême uniquement */
@@ -2614,14 +2632,14 @@ function parentHistory(){
             const tsk = task(x.taskId);
             if(tsk) actions = gearButtons(tsk, x.childId, x.status, x.pk);
           }
-          editDel = `<span style="display:flex;gap:4px;flex-shrink:0">${miniIcon("edit-task", x.taskId, "✏️")}${miniIcon("del-task", x.taskId, "🗑️")}</span>`;
+          editDel = `<span style="display:flex;gap:4px;flex-shrink:0">${miniIconBtn("edit-task", x.taskId, "✏️")}${miniIconBtn("del-task", x.taskId, "🗑️")}</span>`;
         } else if(x.kind==="event"){
           const up = x.delta > 0;
           right = x.ignored
             ? `<span class="tag" style="background:#EEE;color:#888;font-size:11px;font-weight:800">${t("histReverted")}</span>`
             : `<span class="tag" style="background:${up?"#E6F7EE":"#FCE9E9"};color:${up?"#1d8a55":"#c0392b"};font-size:11px;font-weight:800">${up?"+":""}${x.delta}</span>`;
-          if(!x.ignored) actions = `<div style="display:flex;flex-direction:column;gap:4px">${btn("revert-event", x.nid, t("histBtnRevert"), "var(--line)", "var(--ink-soft)")}</div>`;
-          editDel = `<span style="display:flex;gap:4px;flex-shrink:0">${miniIcon("edit-event-entry", x.nid, "✏️")}${miniIcon("del-event-entry", x.nid, "🗑️")}</span>`;
+          actions = eventAnimButtons(x.nid, x.viewed);
+          editDel = `<span style="display:flex;gap:4px;flex-shrink:0">${miniIconBtn("edit-event-entry", x.nid, "✏️")}${miniIconBtn("del-event-entry", x.nid, "🗑️")}</span>`;
         } else {
           right = `<span class="tag" style="background:#EEE;color:#555;font-size:11px;font-weight:800">−${x.cost}</span>`;
           if(x.status==="pending"){
@@ -3620,28 +3638,13 @@ function childForm(existing){
 let _versionTapCount = 0;
 let _versionTapTimer = null;
 
-/* Termine le mode réglage enfant : applique les ignores/nouveaux événements en attente
+/* Termine le mode réglage enfant : applique les nouveaux événements en attente
    (appelé par le bouton « Terminé » et par la sortie automatique pour inactivité). */
 function finishChildEdit(){
-  const toIgnore = Object.keys(pendingIgnores);
   const toApply = [...pendingNewEvents];
-  pendingIgnores = {};
   pendingNewEvents = [];
   view.childEditMode = false;
-  if(toIgnore.length === 0 && toApply.length === 0){ render(); return; }
-  const c2 = child(view.childId);
-  let delay = 0;
-  /* ignores : inverser les points */
-  toIgnore.forEach((nid) => {
-    const notif = (state.notifications||[]).find(n=>n.id===nid);
-    if(!notif || !c2) return;
-    const isPU = notif.type==="powerup"||notif.type==="investment";
-    const reverseDelta = isPU ? -notif.points : notif.points;
-    c2.points = Math.max(0, c2.points + reverseDelta);
-    notif.ignored = true;
-    setTimeout(()=>{ showSimplePtsAnim(reverseDelta, notif.title); }, delay);
-    delay += 1800;
-  });
+  if(toApply.length === 0){ render(); return; }
   /* nouveaux événements : appliquer points (l'animation se déclenche via newlyViewed au render) */
   toApply.forEach((ev)=>{
     applyEvent(ev.type, ev.title, ev.points, ev.childIds);
@@ -3717,7 +3720,7 @@ function verifyPinEntry(){
   }
   if(v === state.parentPin){
     if(mode === "enter")  { closeModal(); go("parent",{tab:"approbations"}); }
-    if(mode === "gear")   { pendingIgnores={}; pendingNewEvents=[]; view.childEditMode=true; closeModal(); render(); }
+    if(mode === "gear")   { pendingNewEvents=[]; view.childEditMode=true; closeModal(); render(); }
     if(mode === "remove") { state.parentPin=""; save(); closeModal(); render(); toast(t("toastPinSaved")); }
     return;
   }
@@ -3984,17 +3987,12 @@ document.addEventListener("click", (e)=>{
       break;
     }
 
-    case "revert-event": {
-      const notif = (state.notifications||[]).find(n=>n.id===id);
-      if(notif && !notif.ignored){
-        const k = child(notif.childId);
-        const rev = -(notif.delta != null ? notif.delta : 0); /* inverse le delta réellement appliqué */
-        if(k) k.points = Math.max(0, (k.points||0) + rev);
-        notif.ignored = true;
-        save();
-        if(rev !== 0) showSimplePtsAnim(rev, notif.title);
-        refreshParentBody();
-      }
+    case "set-event-viewed": {
+      const notif = (state.notifications||[]).find(n=>n.id===id); if(!notif) break;
+      const viewed = el.dataset.viewed === "1";
+      notif.viewedAt = viewed ? (notif.viewedAt || Date.now()) : null;
+      save();
+      refreshParentBody();
       break;
     }
     case "edit-event-entry": openEventEntryEdit(id); break;
@@ -4499,16 +4497,7 @@ document.addEventListener("click", (e)=>{
 
     /* enfants */
     /* mode édition parental depuis l'écran enfant */
-    case "toggle-ignore-notif": {
-      if(pendingIgnores[id]) delete pendingIgnores[id]; else pendingIgnores[id]=true;
-      const isPending = !!pendingIgnores[id];
-      el.textContent = isPending ? t("ignoredEvt") : t("ignoreEvt");
-      el.style.background = isPending ? "#F59E0B" : "var(--line)";
-      el.style.color = isPending ? "#fff" : "var(--ink-soft)";
-      break;
-    }
     case "child-edit-gear": {
-      pendingIgnores = {};
       if(state.parentPin){
         pinKeypadModal("gear");
       } else {
