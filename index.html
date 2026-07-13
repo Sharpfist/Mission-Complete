@@ -237,6 +237,11 @@
   .wk-cool-row{display:flex;align-items:center;justify-content:center;gap:14px}
   .wk-cool-row button{width:38px;height:38px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-size:20px;font-weight:900;color:var(--ink)}
   .wk-cool-row span{font-weight:800;font-size:15px;min-width:86px;text-align:center}
+  .prog-row{gap:6px;row-gap:4px}
+  .prog-row button{width:30px;height:30px;font-size:16px;flex-shrink:0}
+  .prog-row span{min-width:0;font-size:13px;font-weight:800;white-space:nowrap}
+  input.no-spin::-webkit-outer-spin-button,input.no-spin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  input.no-spin{-moz-appearance:textfield;appearance:textfield}
   .mth-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:4px 0 6px}
   .mth-day{background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:0;height:38px;font-size:13px;font-weight:700;color:var(--ink)}
   .mth-day.on{background:var(--ink);color:#fff;border-color:var(--ink)}
@@ -379,6 +384,7 @@ const TRANSLATIONS = {
     sectionPurchases:"🛒 Achats boutique",btnApprovePurchase:"✓ Approuver",btnRefusePurchase:"✗ Refuser",
     formNewReward:"Nouvelle récompense",formEditReward:"Modifier la récompense",
     fldEmoji:"Émoji",fldRewardName:"Nom de la récompense",fldRewardNamePh:"Ex. 30 min d'écran",fldCost:"Coût en points",
+    costModeFixed:"Absolu",costModeProg:"Progressif",fldUnitPh:"Unité",fldFactorPh:"Facteur",lblPoints:"Points",
     addChild:"＋ Ajouter un enfant",adjustPoints:"Ajuster les points à la main",adjustPointsAnim:"avec animation",
     formNewChild:"Nouvel enfant",formEditChild:"Modifier l'enfant",
     fldChildEmoji:"Émoji / avatar",fldChildName:"Prénom",fldColor:"Couleur",
@@ -529,6 +535,7 @@ const TRANSLATIONS = {
     sectionPurchases:"🛒 Store purchases",btnApprovePurchase:"✓ Approve",btnRefusePurchase:"✗ Refuse",
     formNewReward:"New reward",formEditReward:"Edit reward",
     fldEmoji:"Emoji",fldRewardName:"Reward name",fldRewardNamePh:"e.g. 30 min screen time",fldCost:"Cost in points",
+    costModeFixed:"Fixed",costModeProg:"Progressive",fldUnitPh:"Unit",fldFactorPh:"Factor",lblPoints:"Points",
     addChild:"＋ Add a child",adjustPoints:"Manually adjust points",adjustPointsAnim:"with animation",
     formNewChild:"New child",formEditChild:"Edit child",
     fldChildEmoji:"Emoji / avatar",fldChildName:"First name",fldColor:"Color",
@@ -678,7 +685,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.129";
+const APP_VERSION = "v0.131";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1279,13 +1286,34 @@ function rejectExtremeConfirm(oid, penalty){
     save();
   }
 }
-function buy(rewardId, childId){
+/* nombre d'unités en cours de sélection pour une récompense progressive (état
+   transitoire, non persisté, réinitialisé après achat) */
+let progBuyCounts = {};
+function progCount(rewardId){ return Math.max(1, progBuyCounts[rewardId]||1); }
+function updateProgTotal(rewardId){
+  const input = document.getElementById("prog-count-"+rewardId);
+  let n = parseInt(input.value,10); if(!n || n<1) n=1;
+  progBuyCounts[rewardId] = n;
+  const r = reward(rewardId); const c = child(view.childId);
+  const total = n * r.factor;
+  const can = c.points >= total;
+  const btn = document.getElementById("prog-buy-btn-"+rewardId);
+  if(btn){
+    btn.classList.toggle("locked", !can);
+    btn.textContent = can ? t("buyBtn",{cost:total}) : t("buyLocked",{cost:total});
+  }
+}
+function buy(rewardId, childId, units){
   const r = reward(rewardId); const k = child(childId);
   if(!r||!k) return false;
-  if(k.points < r.cost) return false;
-  k.points -= r.cost;
+  const isProg = r.costMode==="progressive";
+  const n = isProg ? Math.max(1, units||1) : null;
+  const cost = isProg ? n*r.factor : r.cost;
+  if(k.points < cost) return false;
+  k.points -= cost;
   if(!state.purchases) state.purchases = [];
-  state.purchases.unshift({id:uid(), rewardId:r.id, childId:k.id, childName:k.name, title:r.title, emoji:r.emoji||"🎁", cost:r.cost, status:"pending", createdAt:Date.now()});
+  state.purchases.unshift({id:uid(), rewardId:r.id, childId:k.id, childName:k.name, title:r.title, emoji:r.emoji||"🎁", cost,
+    units: isProg?n:undefined, unitLabel: isProg?r.unitLabel:undefined, status:"pending", createdAt:Date.now()});
   save();
   return true;
 }
@@ -2028,6 +2056,27 @@ function renderStore(){
     ${state.rewards.length===0 ? `<div class="empty"><span class="em">🎁</span>${t("noRewards")}</div>` : `
     <div class="store-grid">
       ${state.rewards.map(r=>{
+        if(r.costMode==="progressive"){
+          const n = progCount(r.id);
+          const total = n * r.factor;
+          const can = c.points >= total;
+          return `
+          <div class="reward">
+            <div class="r-top"><span class="r-emoji">${esc(r.emoji||"🎁")}</span><span class="r-name">${esc(r.title)}</span></div>
+            <div class="wk-cool-row prog-row" style="justify-content:flex-start;margin:2px 0 8px">
+              <button data-action="prog-dec" data-id="${r.id}">−</button>
+              <input class="in no-spin" id="prog-count-${r.id}" type="number" inputmode="numeric" min="1" value="${n}"
+                oninput="updateProgTotal('${r.id}')" style="width:38px;padding:6px 2px;text-align:center;font-size:14px">
+              <button data-action="prog-inc" data-id="${r.id}">+</button>
+              <span style="color:var(--ink-soft)">${esc(r.unitLabel||t("fldUnitPh"))}</span>
+              <span>×</span>
+              <span>${r.factor}</span>
+            </div>
+            <button class="buy ${can?"":"locked"}" id="prog-buy-btn-${r.id}" data-action="buy" data-id="${r.id}" data-child="${c.id}">
+              ${can ? t("buyBtn",{cost:total}) : t("buyLocked",{cost:total})}
+            </button>
+          </div>`;
+        }
         const can = c.points >= r.cost;
         return `
           <div class="reward">
@@ -2385,7 +2434,7 @@ function parentRewards(){
       <div class="card">
         <div class="row">
           <span style="font-size:26px">${esc(r.emoji||"🎁")}</span>
-          <div class="grow"><div style="font-weight:800">${esc(r.title)}</div><div class="muted">${r.cost} points</div></div>
+          <div class="grow"><div style="font-weight:800">${esc(r.title)}</div><div class="muted">${r.costMode==="progressive" ? `${r.factor} ${t("lblPoints")} / ${esc(r.unitLabel||t("fldUnitPh"))}` : `${r.cost} points`}</div></div>
           <div class="item-actions">
             <button class="icon-btn" data-action="edit-reward" data-id="${r.id}">✏️</button>
             <button class="icon-btn" data-action="del-reward" data-id="${r.id}">🗑️</button>
@@ -2400,7 +2449,7 @@ function parentRewards(){
       ${hist.map(p=>`
         <div class="hist-row">
           <span class="who-chip" style="background:${(child(p.childId)||{}).color||"#999"}">${esc((child(p.childId)||{}).emoji||"")} ${esc(p.childName)}</span>
-          <div class="grow">${esc(p.title)}</div>
+          <div class="grow">${esc(p.title)}${p.units ? ` (${p.units} ${esc(p.unitLabel||"")})` : ""}</div>
           <span class="h-pts" style="color:#c0392b">−${p.cost}</span>
         </div>`).join("")}
     </div>`;
@@ -3624,9 +3673,40 @@ function drawTaskForm(){
 
 function rewardForm(existing){
   formState = existing
-    ? {id:existing.id, title:existing.title, cost:existing.cost, emoji:existing.emoji||"🎁"}
-    : {id:null, title:"", cost:20, emoji:"🎁"};
+    ? {id:existing.id, title:existing.title, cost:existing.cost, emoji:existing.emoji||"🎁",
+       costMode:existing.costMode==="progressive"?"progressive":"fixed",
+       unitLabel:existing.unitLabel||"", factor:existing.factor||5}
+    : {id:null, title:"", cost:20, emoji:"🎁", costMode:"fixed", unitLabel:"", factor:5};
+  drawRewardForm();
+}
+/* sauvegarde les valeurs saisies avant un re-rendu (changement de mode de coût) */
+function captureRewardForm(){
+  const ti=document.getElementById("r-title");  if(ti) formState.title=ti.value;
+  const em=document.getElementById("r-emoji");  if(em) formState.emoji=em.value;
+  const co=document.getElementById("r-cost");   if(co) formState.cost=co.value;
+  const un=document.getElementById("r-unit");   if(un) formState.unitLabel=un.value;
+  const fa=document.getElementById("r-factor"); if(fa) formState.factor=fa.value;
+}
+function drawRewardForm(){
   const f=formState;
+  const factorVal = parseInt(f.factor,10)||0;
+  const costBlock = f.costMode==="progressive" ? `
+    <div class="wk-cool-row prog-row" style="justify-content:flex-start">
+      <button disabled style="opacity:.35;pointer-events:none">−</button>
+      <span style="opacity:.35;text-align:center">1</span>
+      <button disabled style="opacity:.35;pointer-events:none">+</button>
+      <input class="in no-spin" id="r-unit" placeholder="${t("fldUnitPh")}" value="${esc(f.unitLabel||"")}"
+        style="width:64px;padding:6px 4px;font-size:13px;text-align:center">
+      <span>×</span>
+      <input class="in no-spin" id="r-factor" type="number" inputmode="numeric" min="1" placeholder="${t("fldFactorPh")}" value="${f.factor||""}"
+        oninput="(function(v){var el=document.getElementById('r-prog-total'); if(el) el.textContent = parseInt(v,10)||0;})(this.value)"
+        style="width:40px;padding:6px 2px;font-size:13px;text-align:center">
+      <span>=</span>
+      <span id="r-prog-total" style="opacity:.5;border:2px solid var(--line);border-radius:8px;padding:3px 8px">${factorVal}</span>
+      <span>${t("lblPoints")}</span>
+    </div>
+  ` : `<input class="in" id="r-cost" type="number" inputmode="numeric" min="1" value="${f.cost}">`;
+
   openModal(`
     <h3>${f.id ? t("formEditReward") : t("formNewReward")}</h3>
     <label class="fld">${t("fldEmoji")}</label>
@@ -3634,7 +3714,11 @@ function rewardForm(existing){
     <label class="fld">${t("fldRewardName")}</label>
     <input class="in" id="r-title" value="${esc(f.title)}" placeholder="${t("fldRewardNamePh")}">
     <label class="fld">${t("fldCost")}</label>
-    <input class="in" id="r-cost" type="number" inputmode="numeric" min="1" value="${f.cost}">
+    <div class="wk-modes">
+      <button class="wk-mode ${f.costMode!=="progressive"?"on":""}" data-action="pick-cost-mode" data-m="fixed">${t("costModeFixed")}</button>
+      <button class="wk-mode ${f.costMode==="progressive"?"on":""}" data-action="pick-cost-mode" data-m="progressive">${t("costModeProg")}</button>
+    </div>
+    ${costBlock}
     <div class="modal-actions">
       <button class="btn btn-ghost" data-action="modal-cancel">${t("btnCancel")}</button>
       <button class="btn btn-yes" data-action="save-reward">${t("btnSave")}</button>
@@ -3964,12 +4048,29 @@ document.addEventListener("click", (e)=>{
       break;
     case "buy": {
       const r = reward(id); const k = child(el.dataset.child);
-      if(k.points < r.cost){ toast(t("toastNotEnoughPts")); break; }
-      if(confirm(t("confirmBuy",{title:r.title,cost:r.cost}))){
-        buy(id, el.dataset.child);
+      const isProg = r.costMode==="progressive";
+      const units = isProg ? progCount(r.id) : null;
+      const cost  = isProg ? units*r.factor : r.cost;
+      const label = isProg ? `${units} ${r.unitLabel||t("fldUnitPh")} — ${r.title}` : r.title;
+      if(k.points < cost){ toast(t("toastNotEnoughPts")); break; }
+      if(confirm(t("confirmBuy",{title:label,cost}))){
+        buy(id, el.dataset.child, units);
+        if(isProg) delete progBuyCounts[id];
         toast(t("toastBought"));
         render();
       }
+      break;
+    }
+    case "prog-dec": {
+      progBuyCounts[id] = Math.max(1, progCount(id)-1);
+      const inp = document.getElementById("prog-count-"+id); if(inp) inp.value = progBuyCounts[id];
+      updateProgTotal(id);
+      break;
+    }
+    case "prog-inc": {
+      progBuyCounts[id] = progCount(id)+1;
+      const inp = document.getElementById("prog-count-"+id); if(inp) inp.value = progBuyCounts[id];
+      updateProgTotal(id);
       break;
     }
 
@@ -4373,15 +4474,33 @@ document.addEventListener("click", (e)=>{
         state.rewards = state.rewards.filter(r=>r.id!==id); save(); render();
       }
       break;
+    case "pick-cost-mode":
+      captureRewardForm();
+      formState.costMode = el.dataset.m;
+      drawRewardForm();
+      break;
     case "save-reward": {
       const title=(document.getElementById("r-title").value||"").trim();
-      const cost=Math.max(1, parseInt(document.getElementById("r-cost").value,10)||1);
       const emoji=(document.getElementById("r-emoji").value||"🎁").trim()||"🎁";
+      const costMode = formState.costMode==="progressive" ? "progressive" : "fixed";
       if(!title){ toast(t("toastNeedRewardName")); break; }
-      if(formState.id){
-        const r=reward(formState.id); r.title=title; r.cost=cost; r.emoji=emoji;
+      let cost, unitLabel, factor;
+      if(costMode==="progressive"){
+        unitLabel = (document.getElementById("r-unit").value||"").trim();
+        factor = Math.max(1, parseInt(document.getElementById("r-factor").value,10)||1);
       } else {
-        state.rewards.push({id:uid(), title, cost, emoji});
+        cost = Math.max(1, parseInt(document.getElementById("r-cost").value,10)||1);
+      }
+      if(formState.id){
+        const r=reward(formState.id);
+        r.title=title; r.emoji=emoji; r.costMode=costMode;
+        if(costMode==="progressive"){ r.unitLabel=unitLabel; r.factor=factor; delete r.cost; }
+        else { r.cost=cost; delete r.unitLabel; delete r.factor; }
+      } else {
+        const obj = {id:uid(), title, emoji, costMode};
+        if(costMode==="progressive"){ obj.unitLabel=unitLabel; obj.factor=factor; }
+        else { obj.cost=cost; }
+        state.rewards.push(obj);
       }
       save(); closeModal(); render(); toast(t("toastRewardSaved"));
       break;
