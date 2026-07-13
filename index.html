@@ -385,6 +385,7 @@ const TRANSLATIONS = {
     formNewReward:"Nouvelle récompense",formEditReward:"Modifier la récompense",
     fldEmoji:"Émoji",fldRewardName:"Nom de la récompense",fldRewardNamePh:"Ex. 30 min d'écran",fldCost:"Coût en points",
     costModeFixed:"Absolu",costModeProg:"Progressif",fldUnitPh:"Unité",fldFactorPh:"Facteur",lblPoints:"Points",
+    fldUnitLabel:"Unité",fldUnitInputPh:"Ex. minute(s)",fldFactorLabel:"Facteur de multiplication (points par unité)",fldFactorInputPh:"Ex. 5",lblExample:"Exemple :",
     addChild:"＋ Ajouter un enfant",adjustPoints:"Ajuster les points à la main",adjustPointsAnim:"avec animation",
     formNewChild:"Nouvel enfant",formEditChild:"Modifier l'enfant",
     fldChildEmoji:"Émoji / avatar",fldChildName:"Prénom",fldColor:"Couleur",
@@ -536,6 +537,7 @@ const TRANSLATIONS = {
     formNewReward:"New reward",formEditReward:"Edit reward",
     fldEmoji:"Emoji",fldRewardName:"Reward name",fldRewardNamePh:"e.g. 30 min screen time",fldCost:"Cost in points",
     costModeFixed:"Fixed",costModeProg:"Progressive",fldUnitPh:"Unit",fldFactorPh:"Factor",lblPoints:"Points",
+    fldUnitLabel:"Unit",fldUnitInputPh:"e.g. minute(s)",fldFactorLabel:"Multiplier factor (points per unit)",fldFactorInputPh:"e.g. 5",lblExample:"Example:",
     addChild:"＋ Add a child",adjustPoints:"Manually adjust points",adjustPointsAnim:"with animation",
     formNewChild:"New child",formEditChild:"Edit child",
     fldChildEmoji:"Emoji / avatar",fldChildName:"First name",fldColor:"Color",
@@ -685,7 +687,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.131";
+const APP_VERSION = "v0.134";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -723,7 +725,10 @@ function defaults(){
       {id:uid(), title:"Sortie au parc", cost:40, emoji:"🛝"},
       {id:uid(), title:"Petit jouet surprise", cost:60, emoji:"🎁"},
       {id:uid(), title:"Se coucher 30 min plus tard", cost:50, emoji:"🌙"},
+      {id:uid(), title:"Jeux vidéos", emoji:"🎮", costMode:"progressive", unitLabel:"Minutes", factor:1},
+      {id:uid(), title:"Cadeau", emoji:"🎁", costMode:"progressive", unitLabel:"$", factor:10},
     ],
+    starterRewardsAdded:true,
     templates:[
       {title:"Faire son lit", points:5},
       {title:"Ranger sa chambre", points:10},
@@ -785,6 +790,14 @@ if(state.parentAutoExitMinutes === undefined) { state.parentAutoExitMinutes = 1;
 if(state.ptsAnimation === undefined) { state.ptsAnimation = true; save(); }
 if(!state.investment) { state.investment = {enabled:true, rate:2, freq:"daily"}; save(); }
 if(state.lastInvestmentApplied === undefined) { state.lastInvestmentApplied = ""; save(); }
+if(!state.starterRewardsAdded){
+  state.rewards.push(
+    {id:uid(), title:"Jeux vidéos", emoji:"🎮", costMode:"progressive", unitLabel:"Minutes", factor:1},
+    {id:uid(), title:"Cadeau", emoji:"🎁", costMode:"progressive", unitLabel:"$", factor:10}
+  );
+  state.starterRewardsAdded = true;
+  save();
+}
 if(!state.eventTemplates){
   state.eventTemplates = [
     {id:"etpl-1", type:"powerup", title:"Bon comportement au resto",   points:5,  childIds:[]},
@@ -1290,12 +1303,17 @@ function rejectExtremeConfirm(oid, penalty){
    transitoire, non persisté, réinitialisé après achat) */
 let progBuyCounts = {};
 function progCount(rewardId){ return Math.max(1, progBuyCounts[rewardId]||1); }
+/* le facteur peut avoir un dixième (0.1) ; arrondi pour éviter les artefacts flottants (0.1×3 = 0.30000000000000004) */
+function round1(x){ return Math.round(x*10)/10; }
+/* total en points d'une récompense progressive : toujours arrondi à l'unité, à la hausse
+   (round1 d'abord pour absorber le bruit flottant avant l'arrondi supérieur) */
+function ceilTotal(count, factor){ return Math.ceil(round1(count*factor)); }
 function updateProgTotal(rewardId){
   const input = document.getElementById("prog-count-"+rewardId);
   let n = parseInt(input.value,10); if(!n || n<1) n=1;
   progBuyCounts[rewardId] = n;
   const r = reward(rewardId); const c = child(view.childId);
-  const total = n * r.factor;
+  const total = ceilTotal(n, r.factor);
   const can = c.points >= total;
   const btn = document.getElementById("prog-buy-btn-"+rewardId);
   if(btn){
@@ -1308,7 +1326,7 @@ function buy(rewardId, childId, units){
   if(!r||!k) return false;
   const isProg = r.costMode==="progressive";
   const n = isProg ? Math.max(1, units||1) : null;
-  const cost = isProg ? n*r.factor : r.cost;
+  const cost = isProg ? ceilTotal(n, r.factor) : r.cost;
   if(k.points < cost) return false;
   k.points -= cost;
   if(!state.purchases) state.purchases = [];
@@ -2058,7 +2076,7 @@ function renderStore(){
       ${state.rewards.map(r=>{
         if(r.costMode==="progressive"){
           const n = progCount(r.id);
-          const total = n * r.factor;
+          const total = ceilTotal(n, r.factor);
           const can = c.points >= total;
           return `
           <div class="reward">
@@ -3675,8 +3693,8 @@ function rewardForm(existing){
   formState = existing
     ? {id:existing.id, title:existing.title, cost:existing.cost, emoji:existing.emoji||"🎁",
        costMode:existing.costMode==="progressive"?"progressive":"fixed",
-       unitLabel:existing.unitLabel||"", factor:existing.factor||5}
-    : {id:null, title:"", cost:20, emoji:"🎁", costMode:"fixed", unitLabel:"", factor:5};
+       unitLabel:existing.unitLabel||"", factor:existing.factor||5, previewCount:1}
+    : {id:null, title:"", cost:20, emoji:"🎁", costMode:"fixed", unitLabel:"", factor:5, previewCount:1};
   drawRewardForm();
 }
 /* sauvegarde les valeurs saisies avant un re-rendu (changement de mode de coût) */
@@ -3686,23 +3704,40 @@ function captureRewardForm(){
   const co=document.getElementById("r-cost");   if(co) formState.cost=co.value;
   const un=document.getElementById("r-unit");   if(un) formState.unitLabel=un.value;
   const fa=document.getElementById("r-factor"); if(fa) formState.factor=fa.value;
+  const pc=document.getElementById("r-preview-count"); if(pc) formState.previewCount=pc.value;
+}
+/* recalcule l'exemple interactif (côté parent) à partir de Unité / Facteur / compteur d'essai */
+function updateRewardFormPreview(){
+  const unit = ((document.getElementById("r-unit")||{}).value||"").trim() || t("fldUnitPh");
+  const factor = parseFloat((document.getElementById("r-factor")||{}).value) || 0;
+  const countEl = document.getElementById("r-preview-count");
+  let count = parseInt(countEl.value,10); if(!count || count<1) count=1;
+  const total = ceilTotal(count, factor);
+  document.getElementById("r-preview-unit").textContent = unit;
+  document.getElementById("r-preview-factor").textContent = factor;
+  document.getElementById("r-preview-total").textContent = total;
 }
 function drawRewardForm(){
   const f=formState;
-  const factorVal = parseInt(f.factor,10)||0;
+  const previewCount = Math.max(1, parseInt(f.previewCount,10)||1);
+  const factorVal = parseFloat(f.factor)||0;
   const costBlock = f.costMode==="progressive" ? `
+    <label class="fld">${t("fldUnitLabel")}</label>
+    <input class="in" id="r-unit" placeholder="${t("fldUnitInputPh")}" value="${esc(f.unitLabel||"")}" oninput="updateRewardFormPreview()">
+    <label class="fld">${t("fldFactorLabel")}</label>
+    <input class="in no-spin" id="r-factor" type="number" inputmode="decimal" step="0.1" min="0.1" placeholder="${t("fldFactorInputPh")}" value="${f.factor||""}"
+      oninput="updateRewardFormPreview()">
+    <label class="fld">${t("lblExample")}</label>
     <div class="wk-cool-row prog-row" style="justify-content:flex-start">
-      <button disabled style="opacity:.35;pointer-events:none">−</button>
-      <span style="opacity:.35;text-align:center">1</span>
-      <button disabled style="opacity:.35;pointer-events:none">+</button>
-      <input class="in no-spin" id="r-unit" placeholder="${t("fldUnitPh")}" value="${esc(f.unitLabel||"")}"
-        style="width:64px;padding:6px 4px;font-size:13px;text-align:center">
+      <button data-action="reward-preview-dec">−</button>
+      <input class="in no-spin" id="r-preview-count" type="number" inputmode="numeric" min="1" value="${previewCount}"
+        oninput="updateRewardFormPreview()" style="width:38px;padding:6px 2px;text-align:center;font-size:14px">
+      <button data-action="reward-preview-inc">+</button>
+      <span id="r-preview-unit">${esc(f.unitLabel||t("fldUnitPh"))}</span>
       <span>×</span>
-      <input class="in no-spin" id="r-factor" type="number" inputmode="numeric" min="1" placeholder="${t("fldFactorPh")}" value="${f.factor||""}"
-        oninput="(function(v){var el=document.getElementById('r-prog-total'); if(el) el.textContent = parseInt(v,10)||0;})(this.value)"
-        style="width:40px;padding:6px 2px;font-size:13px;text-align:center">
+      <span id="r-preview-factor">${factorVal}</span>
       <span>=</span>
-      <span id="r-prog-total" style="opacity:.5;border:2px solid var(--line);border-radius:8px;padding:3px 8px">${factorVal}</span>
+      <span id="r-preview-total">${ceilTotal(previewCount, factorVal)}</span>
       <span>${t("lblPoints")}</span>
     </div>
   ` : `<input class="in" id="r-cost" type="number" inputmode="numeric" min="1" value="${f.cost}">`;
@@ -4050,7 +4085,7 @@ document.addEventListener("click", (e)=>{
       const r = reward(id); const k = child(el.dataset.child);
       const isProg = r.costMode==="progressive";
       const units = isProg ? progCount(r.id) : null;
-      const cost  = isProg ? units*r.factor : r.cost;
+      const cost  = isProg ? ceilTotal(units, r.factor) : r.cost;
       const label = isProg ? `${units} ${r.unitLabel||t("fldUnitPh")} — ${r.title}` : r.title;
       if(k.points < cost){ toast(t("toastNotEnoughPts")); break; }
       if(confirm(t("confirmBuy",{title:label,cost}))){
@@ -4479,6 +4514,18 @@ document.addEventListener("click", (e)=>{
       formState.costMode = el.dataset.m;
       drawRewardForm();
       break;
+    case "reward-preview-dec": {
+      const cnt = document.getElementById("r-preview-count");
+      cnt.value = Math.max(1, (parseInt(cnt.value,10)||1) - 1);
+      updateRewardFormPreview();
+      break;
+    }
+    case "reward-preview-inc": {
+      const cnt = document.getElementById("r-preview-count");
+      cnt.value = (parseInt(cnt.value,10)||1) + 1;
+      updateRewardFormPreview();
+      break;
+    }
     case "save-reward": {
       const title=(document.getElementById("r-title").value||"").trim();
       const emoji=(document.getElementById("r-emoji").value||"🎁").trim()||"🎁";
@@ -4487,7 +4534,8 @@ document.addEventListener("click", (e)=>{
       let cost, unitLabel, factor;
       if(costMode==="progressive"){
         unitLabel = (document.getElementById("r-unit").value||"").trim();
-        factor = Math.max(1, parseInt(document.getElementById("r-factor").value,10)||1);
+        factor = Math.round((parseFloat(document.getElementById("r-factor").value)||1)*10)/10;
+        if(factor <= 0) factor = 1;
       } else {
         cost = Math.max(1, parseInt(document.getElementById("r-cost").value,10)||1);
       }
