@@ -245,6 +245,7 @@
   .mth-nth-lbl{font-size:10px;font-weight:800;color:var(--ink-soft);display:flex;align-items:center;line-height:1.2}
   .mth-nth-cell{background:#fff;border:1.5px solid var(--line);border-radius:8px;padding:0;height:32px;font-size:11px;font-weight:700;color:var(--ink)}
   .mth-nth-cell.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .mth-nth-summary{font-size:10px;font-weight:800;color:var(--ink-soft);line-height:1.2;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .toast{
     position:fixed;left:50%;top:20px;transform:translateX(-50%) translateY(-20px);opacity:0;
     background:var(--ink);color:#fff;font-weight:800;padding:13px 20px;border-radius:14px;z-index:80;
@@ -412,6 +413,8 @@ const TRANSLATIONS = {
     mthSectionTitle:"Mois :",mthBoxTitle:"Mois",
     mthValDay:"Le",mthValMonth:"1 fois / mois",mthValStart:"Début du mois",mthValEnd:"Fin du mois",mthDayShort:"J",mthValNthDay:"Journées du mois",
     mthNthRows:"1er,2e,3e,4e,Dernier",
+    mthDowFull:"Lundi,Mardi,Mercredi,Jeudi,Vendredi,Samedi,Dimanche",
+    mthNthNone:"Choisir une journée",mthNthOf:"du mois",
     btnCancel:"Annuler",btnSave:"Enregistrer",btnOK:"OK",btnOther:"Autre…",
     toastSent:"Envoyé ! Un parent va valider 👍",toastNotEnoughPts:"Pas assez de points 🙈",
     toastBought:"Acheté ! Va voir un parent 🎉",toastWrongPin:"Code incorrect",
@@ -560,6 +563,8 @@ const TRANSLATIONS = {
     mthSectionTitle:"Month:",mthBoxTitle:"Month",
     mthValDay:"The",mthValMonth:"Once / month",mthValStart:"Start of month",mthValEnd:"End of month",mthDayShort:"d",mthValNthDay:"Days of month",
     mthNthRows:"1st,2nd,3rd,4th,Last",
+    mthDowFull:"Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
+    mthNthNone:"Choose a day",mthNthOf:"of the month",
     btnCancel:"Cancel",btnSave:"Save",btnOK:"OK",btnOther:"Other…",
     toastSent:"Sent! A parent will approve 👍",toastNotEnoughPts:"Not enough points 🙈",
     toastBought:"Bought! Go see a parent 🎉",toastWrongPin:"Wrong PIN",
@@ -673,7 +678,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.119";
+const APP_VERSION = "v0.129";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1051,9 +1056,13 @@ function taskStatusFor(tsk, childId){
 }
 
 function isPushedTomorrow(tsk, childId){
-  /* 3b : « poussé à demain » = periodOverride posé sur l'occurrence du jour (miroir) */
+  /* 3b : « poussé à demain » = periodOverride posé sur l'occurrence du jour (miroir).
+     Pour une tâche hebdo/mensuelle (mode non journalier), le periodKey ne change pas
+     d'un jour à l'autre : la même occurrence reste trouvée après la date de report,
+     donc il faut vérifier que la date de report n'est pas encore arrivée/passée
+     (sinon le statut restait bloqué à "poussée à demain" indéfiniment). */
   const o = getOcc(tsk.id, childId, taskPK(tsk));
-  return !!(o && o.periodOverride);
+  return !!(o && o.periodOverride && o.periodOverride > todayStr());
 }
 
 /* mission extrême « fermée » pour la période courante (compétitif remporté / collab terminé) */
@@ -1323,7 +1332,17 @@ let rejectingComp = null; /* id de complétion en cours de refus avec pénalité
    marquer un événement comme vu ni déclencher son animation. */
 let childVisionMode = false;
 function bodyEditMode(){ return view.childEditMode && !childVisionMode; }
-function go(name, opts){ view = Object.assign({name}, opts||{}); render(); }
+/* ids des événements dont l'animation du pop-up "Événement" est en cours de lecture,
+   pour éviter un double-déclenchement pendant le court délai avant que viewedAt soit posé */
+let animatingEventIds = new Set();
+function go(name, opts){
+  view = Object.assign({name}, opts||{});
+  /* le verrou "Événement" (lockBodyScroll) n'est géré que par renderChild() : en quittant
+     l'écran enfant sans repasser par là (ex. bouton retour), rien ne le déverrouillait
+     jamais si des événements étaient encore en attente — la page restait bloquée. */
+  if(name !== "child") unlockBodyScroll();
+  render();
+}
 
 /* ============ Rendu ============ */
 const app = () => document.getElementById("app");
@@ -1461,21 +1480,18 @@ function renderChild(){
     n.childId !== c.id || !n.viewedAt || (nowMs - n.viewedAt) < THIRTY_MIN
   );
   const myNotifs    = (state.notifications||[]).filter(n => n.childId === c.id);
-  const hasPendingEvents = myNotifs.some(n => !n.viewedAt);
-  /* verrou « Événement » : tant que l'enfant n'a pas cliqué pour lancer l'animation,
-     rien n'est marqué vu et la page reste grisée sous le carré de points.
-     Sans effet en mode réglage (le parent garde un accès normal). */
-  const showEventLock = hasPendingEvents && !view.eventsRevealed && !view.childEditMode;
-  /* jamais de marquage/animation en mode réglage (édition normale OU aperçu vision enfant) */
-  const newlyViewed = (view.childEditMode || showEventLock) ? [] : myNotifs.filter(n => !n.viewedAt);
+  /* verrou « Événement » : chaque événement en attente doit être joué individuellement
+     par l'enfant (bouton dédié dans le pop-up) avant d'avoir accès à la page.
+     Rien n'est marqué vu automatiquement ici. Sans effet en mode réglage. */
+  const pendingNotifs = myNotifs.filter(n => !n.viewedAt).sort((a,b)=>a.createdAt-b.createdAt);
+  const showEventLock = pendingNotifs.length > 0 && !view.childEditMode;
 
-  /* capturer displayPts AVANT de poser viewedAt : lockDisplayPts soustrait les deltas
-     des notifications non vues, donnant la valeur "avant animation" correcte.
+  /* lockDisplayPts soustrait les deltas des notifications non vues : le total affiché
+     ne "rattrape" son vrai niveau qu'au fur et à mesure que l'enfant joue chaque animation.
      En réglage (édition ou aperçu), le parent voit toujours le total réel à jour. */
   const displayPts = view.childEditMode ? c.points : lockDisplayPts(c);
 
-  newlyViewed.forEach(n => { n.viewedAt = nowMs; });
-  if(newlyViewed.length > 0 || state.notifications.length !== beforeLen) save();
+  if(state.notifications.length !== beforeLen) save();
 
   /* events panel — bonuses first, bombs second */
   const sortedNotifs = [...myNotifs].sort((a,b)=>{
@@ -1952,47 +1968,51 @@ function renderChild(){
     </div>
     ${showEventLock ? `
       <div id="event-lock-overlay" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:40;background:rgba(35,33,74,.45);display:flex;align-items:center;justify-content:center;padding:20px">
-        <div style="background:#fff;border-radius:22px;padding:28px 24px;max-width:340px;width:100%;text-align:center;box-shadow:var(--shadow)">
-          <div style="font-size:40px;margin-bottom:10px">⚡</div>
-          <h3 style="font-size:20px;margin-bottom:18px">${state.lang==="en"?"Event":"Événement"}</h3>
-          <button class="btn btn-yes" style="width:100%;font-size:17px;padding:16px;background:#2BB673;color:#fff" data-action="reveal-events">${state.lang==="en"?"Click here":"Clique ici"}</button>
+        <div style="background:#fff;border-radius:22px;padding:22px 20px;max-width:380px;width:100%;box-shadow:var(--shadow)">
+          <h3 style="font-size:19px;margin-bottom:14px;text-align:center">${state.lang==="en"?"Event":"Événement"}</h3>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${pendingNotifs.map(n=>{
+              const isPU = n.type==="powerup"||n.type==="investment";
+              const busy = animatingEventIds.has(n.id);
+              const icon = isPU ? "⚡" : "💣";
+              const color = isPU ? "#2BB673" : "#E74C3C";
+              return `
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font-size:19px;flex-shrink:0">${icon}</span>
+                  <div style="flex:1;min-width:0;font-weight:700;font-size:14px;line-height:1.25">${esc(n.title)}</div>
+                  <button ${busy ? "disabled" : `data-action="play-event-anim" data-id="${n.id}"`}
+                    style="background:${color};color:#fff;font-weight:900;border:none;border-radius:9px;padding:8px 14px;font-size:14px;white-space:nowrap;flex-shrink:0;opacity:${busy?".5":"1"}">
+                    ${isPU?"+":"-"}${n.points}
+                  </button>
+                </div>`;
+            }).join("")}
+          </div>
         </div>
       </div>
     ` : ""}
   `;
   if(showEventLock) lockBodyScroll(); else unlockBodyScroll();
   if(showEventLock){
-    /* l'overlay ne doit jamais recouvrir l'en-tête (crayon/réglage doivent rester cliquables) :
-       on le fait démarrer juste sous le bas réel de .top, mesuré après insertion dans le DOM. */
-    const topEl = document.querySelector(".top");
+    /* l'overlay ne doit jamais recouvrir l'en-tête ni le carré de points (crayon/réglage
+       restent cliquables) ; entre le bas du carré et le bouton boutique, le grisé est
+       progressif (dégradé) plutôt qu'une ligne de démarcation nette, mesuré après
+       insertion dans le DOM. */
+    const topEl   = document.querySelector(".top");
+    const heroEl  = document.querySelector(".hero");
+    const shopBtn = document.querySelector('[data-action="open-store"]');
     const overlayEl = document.getElementById("event-lock-overlay");
-    if(topEl && overlayEl) overlayEl.style.top = topEl.getBoundingClientRect().bottom + "px";
+    if(overlayEl){
+      if(heroEl && shopBtn){
+        const heroBottom = heroEl.getBoundingClientRect().bottom;
+        const gap = Math.max(0, shopBtn.getBoundingClientRect().top - heroBottom);
+        overlayEl.style.top = heroBottom + "px";
+        overlayEl.style.background = `linear-gradient(to bottom, rgba(35,33,74,0) 0, rgba(35,33,74,.45) ${gap}px, rgba(35,33,74,.45) 100%)`;
+      } else if(topEl){
+        overlayEl.style.top = topEl.getBoundingClientRect().bottom + "px";
+      }
+    }
   }
 
-  /* play animation then update the counter display */
-  let runningPts = displayPts;
-  newlyViewed.forEach((notif, i) => {
-    const startAt  = 400 + i * 2900;
-    /* powerup badge: delay 0.15s + 1.8s = ~2s; bomb badge: delay 1.15s + 1.8s = ~3s */
-    const updateAt = startAt + ((notif.type==="powerup"||notif.type==="investment") ? 1550 : 2550);
-
-    setTimeout(() => {
-      if(notif.type==="powerup"){ showPowerUpAnim(c.color, notif.points, notif.title); playPowerUpSound(); }
-      else if(notif.type==="investment"){ showPowerUpAnim(c.color, notif.points, notif.title); playInvestmentSound(); }
-      else { showBombAnim(notif.points, notif.title); playBombSound(); }
-    }, startAt);
-
-    setTimeout(() => {
-      runningPts = Math.max(0, runningPts + notifDelta(notif));
-      const pv = document.getElementById("pts-val");
-      if(pv){
-        pv.style.transition = "transform .25s ease";
-        pv.style.transform  = "scale(1.3)";
-        pv.textContent = runningPts;
-        setTimeout(() => { pv.style.transform = "scale(1)"; }, 220);
-      }
-    }, updateAt);
-  });
 }
 
 /* ----- Boutique (côté enfant) ----- */
@@ -3383,6 +3403,18 @@ function taskForm(existing){
   drawTaskForm();
 }
 /* Sous-panneau « Mois » : 4 sous-modes + contenu conditionnel */
+/* texte résumé (une ligne) des cases cochées dans la grille « Journée(s) du mois » */
+function mthNthSummary(sels){
+  if(!sels || !sels.length) return t("mthNthNone");
+  const rowKeys   = [1,2,3,4,"last"];
+  const rowLabels = t("mthNthRows").split(",");
+  const dowFull   = t("mthDowFull").split(",");
+  const dowFullOf = d => dowFull[d===0?6:d-1]; /* dow: 0=Di..6=Sa → index Lu..Di */
+  return sels.map(s=>{
+    const ri = rowKeys.indexOf(s.week);
+    return `${rowLabels[ri]} ${dowFullOf(s.dow)} ${t("mthNthOf")}`;
+  }).join(", ");
+}
 function drawMonthPanel(f){
   const btn = (m,label) => `<button class="wk-mode ${f.monthMode===m?"on":""}" data-action="pick-month-mode" data-m="${m}">${label}</button>`;
   const row1 = `<div class="wk-modes">${btn("day",t("mthModeDay"))}${btn("nthday",t("mthModeNthDay"))}</div>`;
@@ -3444,7 +3476,7 @@ function drawMonthPanel(f){
       ).join("");
       return `<div class="mth-nth-lbl">${rowLabels[ri]}</div>${cells}`;
     }).join("");
-    sub = `<div class="wk-sub"><div class="mth-nth-grid">${hdr}${rows2}</div></div>`;
+    sub = `<div class="wk-sub"><div class="mth-nth-grid">${hdr}${rows2}</div><div class="mth-nth-summary">${mthNthSummary(sels)}</div></div>`;
   }
 
   return `<div class="wk-panel">
@@ -4046,7 +4078,7 @@ document.addEventListener("click", (e)=>{
       const viewed = el.dataset.viewed === "1";
       notif.viewedAt = viewed ? (notif.viewedAt || Date.now()) : null;
       save();
-      refreshParentBody();
+      if(view.name === "child") render(); else refreshParentBody();
       break;
     }
     case "set-purchase-status": {
@@ -4070,7 +4102,8 @@ document.addEventListener("click", (e)=>{
       notif.title = title;
       notif.points = points;
       notif.delta = newDelta;
-      save(); closeModal(); refreshParentBody();
+      save(); closeModal();
+      if(view.name === "child") render(); else refreshParentBody();
       toast(t("toastTaskSaved"));
       break;
     }
@@ -4084,7 +4117,7 @@ document.addEventListener("click", (e)=>{
       }
       state.notifications = (state.notifications||[]).filter(n=>n.id!==id);
       save();
-      refreshParentBody();
+      if(view.name === "child") render(); else refreshParentBody();
       break;
     }
 
@@ -4209,6 +4242,8 @@ document.addEventListener("click", (e)=>{
       const idx  = formState.monthWeekdays.findIndex(s=>s.week===week && s.dow===dow);
       if(idx===-1) formState.monthWeekdays.push({week,dow}); else formState.monthWeekdays.splice(idx,1);
       el.classList.toggle("on", idx===-1);
+      const summaryEl = el.closest(".wk-sub").querySelector(".mth-nth-summary");
+      if(summaryEl) summaryEl.textContent = mthNthSummary(formState.monthWeekdays);
       break;
     }
     case "pick-month-day": {
@@ -4567,7 +4602,24 @@ document.addEventListener("click", (e)=>{
     }
     case "child-edit-done": finishChildEdit(); break;
     case "toggle-child-vision": childVisionMode = !childVisionMode; render(); break;
-    case "reveal-events": view.eventsRevealed = true; render(); break;
+    case "play-event-anim": {
+      const notif = (state.notifications||[]).find(n=>n.id===id);
+      if(!notif || notif.viewedAt || animatingEventIds.has(id)) break;
+      animatingEventIds.add(id);
+      const k = child(notif.childId);
+      const isPU = notif.type==="powerup"||notif.type==="investment";
+      if(notif.type==="powerup"){ showPowerUpAnim(k.color, notif.points, notif.title); playPowerUpSound(); }
+      else if(notif.type==="investment"){ showPowerUpAnim(k.color, notif.points, notif.title); playInvestmentSound(); }
+      else { showBombAnim(notif.points, notif.title); playBombSound(); }
+      render(); /* affiche le bouton désactivé pendant la lecture */
+      setTimeout(()=>{
+        notif.viewedAt = Date.now();
+        animatingEventIds.delete(id);
+        save();
+        render();
+      }, isPU ? 1550 : 2550);
+      break;
+    }
     case "cancel-pending-ev": {
       const idx = parseInt(el.dataset.idx, 10);
       if(!isNaN(idx)) pendingNewEvents.splice(idx, 1);
