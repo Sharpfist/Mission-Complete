@@ -360,7 +360,7 @@ const TRANSLATIONS = {
     evAnimPending:"⏳ Animation",evAnimDone:"✅ Animation",
     purchaseStBought:"Achetée",purchaseStApproved:"Approuvée",purchaseStGiven:"Donnée",purchaseStRefused:"Refusée",
     gearActive:"Active",gearPending:"⏳ En attente",gearDone:"Complétée",gearNonComp:"Non complétée",gearIgnored:"Ignorée",gearPushed:"Poussée à demain",
-    skip:"Ignorer",skipped:"Ignorée",pushTomorrow:"Pousser à demain",pushedTomorrow:"Poussée à demain",parentalDone:"Terminé ✓",pushAlready:"Tâche déjà prévue demain",
+    skip:"Ignorer",skipped:"Ignorée",pushTomorrow:"Pousser à demain",pushedTomorrow:"Poussée à demain",parentalDone:"Terminé et quitter ✅",pushAlready:"Tâche déjà prévue demain",
     evIgnoredTag:"fut ignoré",
     noApprovals:"Rien à valider pour le moment.<br>Quand un enfant coche « J'ai fait », ça apparaît ici.",
     btnApprove:"✓ Valider (+{pts})",btnReject:"✗ Refuser",
@@ -508,7 +508,7 @@ const TRANSLATIONS = {
     evAnimPending:"⏳ Animation",evAnimDone:"✅ Animation",
     purchaseStBought:"Bought",purchaseStApproved:"Approved",purchaseStGiven:"Given",purchaseStRefused:"Refused",
     gearActive:"Active",gearPending:"⏳ Pending",gearDone:"Completed",gearNonComp:"Not completed",gearIgnored:"Ignored",gearPushed:"Pushed to tomorrow",
-    skip:"Skip",skipped:"Skipped",pushTomorrow:"Push to tomorrow",pushedTomorrow:"Pushed to tomorrow",parentalDone:"Done ✓",pushAlready:"Task already scheduled tomorrow",
+    skip:"Skip",skipped:"Skipped",pushTomorrow:"Push to tomorrow",pushedTomorrow:"Pushed to tomorrow",parentalDone:"Done and exit ✅",pushAlready:"Task already scheduled tomorrow",
     evIgnoredTag:"was ignored",
     noApprovals:"Nothing to approve right now.<br>When a child taps « Done », it appears here.",
     btnApprove:"✓ Approve (+{pts})",btnReject:"✗ Reject",
@@ -673,7 +673,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.114";
+const APP_VERSION = "v0.119";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1317,6 +1317,12 @@ let view = { name:"lock", childId:null, tab:"approbations" };
 let pendingNewEvents = [];
 let expandedDonePeriods = new Set();
 let rejectingComp = null; /* id de complétion en cours de refus avec pénalité */
+/* Aperçu « Vision enfant » depuis enfant/réglage : off par défaut, remis à off en
+   entrant/sortant du mode réglage. Pendant l'aperçu, les sections du corps de page
+   se comportent comme la vue enfant normale (bodyEditMode() = false), sans jamais
+   marquer un événement comme vu ni déclencher son animation. */
+let childVisionMode = false;
+function bodyEditMode(){ return view.childEditMode && !childVisionMode; }
 function go(name, opts){ view = Object.assign({name}, opts||{}); render(); }
 
 /* ============ Rendu ============ */
@@ -1390,7 +1396,7 @@ function renderRewardHistory(c){
   if(items.length===0) return "";
   return items.map(p=>{
     let chip="", sub="", cancelBtn="", statusGrid="";
-    if(view.childEditMode){
+    if(bodyEditMode()){
       /* même grille de statut qu'Historique (Achetée/Approuvée/Donnée/Refusée) */
       statusGrid = rewardStatusButtons(p.id, p.status);
     } else if(p.status==="pending"){
@@ -1455,11 +1461,18 @@ function renderChild(){
     n.childId !== c.id || !n.viewedAt || (nowMs - n.viewedAt) < THIRTY_MIN
   );
   const myNotifs    = (state.notifications||[]).filter(n => n.childId === c.id);
-  const newlyViewed = myNotifs.filter(n => !n.viewedAt);
+  const hasPendingEvents = myNotifs.some(n => !n.viewedAt);
+  /* verrou « Événement » : tant que l'enfant n'a pas cliqué pour lancer l'animation,
+     rien n'est marqué vu et la page reste grisée sous le carré de points.
+     Sans effet en mode réglage (le parent garde un accès normal). */
+  const showEventLock = hasPendingEvents && !view.eventsRevealed && !view.childEditMode;
+  /* jamais de marquage/animation en mode réglage (édition normale OU aperçu vision enfant) */
+  const newlyViewed = (view.childEditMode || showEventLock) ? [] : myNotifs.filter(n => !n.viewedAt);
 
   /* capturer displayPts AVANT de poser viewedAt : lockDisplayPts soustrait les deltas
-     des notifications non vues, donnant la valeur "avant animation" correcte */
-  const displayPts = lockDisplayPts(c);
+     des notifications non vues, donnant la valeur "avant animation" correcte.
+     En réglage (édition ou aperçu), le parent voit toujours le total réel à jour. */
+  const displayPts = view.childEditMode ? c.points : lockDisplayPts(c);
 
   newlyViewed.forEach(n => { n.viewedAt = nowMs; });
   if(newlyViewed.length > 0 || state.notifications.length !== beforeLen) save();
@@ -1478,14 +1491,18 @@ function renderChild(){
         const isIgnored = !!n.ignored;
         const sep = i<sortedNotifs.length-1 ? ";border-bottom:1px solid var(--line)" : "";
         const rowStyle = `display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:7px 0${sep}${isIgnored?";opacity:.38":""}`;
-        const editDel = view.childEditMode
+        const editDel = bodyEditMode()
           ? `<span style="display:flex;gap:4px;flex-shrink:0">${miniIconBtn("edit-event-entry", n.id, "✏️")}${miniIconBtn("del-event-entry", n.id, "🗑️")}</span>`
           : "";
-        const animBtns = view.childEditMode ? eventAnimButtons(n.id, !!n.viewedAt) : "";
+        const animBtns = bodyEditMode() ? eventAnimButtons(n.id, !!n.viewedAt) : "";
         const ignoredTag = isIgnored ? `<span style="font-size:12px;font-weight:700;color:var(--ink-soft);flex-shrink:0">${t("evIgnoredTag")}</span>` : "";
+        /* aperçu "Vision enfant" : petit repère ⏳ à côté du titre, sans jamais marquer vu */
+        const visionPendingTag = (childVisionMode && !n.viewedAt)
+          ? `<span style="font-size:11px;font-weight:700;color:#b86a00;margin-left:6px;white-space:nowrap">⏳ ${state.lang==="en"?"Animation":"Animation"}</span>`
+          : "";
         return `<div style="${rowStyle}">
           <span style="font-size:18px">${isPU?"⚡":n.type==="investment"?"💰":"💣"}</span>
-          <div style="flex:1;min-width:0;font-weight:700;font-size:15px">${esc(n.title)}<span style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-left:6px;white-space:nowrap">${fmtCompletedAt(n.createdAt)}</span></div>
+          <div style="flex:1;min-width:0;font-weight:700;font-size:15px">${esc(n.title)}${visionPendingTag}<span style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-left:6px;white-space:nowrap">${fmtCompletedAt(n.createdAt)}</span></div>
           <span style="font-weight:900;font-size:16px;color:${isPU?"#2BB673":"#E74C3C"}">${isPU?"+":"-"}${n.points}</span>
           ${editDel}${ignoredTag}
           ${animBtns}
@@ -1584,7 +1601,7 @@ function renderChild(){
       const st = taskStatusFor(tsk, c.id);
       const isPushed = isPushedTomorrow(tsk, c.id);
       let action;
-      if(view.childEditMode){
+      if(bodyEditMode()){
         action = gearButtons(tsk, c.id, st);
       } else if(st==="skipped"){
         action = statusChip("status-chip", `✗ ${t("skipped")}`);
@@ -1598,7 +1615,7 @@ function renderChild(){
         if(st==="done")    action = statusChip("done-chip", t("statusDone"));
       }
       rows += `
-        <div class="task" id="tc-${tsk.id}" style="${(!view.childEditMode && (st==="skipped"||st==="non-complete"||isPushed))?"opacity:.4":""}">
+        <div class="task" id="tc-${tsk.id}" style="${(!bodyEditMode() && (st==="skipped"||st==="non-complete"||isPushed))?"opacity:.4":""}">
           ${tsk.incompletePenalty > 0
             ? `<div>
                  <span class="pts-badge" style="display:block;font-size:14px;position:relative;z-index:1">+${tsk.points}</span>
@@ -1628,7 +1645,7 @@ function renderChild(){
       const st = taskStatusFor(tsk, c.id);
       const isPushed = isPushedTomorrow(tsk, c.id);
       let action;
-      if(view.childEditMode){
+      if(bodyEditMode()){
         action = gearButtons(tsk, c.id, st);
       } else if(st==="skipped"){
         action = statusChip("status-chip", `✗ ${t("skipped")}`);
@@ -1642,7 +1659,7 @@ function renderChild(){
         if(st==="done")    action = statusChip("done-chip", t("statusDone"));
       }
       rows += `
-        <div class="task" id="tc-${tsk.id}" style="${(!view.childEditMode && (st==="skipped"||st==="non-complete"||isPushed))?"opacity:.4":""}">
+        <div class="task" id="tc-${tsk.id}" style="${(!bodyEditMode() && (st==="skipped"||st==="non-complete"||isPushed))?"opacity:.4":""}">
           ${tsk.incompletePenalty > 0
             ? `<div>
                  <span class="pts-badge" style="display:block;font-size:14px;position:relative;z-index:1">+${tsk.points}</span>
@@ -1731,14 +1748,14 @@ function renderChild(){
             : t("statusPending");
           action = `<button class="do waiting" data-action="undo-task" data-id="${tsk.id}">${pendingLabel}</button>`;
         } else if(st === "skipped"){
-          action = view.childEditMode
+          action = bodyEditMode()
             ? `<div style="display:flex;flex-direction:column;gap:4px">${exSkipBtn(t("skipped"))}${exPushBtn(false)}</div>`
             : statusChip("status-chip", `✗ ${t("skipped")}`);
         } else if(st === "non-complete"){
           action = statusChip("status-chip", t("histNonComplete"));
           locked = true;
         } else if(isPushedEx){
-          action = view.childEditMode
+          action = bodyEditMode()
             ? `<div style="display:flex;flex-direction:column;gap:4px">${exSkipBtn(t("skip"))}${exPushBtn(true)}</div>`
             : statusChip("status-chip", `↷ ${t("pushedTomorrow")}`);
         } else if(closed){
@@ -1746,7 +1763,7 @@ function renderChild(){
           locked = true;
         } else if(!naturallyUnlocked){
           /* locked (conditions not met) — may be force-unlocked */
-          if(view.childEditMode){
+          if(bodyEditMode()){
             action = `<div style="display:flex;flex-direction:column;gap:4px">${lockToggleBtn(isForceUnlocked)}${exSkipBtn(t("skip"))}${exPushBtn(false)}</div>`;
             /* no opacity in editMode */
           } else if(isForceUnlocked){
@@ -1755,7 +1772,7 @@ function renderChild(){
             action = `<span style="font-size:16px;padding:6px 10px;background:var(--line);border-radius:10px">🔒</span>`;
             locked = true;
           }
-        } else if(view.childEditMode){
+        } else if(bodyEditMode()){
           action = `<div style="display:flex;flex-direction:column;gap:4px">${exSkipBtn(t("skip"))}${exPushBtn(false)}</div>`;
         } else {
           action = `<button class="do" data-action="do-task" data-id="${tsk.id}">${t("btnDone")}</button>`;
@@ -1791,7 +1808,7 @@ function renderChild(){
 
       const isPushed = isPushedTomorrow(tsk, c.id);
       let action;
-      if(view.childEditMode){
+      if(bodyEditMode()){
         action = gearButtons(tsk, c.id, st);
       } else if(st === "skipped"){
         action = statusChip("status-chip", `✗ ${t("skipped")}`);
@@ -1808,7 +1825,7 @@ function renderChild(){
       }
 
       const wrapStyle = [
-        (!view.childEditMode && (greyed || st === "skipped" || st === "non-complete" || isPushed)) ? "opacity:.4" : "",
+        (!bodyEditMode() && (greyed || st === "skipped" || st === "non-complete" || isPushed)) ? "opacity:.4" : "",
         carried ? "border-left:3px solid var(--wait);padding-left:13px" : "",
       ].filter(Boolean).join(";");
 
@@ -1885,7 +1902,7 @@ function renderChild(){
   }
 
   app().innerHTML = `
-    <div class="top">
+    <div class="top" style="position:relative;z-index:41">
       <button class="back" data-action="lock">‹</button>
       <div class="who-name" style="color:${c.color};flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.emoji)} ${esc(c.name)}</div>
       ${view.childEditMode ? `
@@ -1897,35 +1914,60 @@ function renderChild(){
         </div>
       `}
     </div>
+    ${view.childEditMode ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border-radius:14px;padding:10px 14px;margin-bottom:10px;box-shadow:var(--shadow)">
+        <span style="font-weight:700;font-size:14px">${state.lang==="en"?"Child view":"Vision enfant"}</span>
+        <button class="toggle-sw ${childVisionMode?"on":""}" data-action="toggle-child-vision"></button>
+      </div>
+    ` : ""}
     <div class="hero" style="background:linear-gradient(135deg, ${c.color}, ${shade(c.color,-18)})">
       <span class="emoji">${esc(c.emoji)}</span>
       <div class="label">${t("myPoints")}</div>
       <div class="big"><span class="c"></span><span id="pts-val">${displayPts}</span></div>
       <div class="sub">${t("heroSub")}</div>
     </div>
-    ${view.childEditMode ? `
-      <div class="parental-edit-panel" style="margin-bottom:10px">
-        <button class="add-btn" data-action="new-event-child" data-id="${c.id}">＋ ${state.lang==="en"?"New event":"Nouvel événement"}</button>
-        <button class="add-btn" data-action="add-task-child" data-id="${c.id}">${t("addTask")}</button>
-        ${pendingNewEvents.length > 0 ? `
-          <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
-            ${pendingNewEvents.map((ev,i)=>`
-              <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--line);border-radius:10px;opacity:.75">
-                <span style="font-size:16px">${ev.type==="powerup"?"⭐":"💣"}</span>
-                <span style="flex:1;font-size:14px;font-weight:600;color:var(--ink)">${esc(ev.title)}</span>
-                <span style="font-size:13px;font-weight:700;color:${ev.type==="powerup"?"#2BB673":"#E74C3C"}">${ev.type==="powerup"?"+":"−"}${ev.points}</span>
-                <button class="icon-btn" style="font-size:16px;color:var(--ink-soft)" data-action="cancel-pending-ev" data-idx="${i}">✕</button>
-              </div>
-            `).join("")}
-          </div>
-        ` : ""}
+    <div style="${showEventLock ? "pointer-events:none;opacity:.4" : ""}">
+      ${bodyEditMode() ? `
+        <div class="parental-edit-panel" style="margin-bottom:10px">
+          <button class="add-btn" data-action="new-event-child" data-id="${c.id}">＋ ${state.lang==="en"?"New event":"Nouvel événement"}</button>
+          <button class="add-btn" data-action="add-task-child" data-id="${c.id}">${t("addTask")}</button>
+          ${pendingNewEvents.length > 0 ? `
+            <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
+              ${pendingNewEvents.map((ev,i)=>`
+                <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--line);border-radius:10px;opacity:.75">
+                  <span style="font-size:16px">${ev.type==="powerup"?"⭐":"💣"}</span>
+                  <span style="flex:1;font-size:14px;font-weight:600;color:var(--ink)">${esc(ev.title)}</span>
+                  <span style="font-size:13px;font-weight:700;color:${ev.type==="powerup"?"#2BB673":"#E74C3C"}">${ev.type==="powerup"?"+":"−"}${ev.points}</span>
+                  <button class="icon-btn" style="font-size:16px;color:var(--ink-soft)" data-action="cancel-pending-ev" data-idx="${i}">✕</button>
+                </div>
+              `).join("")}
+            </div>
+          ` : ""}
+        </div>
+      ` : ""}
+      <button class="add-btn" data-action="open-store" data-id="${c.id}">${t("shopBtn")}</button>
+      <div id="reward-hist-${c.id}">${renderRewardHistory(c)}</div>
+      ${evPanel}
+      ${sections}
+    </div>
+    ${showEventLock ? `
+      <div id="event-lock-overlay" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:40;background:rgba(35,33,74,.45);display:flex;align-items:center;justify-content:center;padding:20px">
+        <div style="background:#fff;border-radius:22px;padding:28px 24px;max-width:340px;width:100%;text-align:center;box-shadow:var(--shadow)">
+          <div style="font-size:40px;margin-bottom:10px">⚡</div>
+          <h3 style="font-size:20px;margin-bottom:18px">${state.lang==="en"?"Event":"Événement"}</h3>
+          <button class="btn btn-yes" style="width:100%;font-size:17px;padding:16px;background:#2BB673;color:#fff" data-action="reveal-events">${state.lang==="en"?"Click here":"Clique ici"}</button>
+        </div>
       </div>
     ` : ""}
-    <button class="add-btn" data-action="open-store" data-id="${c.id}">${t("shopBtn")}</button>
-    <div id="reward-hist-${c.id}">${renderRewardHistory(c)}</div>
-    ${evPanel}
-    ${sections}
   `;
+  if(showEventLock) lockBodyScroll(); else unlockBodyScroll();
+  if(showEventLock){
+    /* l'overlay ne doit jamais recouvrir l'en-tête (crayon/réglage doivent rester cliquables) :
+       on le fait démarrer juste sous le bas réel de .top, mesuré après insertion dans le DOM. */
+    const topEl = document.querySelector(".top");
+    const overlayEl = document.getElementById("event-lock-overlay");
+    if(topEl && overlayEl) overlayEl.style.top = topEl.getBoundingClientRect().bottom + "px";
+  }
 
   /* play animation then update the counter display */
   let runningPts = displayPts;
@@ -3653,6 +3695,7 @@ function finishChildEdit(){
   const toApply = [...pendingNewEvents];
   pendingNewEvents = [];
   view.childEditMode = false;
+  childVisionMode = false;
   /* quitte aussi la fenêtre enfant (retour à l'accueil) : sans ça, renderChild()
      re-rendu tout de suite marquerait un événement fraîchement créé comme "viewedAt"
      immédiatement, rendant le bouton ⏳ Animation toujours déjà "joué" à tort. */
@@ -4514,6 +4557,7 @@ document.addEventListener("click", (e)=>{
     /* enfants */
     /* mode édition parental depuis l'écran enfant */
     case "child-edit-gear": {
+      childVisionMode = false;
       if(state.parentPin){
         pinKeypadModal("gear");
       } else {
@@ -4522,6 +4566,8 @@ document.addEventListener("click", (e)=>{
       break;
     }
     case "child-edit-done": finishChildEdit(); break;
+    case "toggle-child-vision": childVisionMode = !childVisionMode; render(); break;
+    case "reveal-events": view.eventsRevealed = true; render(); break;
     case "cancel-pending-ev": {
       const idx = parseInt(el.dataset.idx, 10);
       if(!isNaN(idx)) pendingNewEvents.splice(idx, 1);
