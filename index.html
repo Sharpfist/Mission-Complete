@@ -103,6 +103,7 @@
     background:var(--card);border-radius:18px;padding:14px 14px 14px 16px;margin-bottom:3px;
     display:flex;align-items:center;flex-wrap:wrap;gap:14px;box-shadow:var(--shadow);
   }
+  .task-editdel{display:flex;gap:4px;align-self:flex-start;margin-top:1px}
   .task .meta{flex:1;min-width:0}
   .task .t{font-weight:800;font-size:16px}
   .task .f{font-size:13px;color:var(--ink-soft);font-weight:600;margin-top:2px}
@@ -150,6 +151,26 @@
 
   /* ---------- PARENT CARDS ---------- */
   .card{background:#fff;border-radius:18px;padding:16px;box-shadow:var(--shadow);margin-bottom:12px}
+
+  /* ---------- HISTORIQUE : en-têtes empilables (sticky imbriqué) ----------
+     Jour (top:0) et enfant (top:40px, = hauteur exacte de l'en-tête jour) restent
+     collés tant que leur groupe défile ; le groupe suivant les pousse hors champ
+     naturellement (comportement CSS sticky imbriqué, aucun JS requis). */
+  .hist-day-group{margin-top:14px}
+  .hist-day-group:first-child{margin-top:0}
+  .hist-day-head{
+    margin:0;padding:9px 2px;line-height:22px;font-weight:900;font-size:19px;
+    background:var(--cream);position:sticky;top:0;z-index:5;
+    box-shadow:0 4px 6px -6px rgba(35,33,74,.25);
+  }
+  .hist-child-group{margin-top:10px}
+  .hist-child-group:first-child{margin-top:0}
+  .hist-child-head{
+    margin:0;padding:6px 2px;line-height:19px;font-weight:800;font-size:15px;
+    display:flex;align-items:center;gap:6px;
+    background:var(--cream);position:sticky;top:40px;z-index:4;
+    box-shadow:0 4px 6px -6px rgba(35,33,74,.15);
+  }
   .row{display:flex;align-items:center;gap:12px}
   .row .grow{flex:1;min-width:0}
   .muted{color:var(--ink-soft);font-weight:600;font-size:13px}
@@ -687,7 +708,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.134";
+const APP_VERSION = "v0.138";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1199,6 +1220,10 @@ function setPurchaseStatus(pid, newStatus){
 function miniIconBtn(action, dataId, emoji){
   return `<button class="icon-btn" style="width:24px;height:24px;border-radius:8px;font-size:12px;flex-shrink:0" data-action="${action}" data-id="${dataId}">${emoji}</button>`;
 }
+/* crayon/poubelle en coin haut-droit d'une case mission (écran enfant, mode réglage) */
+function taskEditDelBtns(tsk){
+  return `<div class="task-editdel">${miniIconBtn("edit-task", tsk.id, "✏️")}${miniIconBtn("del-task", tsk.id, "🗑️")}</div>`;
+}
 
 /* une mission extrême se débloque pour un enfant quand toutes ses tâches
    régulières de la période assignée (+ all-day si requis) sont APPROUVÉES */
@@ -1240,7 +1265,10 @@ function undoTask(taskId, childId){
   const cid = childId != null ? childId : t.childId;
   const pk = taskPK(t);
   const o = getOcc(taskId, cid, pk);
-  if(o && o.status==="pending") setOccStatus(taskId, cid, pk, "active");   /* n'annule qu'une soumission en attente */
+  if(o && o.status==="pending"){
+    setOccStatus(taskId, cid, pk, "active");   /* n'annule qu'une soumission en attente */
+    o.childDoneAt = null;
+  }
 }
 function markDone(taskId, childId){
   const t = task(taskId); if(!t) return;
@@ -1250,10 +1278,12 @@ function markDone(taskId, childId){
   const ex = getOcc(taskId, cid, pk);
   if(ex && (ex.status==="done" || ex.status==="pending")) return;   /* déjà soumise/approuvée */
   setOccStatus(taskId, cid, pk, "pending");
+  /* horodatage du clic enfant, distinct de la dernière modification (voir Historique) */
+  const o = getOcc(taskId, cid, pk);
+  if(o){ o.childDoneAt = Date.now(); save(); }
   /* pts ajustés si une réduction de report a été appliquée (carry penalty) */
   const cpKey = `${t.id}|${cid}`;
   if(state.carryPenalties && state.carryPenalties[cpKey] != null){
-    const o = getOcc(taskId, cid, pk);
     if(o){ o.pts = state.carryPenalties[cpKey]; save(); }
   }
 }
@@ -1381,6 +1411,12 @@ function bodyEditMode(){ return view.childEditMode && !childVisionMode; }
 /* ids des événements dont l'animation du pop-up "Événement" est en cours de lecture,
    pour éviter un double-déclenchement pendant le court délai avant que viewedAt soit posé */
 let animatingEventIds = new Set();
+/* Historique : le groupement/tri des missions se fait par date DUE (voir missionDueDateStr),
+   figé au moment où on entre sur l'onglet (histSortFresh) pour qu'une action dans la fenêtre
+   (pousser à demain, changer un statut...) ne fasse pas sauter/disparaître une mission de son
+   groupe pendant qu'on la regarde. Recalculé seulement au prochain changement d'onglet. */
+let histSortCache = {};
+let histSortFresh = true;
 function go(name, opts){
   view = Object.assign({name}, opts||{});
   /* le verrou "Événement" (lockBodyScroll) n'est géré que par renderChild() : en quittant
@@ -1688,6 +1724,7 @@ function renderChild(){
             <div class="t">${esc(tsk.title)}</div>
             <div class="f" style="color:var(--ink-soft);font-size:12px">${weekValueLabel(tsk)}</div>
           </div>
+          ${bodyEditMode() ? taskEditDelBtns(tsk) : ""}
           ${action}
         </div>`;
     });
@@ -1732,6 +1769,7 @@ function renderChild(){
             <div class="t">📅 ${esc(tsk.title)}</div>
             <div class="f" style="color:var(--ink-soft);font-size:12px">${monthValueLabel(tsk)}</div>
           </div>
+          ${bodyEditMode() ? taskEditDelBtns(tsk) : ""}
           ${action}
         </div>`;
     });
@@ -1864,6 +1902,7 @@ function renderChild(){
               <div class="t">${modeEmoji} ${esc(tsk.title)}</div>
               <div class="f" style="font-size:12px;color:#a06d00;font-weight:800">${subLine}</div>
             </div>
+            ${bodyEditMode() ? taskEditDelBtns(tsk) : ""}
             ${action}
           </div>`;
       }
@@ -1921,6 +1960,7 @@ function renderChild(){
             ${isMonthTask(tsk) ? `<div class="f" style="color:var(--ink-soft);font-size:12px">${monthValueLabel(tsk)}</div>` : ""}
             ${carried ? `<div class="f" style="color:var(--wait);font-size:12px">↩ ${t("carriedOver")}</div>` : ""}
           </div>
+          ${bodyEditMode() ? taskEditDelBtns(tsk) : ""}
           ${action}
         </div>`;
     };
@@ -2697,20 +2737,37 @@ function hDayBucket(ts){
   const today = new Date(); today.setHours(0,0,0,0);
   return Math.round((today - d) / 86400000); /* 0=auj, 1=hier, 2=avant-hier */
 }
+/* date due d'une occurrence : la poussée à demain (periodOverride) déplace la date due
+   à "periodKey + 1 jour", sinon c'est la periodKey elle-même. */
+function missionDueDateStr(o){ return o.periodOverride || o.periodKey; }
+/* timestamp (minuit local) utilisable par hDayBucket, seulement pour une date due au
+   format quotidien "YYYY-MM-DD" ; null pour les périodeKeys hebdo/mensuelles (pas de
+   jour précis à assigner, on retombe alors sur le dernier changement). */
+function dueTsForBucket(dueStr){
+  return /^\d{4}-\d{2}-\d{2}$/.test(dueStr||"") ? new Date(dueStr+"T00:00:00").getTime() : null;
+}
 function hTime(ts){ const d = new Date(ts); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
 function parentHistory(){
   /* 1. Collecte des items datés des 3 derniers jours civils */
   const items = [];
-  /* Missions : occurrences avec activité (statut ≠ active) */
+  if(histSortFresh){ histSortCache = {}; histSortFresh = false; }
+  /* Missions : occurrences avec activité (statut ≠ active). Groupées/triées par date DUE
+     (figée dans histSortCache tant qu'on reste sur l'onglet — voir déclaration plus haut). */
   currentOccurrences().forEach(o => {
-    const ts = o.updatedAt || o.approvedAt || o.createdAt;   /* jour du dernier changement */
-    const b = hDayBucket(ts);
-    if(b < 0 || b > 2) return;
+    const lastMod = o.updatedAt || o.approvedAt || o.createdAt;
+    let info = histSortCache[o.id];
+    if(!info){
+      const dueTs = dueTsForBucket(missionDueDateStr(o));
+      info = { bucket: dueTs!=null ? hDayBucket(dueTs) : hDayBucket(lastMod), sortTs: dueTs!=null ? dueTs : lastMod };
+      histSortCache[o.id] = info;
+    }
+    if(info.bucket < 0 || info.bucket > 2) return;
     const tsk = task(o.taskId); if(!tsk) return;
-    items.push({ bucket:b, ts, childId:o.childId, kind:"mission", order:2,
+    items.push({ bucket:info.bucket, ts:info.sortTs, childId:o.childId, kind:"mission", order:2,
       title: tsk.title, status:o.status, pts:o.appliedDelta,
       isExtreme: isExtreme(tsk),
-      taskId:o.taskId, pk:o.periodKey });
+      taskId:o.taskId, pk:o.periodKey,
+      childDoneAt:o.childDoneAt||null, lastMod });
   });
   /* Missions du jour dues mais sans occurrence encore enregistrée (nouvelle période
      jamais touchée) : on les affiche quand même comme "active" pour aujourd'hui,
@@ -2728,7 +2785,7 @@ function parentHistory(){
       items.push({ bucket:0, ts:Date.now(), childId:k.id, kind:"mission", order:2,
         title: tsk.title, status:"active", pts:0,
         isExtreme: isExtreme(tsk),
-        taskId:tsk.id, pk });
+        taskId:tsk.id, pk, childDoneAt:null, lastMod:null });
     });
   });
   /* Événements : notifications */
@@ -2758,17 +2815,17 @@ function parentHistory(){
   for(let b=0; b<=2; b++){
     const dayItems = items.filter(x=>x.bucket===b);
     if(!dayItems.length) continue;
-    html += `<div style="font-weight:900;font-size:19px;margin:18px 2px 8px">${dayLabels[b]}</div>`;
+    html += `<div class="hist-day-group"><div class="hist-day-head">${dayLabels[b]}</div>`;
     /* groupe par enfant (ordre des enfants) */
     const kids = [...new Set(dayItems.map(x=>x.childId))].sort((a,b)=>childIdx(a)-childIdx(b));
     kids.forEach(cid => {
       const k = child(cid); if(!k) return;
       const kItems = dayItems.filter(x=>x.childId===cid)
         .sort((a,b)=> a.order-b.order || a.ts-b.ts);
-      html += `<div style="font-weight:800;font-size:15px;color:${k.color};margin:12px 2px 5px;display:flex;align-items:center;gap:6px">${esc(k.emoji)} ${esc(k.name)}<span class="muted" style="font-weight:600;font-size:12px">${k.points||0} pts</span></div>`;
+      html += `<div class="hist-child-group"><div class="hist-child-head" style="color:${k.color}">${esc(k.emoji)} ${esc(k.name)}<span class="muted" style="font-weight:600;font-size:12px">${k.points||0} pts</span></div>`;
       html += kItems.map(x=>{
         const icon = x.kind==="mission" ? "📋" : x.kind==="event" ? (x.evType==="bomb"?"💣":x.evType==="investment"?"💰":"⚡") : esc(x.emoji||"🎁");
-        let actions = "", editDel = "", ptsTag = "";
+        let actions = "", editDel = "", ptsTag = "", subLine = "";
         if(x.kind==="mission"){
           const tsk = task(x.taskId);
           /* mêmes boutons qu'enfant/réglage (DRY) : hors extrême uniquement */
@@ -2779,6 +2836,9 @@ function parentHistory(){
             ptsTag = `<span style="font-size:12px;font-weight:900;white-space:nowrap"><span style="color:#1d8a55">+${tsk.points}</span>${penalty>0?`<span style="color:#c0392b">/-${penalty}</span>`:""}</span>`;
           }
           editDel = `<span style="display:flex;gap:4px;flex-shrink:0">${miniIconBtn("edit-task", x.taskId, "✏️")}${miniIconBtn("del-task", x.taskId, "🗑️")}</span>`;
+          const doneStr = x.childDoneAt ? fmtCompletedAt(x.childDoneAt) : "N/A";
+          const modStr  = x.lastMod ? fmtCompletedAt(x.lastMod) : "N/A";
+          subLine = `<div style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-top:2px">✅ ${state.lang==="en"?"by child":"par enfant"} : ${doneStr} // ${state.lang==="en"?"Last change":"Dernière modification"} : ${modStr}</div>`;
         } else if(x.kind==="event"){
           const up = x.delta >= 0;
           ptsTag = `<span style="font-size:12px;font-weight:900;color:${up?"#1d8a55":"#c0392b"};white-space:nowrap">${up?"+":""}${x.delta}</span>`;
@@ -2788,6 +2848,7 @@ function parentHistory(){
           ptsTag = `<span style="font-size:12px;font-weight:900;color:#c0392b;white-space:nowrap">−${x.cost}</span>`;
           actions = rewardStatusButtons(x.pid, x.status);
         }
+        const timeTag = x.kind==="mission" ? "" : `<span style="font-size:11px;font-weight:600;color:var(--ink-soft);white-space:nowrap">${hTime(x.ts)}</span>`;
         return `
           <div class="card" style="padding:9px 12px;margin-bottom:5px;display:flex;align-items:flex-start;flex-wrap:wrap;gap:10px">
             <div style="flex:1;min-width:0;padding-top:2px">
@@ -2795,14 +2856,16 @@ function parentHistory(){
                 <span style="font-size:16px;flex-shrink:0">${icon}</span>
                 <div style="font-weight:700;font-size:14px;line-height:1.3;flex:1;min-width:0">${esc(x.title)}</div>
                 ${ptsTag}
-                <span style="font-size:11px;font-weight:600;color:var(--ink-soft);white-space:nowrap">${hTime(x.ts)}</span>
+                ${timeTag}
                 ${editDel}
               </div>
+              ${subLine}
             </div>
             ${actions}
           </div>`;
-      }).join("");
+      }).join("") + "</div>";
     });
+    html += "</div>";
   }
   return html;
 }
@@ -4133,6 +4196,7 @@ document.addEventListener("click", (e)=>{
       const newTab = el.dataset.tab;
       if(newTab === view.tab) break;
       view.tab = newTab;
+      if(newTab==="historique") histSortFresh = true;   /* recalcule le tri par date due seulement à l'entrée sur l'onglet */
       /* update tab active state in-place */
       document.querySelectorAll("[data-action='ptab']").forEach(btn=>{
         btn.classList.toggle("active", btn.dataset.tab === newTab);
