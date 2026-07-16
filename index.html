@@ -718,7 +718,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.145";
+const APP_VERSION = "v0.147";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1541,7 +1541,7 @@ function renderRewardHistory(c){
     const sep = i<arr.length-1 ? ";border-bottom:1px solid var(--line)" : "";
     const rowStyle = `display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:7px 0${sep}${isIgnored?";opacity:.38":""}`;
     const unitsTag = p.units ? ` (${p.units} ${esc(p.unitLabel||"")})` : "";
-    return `<div style="${rowStyle}">
+    return `<div style="${rowStyle};padding-left:12px">
       <span style="font-size:18px">${esc(p.emoji||"🎁")}</span>
       <div style="flex:1;min-width:0;font-weight:700;font-size:15px">${esc(p.title)}${unitsTag}${sub}<span style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-left:6px;white-space:nowrap">${fmtCompletedAt(p.createdAt)}</span></div>
       <span style="font-weight:900;font-size:16px;color:#E74C3C">−${displayCost}</span>
@@ -1550,7 +1550,7 @@ function renderRewardHistory(c){
       ${cancelBtn}
     </div>`;
   };
-  const cardLabel = state.lang==="fr" ? "Récompenses" : "Rewards";
+  const cardLabel = state.lang==="fr" ? "Récompense" : "Reward";
   const collapsible = items.length >= 4;
   const isExp = expandedRewardHist.has(c.id);
   /* titre = seul déclencheur du repliage à 4+ (plus de carré beige séparé) :
@@ -1558,7 +1558,7 @@ function renderRewardHistory(c){
   const header = `
     <div ${collapsible ? `data-action="toggle-reward-group" data-cid="${c.id}"` : ""}
       style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;${collapsible?"cursor:pointer":""}">
-      <span style="font-size:16px;font-weight:800;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.6px">🎁 ${cardLabel} ${items.length}</span>
+      <span style="font-size:16px;font-weight:800;color:var(--ink-soft)">🎁 ${cardLabel} ${items.length}</span>
       ${collapsible ? `<span id="reward-hist-arrow-${c.id}" style="font-size:16px;line-height:1;color:var(--ink-soft)">${isExp?"▴":"▾"}</span>` : ""}
     </div>`;
   const body = collapsible
