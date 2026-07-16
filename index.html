@@ -381,6 +381,11 @@ const TRANSLATIONS = {
     storeTitle:"🛒 Boutique",buyBtn:"Acheter — {cost} pts",buyLocked:"🔒 {cost} pts",
     storeNote:"Quand tu achètes, tes points baissent.<br>Va voir un parent pour recevoir ta surprise 😊",
     noRewards:"Aucune récompense pour l'instant.",
+    storeTitleParent:"🛒 Boutique Parent",
+    storeNoteParent:"Choisis directement le statut : les points sont déduits tout de suite.",
+    parentBuyApprove:"Approuvée — {cost} pts",parentBuyGiven:"Fut donnée — {cost} pts",
+    parentBuyLocked:"🔒 {cost} pts",
+    toastRewardApproved:"Récompense approuvée",toastRewardGiven:"Récompense donnée",
     tabApprove:"À valider",tabTasks:"Missions",tabStore:"Boutique",tabChildren:"Enfants",tabInvestment:"Investissement",tabSettings:"Réglages",
     tabHistory:"🕓 Historique",histToday:"Aujourd'hui",histYesterday:"Hier",histDayBefore:"Avant-hier",histEmpty:"Aucune activité récente.",
     histNonComplete:"✗ Non complétée",
@@ -533,6 +538,11 @@ const TRANSLATIONS = {
     storeTitle:"🛒 Store",buyBtn:"Buy — {cost} pts",buyLocked:"🔒 {cost} pts",
     storeNote:"When you buy, your points go down.<br>See a parent to get your surprise 😊",
     noRewards:"No rewards yet.",
+    storeTitleParent:"🛒 Parent Store",
+    storeNoteParent:"Pick the status directly: points are deducted right away.",
+    parentBuyApprove:"Approved — {cost} pts",parentBuyGiven:"Was given — {cost} pts",
+    parentBuyLocked:"🔒 {cost} pts",
+    toastRewardApproved:"Reward approved",toastRewardGiven:"Reward given",
     tabApprove:"To approve",tabTasks:"Missions",tabStore:"Store",tabChildren:"Children",tabInvestment:"Investment",tabSettings:"Settings",
     tabHistory:"🕓 History",histToday:"Today",histYesterday:"Yesterday",histDayBefore:"2 days ago",histEmpty:"No recent activity.",
     histNonComplete:"✗ Not completed",
@@ -708,7 +718,7 @@ function calFreqLabel(tsk){
 }
 
 /* ============ Stockage ============ */
-const APP_VERSION = "v0.138";
+const APP_VERSION = "v0.145";
 const KEY = "missions_recompenses_v1";
 let _mem = null;
 function load(){
@@ -1345,13 +1355,18 @@ function updateProgTotal(rewardId){
   const r = reward(rewardId); const c = child(view.childId);
   const total = ceilTotal(n, r.factor);
   const can = c.points >= total;
-  const btn = document.getElementById("prog-buy-btn-"+rewardId);
-  if(btn){
+  document.querySelectorAll(`[data-prog-btn="${rewardId}"]`).forEach(btn=>{
     btn.classList.toggle("locked", !can);
-    btn.textContent = can ? t("buyBtn",{cost:total}) : t("buyLocked",{cost:total});
-  }
+    const status = btn.dataset.status;
+    btn.textContent = !can ? (status ? t("parentBuyLocked",{cost:total}) : t("buyLocked",{cost:total}))
+      : status==="approved" ? t("parentBuyApprove",{cost:total})
+      : status==="given"    ? t("parentBuyGiven",{cost:total})
+      : t("buyBtn",{cost:total});
+  });
 }
-function buy(rewardId, childId, units){
+/* statusOverride : Boutique Parent crée l'achat directement au statut choisi
+   (approuvée/donnée), au lieu du "en attente" habituel côté enfant */
+function buy(rewardId, childId, units, statusOverride){
   const r = reward(rewardId); const k = child(childId);
   if(!r||!k) return false;
   const isProg = r.costMode==="progressive";
@@ -1360,8 +1375,12 @@ function buy(rewardId, childId, units){
   if(k.points < cost) return false;
   k.points -= cost;
   if(!state.purchases) state.purchases = [];
-  state.purchases.unshift({id:uid(), rewardId:r.id, childId:k.id, childName:k.name, title:r.title, emoji:r.emoji||"🎁", cost,
-    units: isProg?n:undefined, unitLabel: isProg?r.unitLabel:undefined, status:"pending", createdAt:Date.now()});
+  const status = statusOverride || "pending";
+  const p = {id:uid(), rewardId:r.id, childId:k.id, childName:k.name, title:r.title, emoji:r.emoji||"🎁", cost,
+    units: isProg?n:undefined, unitLabel: isProg?r.unitLabel:undefined, status, createdAt:Date.now()};
+  if(status==="approved" || status==="given") p.approvedAt = Date.now();
+  if(status==="given") p.givenAt = Date.now();
+  state.purchases.unshift(p);
   save();
   return true;
 }
@@ -1401,6 +1420,7 @@ function deleteChild(id){
 let view = { name:"lock", childId:null, tab:"approbations" };
 let pendingNewEvents = [];
 let expandedDonePeriods = new Set();
+let expandedRewardHist = new Set();
 let rejectingComp = null; /* id de complétion en cours de refus avec pénalité */
 /* Aperçu « Vision enfant » depuis enfant/réglage : off par défaut, remis à off en
    entrant/sortant du mode réglage. Pendant l'aperçu, les sections du corps de page
@@ -1485,6 +1505,10 @@ function renderLock(){
 }
 
 /* ----- Écran enfant ----- */
+/* Carte "Cadeaux" : même carré/typo/couleurs que la carte "Événements" (evPanel dans
+   renderChild) — fond blanc, libellé majuscule discret, lignes séparées par une bordure
+   fine, valeur en points en gras à droite. Le repliage à 4+ (toggle-reward-group) est
+   propre à cette carte et n'existe pas côté Événements. */
 function renderRewardHistory(c){
   const now = Date.now(), H24 = 864e5;
   const items = (state.purchases||[]).filter(p => {
@@ -1495,36 +1519,59 @@ function renderRewardHistory(c){
     return true;
   });
   if(items.length===0) return "";
-  return items.map(p=>{
+  const renderRow = (p, i, arr) => {
     let chip="", sub="", cancelBtn="", statusGrid="";
     if(bodyEditMode()){
       /* même grille de statut qu'Historique (Achetée/Approuvée/Donnée/Refusée) */
       statusGrid = rewardStatusButtons(p.id, p.status);
     } else if(p.status==="pending"){
       chip=`<span class="tag" style="background:#FFF4D6;color:#a06d00;font-size:12px">${t("purchasePending")}</span>`;
-      cancelBtn=`<button class="btn btn-ghost" style="font-size:12px;padding:5px 12px;margin-top:6px" data-action="cancel-purchase" data-id="${p.id}">${t("btnCancel")}</button>`;
+      /* juste sous le sablier "en attente", pleine largeur comme les autres blocs d'action */
+      cancelBtn=`<div style="flex:0 0 100%;text-align:right"><button class="btn btn-ghost" style="font-size:12px;padding:5px 12px;margin-top:4px" data-action="cancel-purchase" data-id="${p.id}">${t("btnCancel")}</button></div>`;
     } else if(p.status==="approved"){
       chip=`<span class="tag" style="background:#E6F7EE;color:#1d8a55;font-size:12px">${t("purchaseApproved")}</span>`;
-      sub=`<div style="font-size:11px;font-weight:700;color:#1d8a55;margin-top:2px">${t("purchaseApprovedSub")}</div>`;
+      sub=`<span style="font-size:11px;font-weight:700;color:#1d8a55;margin-left:6px">${t("purchaseApprovedSub")}</span>`;
     } else if(p.status==="given"){
       chip=`<span class="tag" style="background:#E6F7EE;color:#1d8a55;font-size:12px">${t("purchaseGiven")}</span>`;
     } else if(p.status==="refused"){
       chip=`<span class="tag" style="background:#FCE9E9;color:#c0392b;font-size:12px">${t("purchaseRefused")}</span>`;
     }
     const displayCost = p.status==="refused" ? 0 : p.cost;
-    const rowShaded = p.status==="refused" ? "opacity:.5" : "";
-    return `
-      <div class="row" style="align-items:flex-start;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line);${rowShaded}">
-        <span style="font-size:22px;flex-shrink:0">${esc(p.emoji||"🎁")}</span>
-        <div class="grow">
-          <div style="font-weight:700;font-size:14px">${esc(p.title)}</div>
-          <div class="muted" style="font-size:12px">${displayCost} pts</div>
-          ${cancelBtn}
-        </div>
-        <div style="flex-shrink:0;text-align:right">${chip}${sub}</div>
-        ${statusGrid}
-      </div>`;
-  }).join("");
+    const isIgnored = p.status==="refused";
+    const sep = i<arr.length-1 ? ";border-bottom:1px solid var(--line)" : "";
+    const rowStyle = `display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:7px 0${sep}${isIgnored?";opacity:.38":""}`;
+    const unitsTag = p.units ? ` (${p.units} ${esc(p.unitLabel||"")})` : "";
+    return `<div style="${rowStyle}">
+      <span style="font-size:18px">${esc(p.emoji||"🎁")}</span>
+      <div style="flex:1;min-width:0;font-weight:700;font-size:15px">${esc(p.title)}${unitsTag}${sub}<span style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-left:6px;white-space:nowrap">${fmtCompletedAt(p.createdAt)}</span></div>
+      <span style="font-weight:900;font-size:16px;color:#E74C3C">−${displayCost}</span>
+      ${chip}
+      ${statusGrid}
+      ${cancelBtn}
+    </div>`;
+  };
+  const cardLabel = state.lang==="fr" ? "Récompenses" : "Rewards";
+  const collapsible = items.length >= 4;
+  const isExp = expandedRewardHist.has(c.id);
+  /* titre = seul déclencheur du repliage à 4+ (plus de carré beige séparé) :
+     🎁 Récompenses 5 ................................. ▾/▴ tout à droite */
+  const header = `
+    <div ${collapsible ? `data-action="toggle-reward-group" data-cid="${c.id}"` : ""}
+      style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;${collapsible?"cursor:pointer":""}">
+      <span style="font-size:16px;font-weight:800;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.6px">🎁 ${cardLabel} ${items.length}</span>
+      ${collapsible ? `<span id="reward-hist-arrow-${c.id}" style="font-size:16px;line-height:1;color:var(--ink-soft)">${isExp?"▴":"▾"}</span>` : ""}
+    </div>`;
+  const body = collapsible
+    ? `<div id="reward-hist-group-${c.id}" style="max-height:${isExp?"3000px":"0"};overflow:hidden;transition:max-height 0.38s ease">
+        ${items.map((p,i)=>renderRow(p,i,items)).join("")}
+      </div>`
+    : items.map((p,i)=>renderRow(p,i,items)).join("");
+
+  return `
+    <div style="margin:22px 0 10px;background:#fff;border-radius:18px;padding:14px 18px;box-shadow:var(--shadow)">
+      ${header}
+      ${body}
+    </div>`;
 }
 
 function showRefundAnim(pts){
@@ -2048,9 +2095,9 @@ function renderChild(){
         </div>
       ` : ""}
       <button class="add-btn" data-action="open-store" data-id="${c.id}">${t("shopBtn")}</button>
-      <div id="reward-hist-${c.id}">${renderRewardHistory(c)}</div>
       ${evPanel}
       ${sections}
+      <div id="reward-hist-${c.id}">${renderRewardHistory(c)}</div>
     </div>
     ${showEventLock ? `
       <div id="event-lock-overlay" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:40;background:rgba(35,33,74,.45);display:flex;align-items:center;justify-content:center;padding:20px">
@@ -2101,16 +2148,39 @@ function renderChild(){
 
 }
 
-/* ----- Boutique (côté enfant) ----- */
+/* ----- Boutique (côté enfant, ou "Boutique Parent" depuis le réglage enfant) -----
+   En réglage (view.childEditMode), le parent donne directement un cadeau : l'achat
+   est créé au statut choisi (approuvée/donnée) au lieu du "en attente" habituel,
+   sans passer par la file d'approbation. */
 function renderStore(){
   const c = child(view.childId);
+  /* même logique que bodyEditMode() : la "Vision enfant" prévisualise la boutique
+     normale même en réglage, la Boutique Parent ne s'affiche qu'en réglage réel */
+  const asParent = !!view.childEditMode && !childVisionMode;
+  /* boutons d'action d'une case récompense, communs aux deux variantes progressive/fixe */
+  function actionButtons(r, cost, can){
+    if(!asParent){
+      return `<button class="buy ${can?"":"locked"}" data-prog-btn="${r.id}" data-action="buy" data-id="${r.id}" data-child="${c.id}">
+        ${can ? t("buyBtn",{cost}) : t("buyLocked",{cost})}
+      </button>`;
+    }
+    const b = (status,label) => `<button class="buy ${can?"":"locked"}" data-prog-btn="${r.id}" data-status="${status}"
+        data-action="parent-buy" data-id="${r.id}" data-child="${c.id}" style="font-size:13px">
+        ${can ? label : t("parentBuyLocked",{cost})}
+      </button>`;
+    return `<div style="display:flex;flex-direction:column;gap:6px">
+      ${b("approved", t("parentBuyApprove",{cost}))}
+      ${b("given", t("parentBuyGiven",{cost}))}
+    </div>`;
+  }
   app().innerHTML = `
     <div class="top">
-      <button class="back" data-action="open-child" data-id="${c.id}">‹</button>
-      <div class="who-name" style="color:${c.color}">${t("storeTitle")}</div>
+      <button class="back" data-action="${view.childEditMode?"open-child-edit":"open-child"}" data-id="${c.id}">‹</button>
+      <div class="who-name" style="color:${c.color}">${asParent ? t("storeTitleParent") : t("storeTitle")}</div>
       <div class="spacer"></div>
       ${coinPill(c.points)}
     </div>
+    ${asParent ? `<button class="add-btn" data-action="new-reward" style="margin-bottom:12px">${t("addReward")}</button>` : ""}
     ${state.rewards.length===0 ? `<div class="empty"><span class="em">🎁</span>${t("noRewards")}</div>` : `
     <div class="store-grid">
       ${state.rewards.map(r=>{
@@ -2130,22 +2200,18 @@ function renderStore(){
               <span>×</span>
               <span>${r.factor}</span>
             </div>
-            <button class="buy ${can?"":"locked"}" id="prog-buy-btn-${r.id}" data-action="buy" data-id="${r.id}" data-child="${c.id}">
-              ${can ? t("buyBtn",{cost:total}) : t("buyLocked",{cost:total})}
-            </button>
+            ${actionButtons(r, total, can)}
           </div>`;
         }
         const can = c.points >= r.cost;
         return `
           <div class="reward">
             <div class="r-top"><span class="r-emoji">${esc(r.emoji||"🎁")}</span><span class="r-name">${esc(r.title)}</span></div>
-            <button class="buy ${can?"":"locked"}" data-action="buy" data-id="${r.id}" data-child="${c.id}">
-              ${can ? t("buyBtn",{cost:r.cost}) : t("buyLocked",{cost:r.cost})}
-            </button>
+            ${actionButtons(r, r.cost, can)}
           </div>`;
       }).join("")}
     </div>`}
-    <p class="footer-note">${t("storeNote")}</p>
+    <p class="footer-note">${asParent ? t("storeNoteParent") : t("storeNote")}</p>
   `;
 }
 
@@ -4112,7 +4178,8 @@ document.addEventListener("click", (e)=>{
 
     /* navigation accueil */
     case "open-child": go("child",{childId:id}); break;
-    case "open-store": case "open-store2": go("store",{childId:id}); break;
+    case "open-child-edit": go("child",{childId:id, childEditMode:true}); break;
+    case "open-store": case "open-store2": go("store",{childId:id, childEditMode:!!view.childEditMode}); break;
     case "lock": go("lock"); break;
 
     case "toggle-done-group": {
@@ -4127,6 +4194,23 @@ document.addEventListener("click", (e)=>{
         if(arrow) arrow.textContent = "▾";
       } else {
         expandedDonePeriods.add(pid);
+        container.style.maxHeight = container.scrollHeight + "px";
+        if(arrow) arrow.textContent = "▴";
+      }
+      break;
+    }
+    case "toggle-reward-group": {
+      const cid = el.dataset.cid;
+      const container = document.getElementById(`reward-hist-group-${cid}`);
+      const arrow = document.getElementById(`reward-hist-arrow-${cid}`);
+      if(!container) break;
+      if(expandedRewardHist.has(cid)){
+        expandedRewardHist.delete(cid);
+        container.style.maxHeight = container.scrollHeight + "px";
+        requestAnimationFrame(() => { container.style.maxHeight = "0"; });
+        if(arrow) arrow.textContent = "▾";
+      } else {
+        expandedRewardHist.add(cid);
         container.style.maxHeight = container.scrollHeight + "px";
         if(arrow) arrow.textContent = "▴";
       }
@@ -4155,6 +4239,22 @@ document.addEventListener("click", (e)=>{
         buy(id, el.dataset.child, units);
         if(isProg) delete progBuyCounts[id];
         toast(t("toastBought"));
+        render();
+      }
+      break;
+    }
+    /* Boutique Parent (réglage enfant) : don direct, sans file d'approbation —
+       un clic applique tout de suite le coût et le statut choisi */
+    case "parent-buy": {
+      const r = reward(id); const k = child(el.dataset.child);
+      const status = el.dataset.status;
+      const isProg = r.costMode==="progressive";
+      const units = isProg ? progCount(r.id) : null;
+      const cost  = isProg ? ceilTotal(units, r.factor) : r.cost;
+      if(k.points < cost){ toast(t("toastNotEnoughPts")); break; }
+      if(buy(id, el.dataset.child, units, status)){
+        if(isProg) delete progBuyCounts[id];
+        toast(status==="given" ? t("toastRewardGiven") : t("toastRewardApproved"));
         render();
       }
       break;
@@ -5337,12 +5437,21 @@ let inactivityTimer = null;
 function resetInactivityTimer(){
   if(inactivityTimer){ clearTimeout(inactivityTimer); inactivityTimer = null; }
   const inParentArea = view.name === "parent";
-  const inChildEdit  = view.name === "child" && view.childEditMode;
+  /* réglage enfant : couvre aussi la Boutique Parent (view.name==="store"),
+     ouverte depuis le réglage et qui doit se fermer avec lui après inactivité */
+  const inChildEdit  = view.childEditMode && (view.name === "child" || view.name === "store");
   if(!inParentArea && !inChildEdit) return;
   const ms = (state.parentAutoExitMinutes||1) * 60000;
   inactivityTimer = setTimeout(()=>{
+    /* ferme toute popup laissée ouverte (ex. "Nouvel événement") : go()/finishChildEdit()
+       ne re-rendent que #app, jamais #modal-root — sans ce closeModal() explicite, la popup
+       resterait affichée par-dessus l'écran principal. Un événement non encore appliqué
+       (brouillon dans la popup, pas encore "Appliqué") est simplement abandonné ici, donc
+       aucune notification n'est créée : rien à marquer vu, l'enfant la reverra intacte
+       à la prochaine ouverture de sa fenêtre si elle est ajoutée plus tard. */
+    closeModal();
     if(view.name === "parent") go("lock");
-    else if(view.name === "child" && view.childEditMode) finishChildEdit();
+    else if(view.childEditMode && (view.name === "child" || view.name === "store")) finishChildEdit();
   }, ms);
 }
 document.addEventListener("click", resetInactivityTimer);
